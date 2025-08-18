@@ -8,11 +8,10 @@ import { getCurrentUser } from '../api/auth';
 import LoginScreen from '../screens/authscreen/LoginScreen';
 import RegisterScreen from '../screens/authscreen/RegisterScreen';
 import ForgotPasswordScreen from '../screens/authscreen/ForgotPasswordScreen';
-import VerifyOtpScreen from '../screens/authscreen/VerifyOtpScreen';
 import ResetPasswordScreen from '../screens/authscreen/ResetPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
-import NotificationsScreen from '../screens/authscreen/NotificationsScreen';
-import AccountScreen from '../screens/authscreen/AccountScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import AccountScreen from '../screens/AccountScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
@@ -86,7 +85,6 @@ const AppNavigator = () => {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="HomeTabs" component={HomeTabs} />
       </Stack.Navigator>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser, logout } from '../../api/auth';
+import { getCurrentUser, logout } from '../api/auth';
 import { Alert } from 'react-native';
 
 

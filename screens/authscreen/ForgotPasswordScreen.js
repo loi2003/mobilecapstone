@@ -8,18 +8,18 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
   const handleForgotPassword = async () => {
     if (!emailOrPhone.trim()) {
-      Alert.alert('Error', 'Please enter your email or phone number.');
+      Alert.alert('Error', 'Please enter your email .');
       return;
     }
 
     setIsLoading(true);
     try {
       const response = await forgotPassword(emailOrPhone);
-      Alert.alert('Success', 'OTP sent successfully. Please check your email or phone.');
-      navigation.navigate('VerifyOtp', { emailOrPhone });
+      Alert.alert('Success', 'OTP sent successfully. Please check your email .');
+      navigation.navigate('ResetPassword', { emailOrPhone });
     } catch (error) {
       if (error.response?.status === 404) {
-        Alert.alert('Error', 'No account found with this email or phone number.');
+        Alert.alert('Error', 'No account found with this email.');
       } else {
         Alert.alert('Error', error.response?.data?.message || 'An error occurred. Please try again.');
       }
@@ -32,11 +32,11 @@ const ForgotPasswordScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.title}>Forgot Password</Text>
       <Text style={styles.subtitle}>
-        Enter your email or phone number to receive an OTP for password reset.
+        Enter your email to receive an OTP for password reset.
       </Text>
       <TextInput
         style={styles.input}
-        placeholder="Email or Phone Number"
+        placeholder="Enter Email here"
         value={emailOrPhone}
         onChangeText={setEmailOrPhone}
         keyboardType="email-address"
