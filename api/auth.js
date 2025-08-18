@@ -60,18 +60,17 @@ export const getCurrentUser = async (token) => {
   }
 };
 
-export const logout = async (userId, token) => {
+export const logout = async (data, token) => {
   try {
     const response = await apiClient.post(
       `/api/auth/user/logout`,
-      userId, // Send userId as a plain string
+      data, // Expecting { userId: string }
       {
         headers: {
           'Content-Type': 'application/json',
           Accept: '*/*',
-          Authorization: `Bearer ${token}`, // Add token
+          Authorization: `Bearer ${token}`,
         },
-        withCredentials: true,
       }
     );
     return response;
@@ -80,7 +79,6 @@ export const logout = async (userId, token) => {
     throw error;
   }
 };
-
 export const forgotPassword = async (email) => {
   try {
     const formData = new FormData();

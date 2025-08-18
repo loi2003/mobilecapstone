@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'; // Note the change to bottom-tab
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser } from '../api/auth';
-import LoginScreen from '../screens/LoginScreen';
+import LoginScreen from '../screens/authscreen/LoginScreen';
+import RegisterScreen from '../screens/authscreen/RegisterScreen';
+import ForgotPasswordScreen from '../screens/authscreen/ForgotPasswordScreen';
+import VerifyOtpScreen from '../screens/authscreen/VerifyOtpScreen';
+import ResetPasswordScreen from '../screens/authscreen/ResetPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
-import NotificationsScreen from '../screens/NotificationsScreen';
-import AccountScreen from '../screens/AccountScreen';
+import NotificationsScreen from '../screens/authscreen/NotificationsScreen';
+import AccountScreen from '../screens/authscreen/AccountScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator(); // Updated to bottom-tab
+const Tab = createBottomTabNavigator();
 
 const HomeTabs = () => {
   return (
@@ -80,6 +84,10 @@ const AppNavigator = () => {
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="HomeTabs" component={HomeTabs} />
       </Stack.Navigator>
     </NavigationContainer>

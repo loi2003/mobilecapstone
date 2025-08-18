@@ -24,32 +24,33 @@ const HomeScreen = ({ navigation }) => {
     fetchUser();
   }, [navigation]);
 
-  const handleLogout = async () => {
-    try {
-      const userId = user?.data?.id;
-      const token = await AsyncStorage.getItem('authToken');
-      const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!userId || !guidRegex.test(userId)) {
-        console.error('Invalid userId:', userId);
-        await AsyncStorage.removeItem('authToken');
-        navigation.replace('Login');
-        return;
-      }
-      if (!token) {
-        console.error('No auth token found');
-        await AsyncStorage.removeItem('authToken');
-        navigation.replace('Login');
-        return;
-      }
-      await logout(userId, token);
+const handleLogout = async () => {
+  try {
+    const userId = user?.data?.id;
+    const token = await AsyncStorage.getItem('authToken');
+
+    if (!token) {
+      console.error('No auth token found');
       await AsyncStorage.removeItem('authToken');
       navigation.replace('Login');
-    } catch (error) {
-      console.error('Logout failed:', error.response?.data || error);
-      await AsyncStorage.removeItem('authToken');
-      navigation.replace('Login');
+      return;
     }
-  };
+
+   await logout(userId, token);
+
+    await AsyncStorage.removeItem('authToken');
+    navigation.replace('Login');
+
+    // ✅ Thông báo khi thành công
+    console.log('✅ Logout thành công cho userId:', userId);
+
+  } catch (error) {
+    console.error('❌ Logout failed:', error.response?.data || error);
+    await AsyncStorage.removeItem('authToken');
+    navigation.replace('Login');
+  }
+};
+
 
   if (isLoading) {
     return (

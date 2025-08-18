@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser, logout } from '../api/auth';
+import { getCurrentUser, logout } from '../../api/auth';
+import { Alert } from 'react-native';
+
 
 const AccountScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -10,7 +12,10 @@ const AccountScreen = ({ navigation }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const token = await AsyncStorage.getItem('authToken'); // Fixed variable name from 'react' to 'token'
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) {
+          throw new Error('No auth token found');
+        }
         const response = await getCurrentUser(token);
         console.log('User data:', response.data);
         setUser(response.data);
@@ -24,32 +29,34 @@ const AccountScreen = ({ navigation }) => {
     fetchUser();
   }, [navigation]);
 
-  const handleLogout = async () => {
-    try {
-      const userId = user?.data?.id;
-      const token = await AsyncStorage.getItem('authToken');
-      const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!userId || !guidRegex.test(userId)) {
-        console.error('Invalid userId:', userId);
-        await AsyncStorage.removeItem('authToken');
-        navigation.replace('Login');
-        return;
-      }
-      if (!token) {
-        console.error('No auth token found');
-        await AsyncStorage.removeItem('authToken');
-        navigation.replace('Login');
-        return;
-      }
-      await logout(userId, token);
+
+const handleLogout = async () => {
+  try {
+    const userId = user?.data?.id;
+    const token = await AsyncStorage.getItem('authToken');
+
+    if (!token) {
+      console.error('No auth token found');
       await AsyncStorage.removeItem('authToken');
       navigation.replace('Login');
-    } catch (error) {
-      console.error('Logout failed:', error.response?.data || error);
-      await AsyncStorage.removeItem('authToken');
-      navigation.replace('Login');
+      return;
     }
-  };
+
+     await logout(userId, token);
+
+    await AsyncStorage.removeItem('authToken');
+
+    // ✅ Thông báo khi thành công
+    Alert.alert('Thông báo', 'Đăng xuất thành công!');
+    console.log('✅ Logout thành công cho userId:', userId);
+
+    navigation.replace('Login');
+  } catch (error) {
+    console.error('❌ Logout failed:', error.response?.data || error);
+    await AsyncStorage.removeItem('authToken');
+    navigation.replace('Login');
+  }
+};
 
   if (isLoading) {
     return (
