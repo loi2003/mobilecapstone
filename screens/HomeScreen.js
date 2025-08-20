@@ -20,43 +20,30 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-// Header Component (unchanged)
-const Header = ({ navigation, user, setUser, handleLogout }) => {
+// Header Component (Exported)
+export const Header = ({ navigation, user, setUser, handleLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const fadeAnim = new Animated.Value(0);
   const slideAnim = new Animated.Value(-width);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: isDropdownOpen ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-
     Animated.timing(slideAnim, {
       toValue: isMenuOpen ? 0 : -width,
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [isDropdownOpen, isMenuOpen]);
+  }, [isMenuOpen]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
-    if (isDropdownOpen) setIsDropdownOpen(false);
-  };
-
-  const toggleDropdown = () => {
-    setIsDropdownOpen(!isDropdownOpen);
   };
 
   const navLinks = [
-    { name: 'About', route: '/about', title: 'About Us' },
-    { name: 'DueDate Calculator', route: '/duedate-calculator', title: 'DueDate Calculator' },
-    { name: 'Pregnancy', route: '/pregnancy-tracking', title: 'Pregnancy Tracking' },
-    { name: 'Nutrition', route: '/nutritional-guidance', title: 'Nutritional Guidance' },
-    { name: 'Consultation', route: '/consultation', title: 'Consultation' },
-    { name: 'Blog', route: '/blog', title: 'Blog' },
+    { name: 'About', route: 'About', title: 'About Us' },
+    { name: 'DueDate Calculator', route: 'DueDateCalculator', title: 'DueDate Calculator' },
+    { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
+    { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
+    { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
+    { name: 'Blog', route: 'Blog', title: 'Blog' },
   ];
 
   return (
@@ -94,93 +81,19 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
               <Text style={styles.navLinkText}>{link.name}</Text>
             </TouchableOpacity>
           ))}
-          <View style={styles.authSection}>
-            {user ? (
-              <View style={styles.profileSection}>
-                <TouchableOpacity
-                  style={styles.profileToggle}
-                  onPress={toggleDropdown}
-                  accessibilityLabel="User menu"
-                >
-                  <Ionicons name="person-circle" size={24} color="#feffe9" />
-                </TouchableOpacity>
-                {isDropdownOpen && (
-                  <Animated.View style={[styles.profileDropdown, { opacity: fadeAnim }]}>
-                    <Text style={styles.profileEmail} numberOfLines={1}>
-                      {user?.data?.email || 'Người dùng'}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.dropdownLink}
-                      onPress={() => {
-                        navigation.navigate('/profile');
-                        setIsDropdownOpen(false);
-                        setIsMenuOpen(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownLinkText}>Profile</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.dropdownLink}
-                      onPress={() => {
-                        navigation.navigate('/support');
-                        setIsDropdownOpen(false);
-                        setIsMenuOpen(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownLinkText}>Support</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.logoutButton}
-                      onPress={() => {
-                        handleLogout();
-                        setIsDropdownOpen(false);
-                        setIsMenuOpen(false);
-                      }}
-                    >
-                      <Text style={styles.buttonText}>Đăng xuất</Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-                )}
-              </View>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={styles.signInButton}
-                  onPress={() => {
-                    navigation.navigate('Login');
-                    setIsMenuOpen(false);
-                  }}
-                >
-                  <Text style={styles.buttonText}>Sign In</Text>
-                </TouchableOpacity>
-                <Text style={styles.authMessage}>
-                  Not have account?{' '}
-                  <Text
-                    style={styles.authMessageLink}
-                    onPress={() => {
-                      navigation.navigate('Register');
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    Register here
-                  </Text>
-                </Text>
-              </>
-            )}
-          </View>
         </Animated.View>
       </View>
     </View>
   );
 };
 
-// Footer Component (unchanged)
-const Footer = () => {
+// Footer Component (Exported)
+export const Footer = ({ navigation }) => {
   const footerLinks = [
-    { name: 'About Us', route: '/about' },
-    { name: 'Privacy Policy', route: '/privacy' },
-    { name: 'Terms of Service', route: '/terms' },
-    { name: 'Contact Us', route: '/contact' },
+    { name: 'About Us', route: 'About' },
+    { name: 'Privacy Policy', route: 'Privacy' }, // Placeholder, not in AppNavigator
+    { name: 'Terms of Service', route: 'Terms' }, // Placeholder, not in AppNavigator
+    { name: 'Contact Us', route: 'Contact' }, // Placeholder, to be implemented
   ];
 
   const socialLinks = [
@@ -199,19 +112,7 @@ const Footer = () => {
   return (
     <View style={styles.footer}>
       <View style={styles.footerContainer}>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Explore</Text>
-          <View style={styles.footerLinks}>
-            {footerLinks.map((link, index) => (
-              <TouchableOpacity
-                key={index}
-                onPress={() => navigation.navigate(link.route)}
-              >
-                <Text style={styles.footerLink}>{link.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        
         <View style={styles.footerSection}>
           <Text style={styles.footerSectionTitle}>Contact</Text>
           <Text style={styles.footerText}>Email: support@genderhealthweb.com</Text>
@@ -481,7 +382,7 @@ const HomeScreen = ({ navigation }) => {
               </Text>
               <TouchableOpacity
                 style={styles.weekPopupButton}
-                onPress={() => navigation.navigate('/pregnancy-tracking')}
+                onPress={() => navigation.navigate('PregnancyTracking')}
               >
                 <Text style={styles.buttonText}>Để biết thêm thông tin chi tiết, vui lòng chọn tại đây</Text>
               </TouchableOpacity>
@@ -593,7 +494,7 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* Footer */}
-        <Footer />
+        <Footer navigation={navigation} />
       </ScrollView>
 
       {/* Contact Icon */}
@@ -609,13 +510,13 @@ const HomeScreen = ({ navigation }) => {
         <Animated.View style={[styles.contactPopup, { opacity: fadeAnim }]}>
           <TouchableOpacity
             style={styles.popupButton}
-            onPress={() => navigation.navigate('/contact')}
+            onPress={() => navigation.navigate('Contact')}
           >
             <Text style={styles.buttonText}>Liên Hệ</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.popupButton}
-            onPress={() => navigation.navigate('/assessment')}
+            onPress={() => navigation.navigate('Assessment')}
           >
             <Text style={styles.buttonText}>Kiểm Tra Sức Khỏe</Text>
           </TouchableOpacity>
@@ -625,7 +526,7 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
-// Styles (updated with modified navButton styles)
+// Styles (unchanged)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -634,7 +535,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
-  // Header Styles (unchanged)
   header: {
     backgroundColor: '#04668D',
     paddingHorizontal: 8,
@@ -712,77 +612,85 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  authSection: {
+  footer: {
+    backgroundColor: '#f5f7fa',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 30,
+    marginBottom: 20,
+  },
+  footerSection: {
+    flex: 1,
+    minWidth: 250,
+    alignItems: 'center',
+  },
+  footerSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 15,
+  },
+  footerLinks: {
     flexDirection: 'column',
-    alignItems: 'center',
-    marginTop: 10,
-    width: '100%',
+    gap: 12,
   },
-  signInButton: {
-    backgroundColor: '#feffe9',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginVertical: 6,
-    minWidth: 80,
-    alignItems: 'center',
+  footerLink: {
+    fontSize: 14,
+    color: '#555',
+    textDecorationLine: 'none',
   },
-  authMessage: {
-    fontSize: 12,
-    color: '#f5f7fa',
+  footerText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 10,
     textAlign: 'center',
   },
-  authMessageLink: {
-    color: '#f5f7fa',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+  socialLinks: {
+    flexDirection: 'row',
+    gap: 15,
   },
-  profileSection: {
-    width: '100%',
+  socialLink: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#6b9fff',
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  profileToggle: {
-    padding: 6,
+  newsletterForm: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: 300,
   },
-  profileDropdown: {
-    position: 'absolute',
-    top: 40,
-    width: 220,
-    backgroundColor: '#feffe9',
+  newsletterInput: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 12,
-    padding: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    width: '100%',
   },
-  profileEmail: {
-    padding: 12,
-    fontWeight: '600',
-    color: '#333',
-    fontSize: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  newsletterButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#6b9fff',
+    borderRadius: 12,
   },
-  dropdownLink: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginVertical: 2,
+  footerCopyright: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
   },
-  dropdownLinkText: {
-    color: '#333',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  // Hero Section
   heroSection: {
     padding: 20,
     paddingTop: 90,
@@ -853,7 +761,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  // Features Section
   featuresSection: {
     padding: 20,
     backgroundColor: '#ffffff',
@@ -900,7 +807,6 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
   },
-  // Pregnancy Tracker Section
   pregnancyTrackerSection: {
     padding: 20,
     backgroundColor: '#feffe9',
@@ -1061,7 +967,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginTop: 20,
   },
-  // Testimonials Section
   testimonialsSection: {
     padding: 20,
     backgroundColor: '#e0f2f7',
@@ -1106,7 +1011,6 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
   },
-  // Community Section
   communitySection: {
     padding: 20,
     backgroundColor: '#feffe9',
@@ -1125,7 +1029,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 25,
   },
-  // Resources Section
   resourcesSection: {
     padding: 20,
     backgroundColor: '#ffffff',
@@ -1166,7 +1069,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginTop: 10,
   },
-  // Health Tips Section
   healthTipsSection: {
     padding: 20,
     backgroundColor: '#e0f2f7',
@@ -1208,7 +1110,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginTop: 10,
   },
-  // Partners Section
   partnersSection: {
     padding: 20,
     backgroundColor: '#feffe9',
@@ -1250,87 +1151,6 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
   },
-  // Footer Styles
-  footer: {
-    backgroundColor: '#f5f7fa',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 30,
-    marginBottom: 20,
-  },
-  footerSection: {
-    flex: 1,
-    minWidth: 250,
-    alignItems: 'center',
-  },
-  footerSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#222',
-    marginBottom: 15,
-  },
-  footerLinks: {
-    flexDirection: 'column',
-    gap: 12,
-  },
-  footerLink: {
-    fontSize: 14,
-    color: '#555',
-    textDecorationLine: 'none',
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  socialLinks: {
-    flexDirection: 'row',
-    gap: 15,
-  },
-  socialLink: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#6b9fff',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  newsletterForm: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 10,
-    maxWidth: 300,
-  },
-  newsletterInput: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    width: '100%',
-  },
-  newsletterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#6b9fff',
-    borderRadius: 12,
-  },
-  footerCopyright: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  // Contact Icon and Popup
   contactIcon: {
     position: 'absolute',
     bottom: 30,
@@ -1384,7 +1204,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
   },
-  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

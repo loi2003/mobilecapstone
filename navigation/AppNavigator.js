@@ -12,10 +12,31 @@ import ResetPasswordScreen from '../screens/authscreen/ResetPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import AccountScreen from '../screens/AccountScreen';
+import AboutScreen from '../screens/AboutScreen';
+import DueDateCalculatorScreen from '../screens/DueDateCalculatorScreen';
+import PregnancyTrackingScreen from '../screens/PregnancyTrackingScreen';
+import NutritionalGuidanceScreen from '../screens/NutritionalGuidanceScreen';
+import ConsultationScreen from '../screens/ConsultationScreen';
+import BlogScreen from '../screens/BlogScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Stack navigator for Home and additional screens
+const HomeStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeMain" component={HomeScreen} />
+      <Stack.Screen name="About" component={AboutScreen} />
+      <Stack.Screen name="DueDateCalculator" component={DueDateCalculatorScreen} />
+      <Stack.Screen name="PregnancyTracking" component={PregnancyTrackingScreen} />
+      <Stack.Screen name="NutritionalGuidance" component={NutritionalGuidanceScreen} />
+      <Stack.Screen name="Consultation" component={ConsultationScreen} />
+      <Stack.Screen name="Blog" component={BlogScreen} />
+    </Stack.Navigator>
+  );
+};
 
 const HomeTabs = () => {
   return (
@@ -37,7 +58,7 @@ const HomeTabs = () => {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeStack} />
       <Tab.Screen name="Notifications" component={NotificationsScreen} />
       <Tab.Screen name="Account" component={AccountScreen} />
     </Tab.Navigator>
@@ -100,4 +121,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AppNavigator;
+export default AppNavigator;      
