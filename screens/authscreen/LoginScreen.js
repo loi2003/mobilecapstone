@@ -115,10 +115,7 @@ const LoginScreen = ({ navigation }) => {
             easing="ease-out"
             style={styles.branding}
           >
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Home')}
-              style={styles.logoContainer}
-            >
+          
               <Svg width={80} height={80} viewBox="0 0 64 64">
                 <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
                 <Circle cx="32" cy="32" r="20" fill="#FFD6E7" stroke="#FFFFFF" strokeWidth={1.5} />
@@ -129,7 +126,6 @@ const LoginScreen = ({ navigation }) => {
                 <Path d="M26 38 Q32 42 38 38" stroke="#333" strokeWidth={2} fill="none" strokeLinecap="round" />
                 <Path d="M32 12 Q34 8 36 12" stroke="#333" strokeWidth={1.5} fill="none" />
               </Svg>
-            </TouchableOpacity>
             <Text style={styles.title}>Welcome to the Community</Text>
             <Text style={styles.description}>
               Log in to track your pregnancy journey, receive professional health advice, and connect with a community of mothers.
