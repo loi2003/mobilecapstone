@@ -18,6 +18,7 @@ import PregnancyTrackingScreen from '../screens/PregnancyTrackingScreen';
 import NutritionalGuidanceScreen from '../screens/NutritionalGuidanceScreen';
 import ConsultationScreen from '../screens/ConsultationScreen';
 import BlogScreen from '../screens/BlogScreen';
+import BlogDetailScreen from '../screens/BlogDetailScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
@@ -34,6 +35,7 @@ const HomeStack = () => {
       <Stack.Screen name="NutritionalGuidance" component={NutritionalGuidanceScreen} />
       <Stack.Screen name="Consultation" component={ConsultationScreen} />
       <Stack.Screen name="Blog" component={BlogScreen} />
+      <Stack.Screen name="BlogPost" component={BlogDetailScreen} />
     </Stack.Navigator>
   );
 };
