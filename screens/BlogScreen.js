@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,84 @@ import {
   Image,
   Dimensions,
   ActivityIndicator,
+  Animated,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { getAllBlogs, getAllLikedBlogs, getAllBookmarkedBlogs, deleteLike, deleteBookmark } from '../api/blog-api';
 import apiClient from '../api/url-api';
 
 const { width } = Dimensions.get('window');
+
+// Header Component (Copied from HomeScreen)
+const Header = ({ navigation, user, setUser, handleLogout }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-width)).current;
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isMenuOpen ? 0 : -width,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isMenuOpen]);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const navLinks = [
+    { name: 'About', route: 'About', title: 'About Us' },
+    { name: 'DueDate Calculator', route: 'DueDateCalculator', title: 'DueDate Calculator' },
+    { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
+    { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
+    { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
+    { name: 'Blog', route: 'Blog', title: 'Blog' },
+  ];
+
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.logo}>NestlyCare</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.menuToggle}
+          onPress={toggleMenu}
+          accessibilityLabel="Toggle navigation"
+        >
+          <Ionicons
+            name={isMenuOpen ? 'close' : 'menu'}
+            size={24}
+            color="#feffe9"
+          />
+        </TouchableOpacity>
+        <Animated.View
+          style={[
+            styles.navLinks,
+            { transform: [{ translateX: slideAnim }], display: isMenuOpen ? 'flex' : 'none' },
+          ]}
+        >
+          {navLinks.map((link, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.navLink}
+              onPress={() => {
+                navigation.navigate(link.route);
+                setIsMenuOpen(false);
+              }}
+            >
+              <Text style={styles.navLinkText}>{link.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </Animated.View>
+      </View>
+    </View>
+  );
+};
 
 const BlogScreen = ({ navigation }) => {
   const [blogs, setBlogs] = useState([]);
@@ -34,13 +103,12 @@ const BlogScreen = ({ navigation }) => {
   const [showBookmarkPopup, setShowBookmarkPopup] = useState(false);
   const [email, setEmail] = useState('');
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [user, setUser] = useState(null); // Added for Header props
   const postsPerPage = 10;
 
-  // Cache for logging invalid URIs to avoid duplicates
-  const loggedInvalidURIs = new Set();
-
+  // Define placeholder images for blogs with no valid image
   const placeholderImages = [
-    require('../assets/parenting-in-pictures.svg'),
+    require('../assets/adaptive-icon.png'),
     require('../assets/due-date-calculator.svg'),
     require('../assets/find-a-health-service.svg'),
   ];
@@ -51,23 +119,12 @@ const BlogScreen = ({ navigation }) => {
     return placeholderImages[randomIndex];
   };
 
-  // Validate and handle image URIs
+  // Validate and handle image URIs, returning placeholder if invalid
   const getValidImageSource = (uri) => {
-    const uriString = String(uri);
-    // Handle numeric IDs by prepending base URL (replace with your actual base URL)
-    if (uriString.match(/^\d+$/)) {
-      return { uri: `https://your-api.com/images/${uriString}` }; // Replace with actual base URL
+    if (!uri || typeof uri !== 'string' || !uri.startsWith('http')) {
+      return getRandomPlaceholder(); // Use placeholder if no valid image
     }
-    // Handle valid HTTP URLs
-    if (uriString && uriString.startsWith('http')) {
-      return { uri: uriString };
-    }
-    // Log invalid URI only once
-    if (!loggedInvalidURIs.has(uriString)) {
-      console.warn(`Invalid URI: ${uriString}. Falling back to placeholder.`);
-      loggedInvalidURIs.add(uriString);
-    }
-    return getRandomPlaceholder();
+    return { uri }; // Return valid URI for Image component
   };
 
   // Generate author avatar URL
@@ -82,13 +139,13 @@ const BlogScreen = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem('authToken');
       const blogResponse = await getAllBlogs(token);
-      console.log('Raw API Response:', JSON.stringify(blogResponse.data, null, 2)); // Enhanced debug log
+      console.log('Raw API Response:', JSON.stringify(blogResponse.data, null, 2));
       const approvedBlogs = Array.isArray(blogResponse.data?.data)
         ? blogResponse.data.data
             .filter(blog => blog.status?.toLowerCase() === 'approved')
             .map(blog => ({
               ...blog,
-              id: String(blog.blogId || blog.id), // Ensure ID is a string
+              id: String(blog.blogId || blog.id),
               createdAt: blog.creationDate || blog.createdAt,
               images: Array.isArray(blog.images) ? blog.images : [],
             }))
@@ -273,6 +330,9 @@ const BlogScreen = ({ navigation }) => {
     }
   };
 
+  // Placeholder for handleLogout (required by Header but not implemented)
+  const handleLogout = () => {};
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -322,7 +382,7 @@ const BlogScreen = ({ navigation }) => {
   }).map(blog => ({
     id: String(blog.id),
     title: blog.title || 'Untitled',
-    image: blog.images?.[0]?.fileUrl || getRandomPlaceholder(),
+    image: blog.images?.[0]?.fileUrl,
     date: new Date(blog.createdAt).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -354,333 +414,340 @@ const BlogScreen = ({ navigation }) => {
   const bookmarkedBlogs = blogs.filter(blog => bookmarks.includes(String(blog.id)));
 
   return (
-    <LinearGradient colors={['#F3F4F6', '#E5E7EB']} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Feather name="search" size={20} color="#6B7280" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search blogs..."
-            value={searchTerm}
-            onChangeText={handleSearch}
-            placeholderTextColor="#6B7280"
-          />
-          {searchTerm ? (
-            <TouchableOpacity style={styles.clearButton} onPress={clearSearch}>
-              <Feather name="x" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
+    <View style={styles.container}>
+      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
+      <LinearGradient colors={['#F3F4F6', '#E5E7EB']} style={styles.blogContainer}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Feather name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search blogs..."
+              value={searchTerm}
+              onChangeText={handleSearch}
+              placeholderTextColor="#6B7280"
+            />
+            {searchTerm ? (
+              <TouchableOpacity style={styles.clearButton} onPress={clearSearch}>
+                <Feather name="x" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-        {/* Category Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryContainer}
-        >
-          {categories.map((cat, index) => (
-            <TouchableOpacity
-              key={`category-${cat}-${index}`}
-              style={[
-                styles.categoryButton,
-                selectedCategory === cat && styles.categoryButtonActive,
-              ]}
-              onPress={() => handleCategoryFilter(cat)}
-            >
-              <Text
-                style={[
-                  styles.categoryButtonText,
-                  selectedCategory === cat && styles.categoryButtonTextActive,
-                ]}
-              >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Sort Options */}
-        <View style={styles.sortContainer}>
-          {['newest', 'oldest', 'title', 'most-liked'].map(sort => (
-            <TouchableOpacity
-              key={`sort-${sort}`}
-              style={[
-                styles.sortButton,
-                sortOption === sort && styles.sortButtonActive,
-              ]}
-              onPress={() => handleSortChange(sort)}
-            >
-              <Text
-                style={[styles.sortButtonText, sortOption === sort ? styles.sortButtonTextActive : null].filter(Boolean)}
-              >
-                {sort.charAt(0).toUpperCase() + sort.slice(1).replace('-', ' ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Featured Posts */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Featured Posts</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {featuredPosts.map((post, index) => (
+          {/* Category Filters */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryContainer}
+          >
+            {categories.map((cat, index) => (
               <TouchableOpacity
-                key={`${post.id}-${post.type}`}
-                style={styles.featuredCard}
-                onPress={() => navigation.navigate('BlogPost', { blogId: post.id })}
+                key={`category-${cat}-${index}`}
+                style={[
+                  styles.categoryButton,
+                  selectedCategory === cat && styles.categoryButtonActive,
+                ]}
+                onPress={() => handleCategoryFilter(cat)}
               >
-                <Animatable.View
-                  animation="fadeInUp"
-                  duration={500}
-                  delay={index * 100}
+                <Text
+                  style={[
+                    styles.categoryButtonText,
+                    selectedCategory === cat && styles.categoryButtonTextActive,
+                  ]}
                 >
-                  <Image
-                    source={getValidImageSource(post.image)}
-                    style={styles.featuredImage}
-                  />
-                  <View style={styles.featuredContent}>
-                    <Text style={styles.featuredTag}>{post.type === 'recent' ? 'New' : 'Popular'}</Text>
-                    <Text style={styles.featuredTitle} numberOfLines={2}>
-                      {post.title}
-                    </Text>
-                    <Text style={styles.featuredMeta}>
-                      {post.date} • {post.category}
-                    </Text>
-                  </View>
-                </Animatable.View>
+                  {cat}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View>
 
-        {/* Blog List */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>All Blogs</Text>
-          {currentPosts.map(blog => (
-            <TouchableOpacity
-              key={String(blog.id)}
-              style={styles.blogCard}
-              onPress={() => navigation.navigate('BlogPost', { blogId: blog.id })}
-            >
-              <Animatable.View animation="fadeInUp" duration={300}>
-                <Image
-                  source={getValidImageSource(blog.images?.[0]?.fileUrl)}
-                  style={styles.blogImage}
-                />
-                <View style={styles.blogContent}>
-                  <Text style={styles.blogTitle} numberOfLines={2}>
-                    {blog.title || 'Untitled'}
-                  </Text>
-                  <Text style={styles.blogExcerpt} numberOfLines={3}>
-                    {(blog.body || 'No content available').slice(0, 100)}...
-                  </Text>
-                  <View style={styles.blogMeta}>
-                    <Text style={styles.metaText}>
-                      {new Date(blog.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                    <Text style={styles.metaText}>{blog.tags?.[0] || ''}</Text>
-                    <Text style={styles.metaText}>{calculateReadingTime(blog.body)} min</Text>
-                  </View>
-                  <View style={styles.blogActions}>
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => toggleLike(blog.id)}
-                    >
-                      <Feather
-                        name="heart"
-                        size={20}
-                        color={likes.includes(String(blog.id)) ? '#EF4444' : '#6B7280'}
-                      />
-                      <Text style={styles.actionText}>{blog.likeCount || 0}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => toggleBookmark(blog.id)}
-                    >
-                      <Feather
-                        name="bookmark"
-                        size={20}
-                        color={bookmarks.includes(String(blog.id)) ? '#2563EB' : '#6B7280'}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </Animatable.View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Pagination */}
-        <View style={styles.pagination}>
-          <TouchableOpacity
-            style={[styles.pageButton, currentPage === 1 && styles.pageButtonDisabled]}
-            onPress={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
-            disabled={currentPage === 1}
-          >
-            <Text style={[styles.pageButtonText, currentPage === 1 && styles.pageButtonTextDisabled]}>
-              Prev
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.pageInfo}>{currentPage} / {totalPages}</Text>
-          <TouchableOpacity
-            style={[styles.pageButton, currentPage === totalPages && styles.pageButtonDisabled]}
-            onPress={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-          >
-            <Text style={[styles.pageButtonText, currentPage === totalPages && styles.pageButtonTextDisabled]}>
-              Next
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Top Authors */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Top Authors</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {topAuthors.map((author, index) => (
-              <View key={`author-${author}-${index}`} style={styles.authorCard}>
-                <Animatable.View animation="fadeInUp" duration={500} delay={index * 100}>
-                  <Image source={author.image} style={styles.authorImage} />
-                  <Text style={styles.authorName} numberOfLines={1}>
-                    {author.author}
-                  </Text>
-                  <Text style={styles.authorMeta}>
-                    {author.postCount} posts • {author.totalLikes} likes
-                  </Text>
-                </Animatable.View>
-              </View>
+          {/* Sort Options */}
+          <View style={styles.sortContainer}>
+            {['newest', 'oldest', 'title', 'most-liked'].map(sort => (
+              <TouchableOpacity
+                key={`sort-${sort}`}
+                style={[
+                  styles.sortButton,
+                  sortOption === sort && styles.sortButtonActive,
+                ]}
+                onPress={() => handleSortChange(sort)}
+              >
+                <Text
+                  style={[styles.sortButtonText, sortOption === sort ? styles.sortButtonTextActive : null].filter(Boolean)}
+                >
+                  {sort.charAt(0).toUpperCase() + sort.slice(1).replace('-', ' ')}
+                </Text>
+              </TouchableOpacity>
             ))}
-          </ScrollView>
-        </View>
-
-        {/* Newsletter */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Newsletter</Text>
-          <Text style={styles.sectionSubtitle}>
-            Get the latest blog updates in your inbox.
-          </Text>
-          <View style={styles.newsletterForm}>
-            <TextInput
-              style={styles.newsletterInput}
-              placeholder="Your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#6B7280"
-            />
-            <TouchableOpacity style={styles.newsletterButton} onPress={handleNewsletterSubmit}>
-              <Text style={styles.newsletterButtonText}>Subscribe</Text>
-            </TouchableOpacity>
           </View>
-          {subscriptionStatus && (
-            <Text
-              style={[
-                styles.subscriptionStatus,
-                subscriptionStatus.includes('Failed') ? styles.subscriptionStatusError : styles.subscriptionStatusSuccess,
-              ]}
-            >
-              {subscriptionStatus}
-            </Text>
-          )}
-        </View>
 
-        {/* Bookmarks Popup */}
-        {showBookmarkPopup && (
-          <View style={styles.popup}>
-            <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
-              <Text style={styles.popupTitle}>Your Bookmarks</Text>
-              {bookmarkedBlogs.length > 0 ? (
-                bookmarkedBlogs.map(blog => (
-                  <TouchableOpacity
-                    key={`bookmark-${blog.id}`}
-                    style={styles.bookmarkItem}
-                    onPress={() => {
-                      setShowBookmarkPopup(false);
-                      navigation.navigate('BlogPost', { blogId: blog.id });
-                    }}
+          {/* Featured Posts */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Featured Posts</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {featuredPosts.map((post, index) => (
+                <TouchableOpacity
+                  key={`${post.id}-${post.type}`}
+                  style={styles.featuredCard}
+                  onPress={() => navigation.navigate('BlogPost', { blogId: post.id })}
+                >
+                  <Animatable.View
+                    animation="fadeInUp"
+                    duration={500}
+                    delay={index * 100}
                   >
                     <Image
-                      source={getValidImageSource(blog.images?.[0]?.fileUrl)}
-                      style={styles.bookmarkImage}
+                      source={getValidImageSource(post.image)}
+                      style={styles.featuredImage}
                     />
-                    <View style={styles.bookmarkInfo}>
-                      <Text style={styles.bookmarkTitle} numberOfLines={2}>
-                        {blog.title || 'Untitled'}
+                    <View style={styles.featuredContent}>
+                      <Text style={styles.featuredTag}>{post.type === 'recent' ? 'New' : 'Popular'}</Text>
+                      <Text style={styles.featuredTitle} numberOfLines={2}>
+                        {post.title}
                       </Text>
-                      <Text style={styles.bookmarkMeta}>
+                      <Text style={styles.featuredMeta}>
+                        {post.date} • {post.category}
+                      </Text>
+                    </View>
+                  </Animatable.View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Blog List */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>All Blogs</Text>
+            {currentPosts.map(blog => (
+              <TouchableOpacity
+                key={String(blog.id)}
+                style={styles.blogCard}
+                onPress={() => navigation.navigate('BlogPost', { blogId: blog.id })}
+              >
+                <Animatable.View animation="fadeInUp" duration={300}>
+                  <Image
+                    source={getValidImageSource(blog.images?.[0]?.fileUrl)}
+                    style={styles.blogImage}
+                  />
+                  <View style={styles.blogContent}>
+                    <Text style={styles.blogTitle} numberOfLines={2}>
+                      {blog.title || 'Untitled'}
+                    </Text>
+                    <Text style={styles.blogExcerpt} numberOfLines={3}>
+                      {(blog.body || 'No content available').slice(0, 100)}...
+                    </Text>
+                    <View style={styles.blogMeta}>
+                      <Text style={styles.metaText}>
                         {new Date(blog.createdAt).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',
                         })}
                       </Text>
+                      <Text style={styles.metaText}>{blog.tags?.[0] || ''}</Text>
+                      <Text style={styles.metaText}>{calculateReadingTime(blog.body)} min</Text>
                     </View>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <Text style={styles.popupText}>No bookmarks yet.</Text>
-              )}
-              <TouchableOpacity
-                style={styles.popupButton}
-                onPress={() => setShowBookmarkPopup(false)}
-              >
-                <Text style={styles.popupButtonText}>Close</Text>
+                    <View style={styles.blogActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => toggleLike(blog.id)}
+                      >
+                        <Feather
+                          name="heart"
+                          size={20}
+                          color={likes.includes(String(blog.id)) ? '#EF4444' : '#6B7280'}
+                        />
+                        <Text style={styles.actionText}>{blog.likeCount || 0}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => toggleBookmark(blog.id)}
+                      >
+                        <Feather
+                          name="bookmark"
+                          size={20}
+                          color={bookmarks.includes(String(blog.id)) ? '#2563EB' : '#6B7280'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </Animatable.View>
               </TouchableOpacity>
-            </Animatable.View>
+            ))}
           </View>
-        )}
 
-        {/* Auth Popup */}
-        {showAuthPopup && (
-          <View style={styles.popup}>
-            <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
-              <Text style={styles.popupTitle}>Please Log In</Text>
-              <Text style={styles.popupText}>Log in to like or bookmark posts.</Text>
-              <View style={styles.popupButtons}>
+          {/* Pagination */}
+          <View style={styles.pagination}>
+            <TouchableOpacity
+              style={[styles.pageButton, currentPage === 1 && styles.pageButtonDisabled]}
+              onPress={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <Text style={[styles.pageButtonText, currentPage === 1 && styles.pageButtonTextDisabled]}>
+                Prev
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.pageInfo}>{currentPage} / {totalPages}</Text>
+            <TouchableOpacity
+              style={[styles.pageButton, currentPage === totalPages && styles.pageButtonDisabled]}
+              onPress={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <Text style={[styles.pageButtonText, currentPage === totalPages && styles.pageButtonTextDisabled]}>
+                Next
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Top Authors */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Top Authors</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {topAuthors.map((author, index) => (
+                <View key={`author-${author}-${index}`} style={styles.authorCard}>
+                  <Animatable.View animation="fadeInUp" duration={500} delay={index * 100}>
+                    <Image source={author.image} style={styles.authorImage} />
+                    <Text style={styles.authorName} numberOfLines={1}>
+                      {author.author}
+                    </Text>
+                    <Text style={styles.authorMeta}>
+                      {author.postCount} posts • {author.totalLikes} likes
+                    </Text>
+                  </Animatable.View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Newsletter */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Newsletter</Text>
+            <Text style={styles.sectionSubtitle}>
+              Get the latest blog updates in your inbox.
+            </Text>
+            <View style={styles.newsletterForm}>
+              <TextInput
+                style={styles.newsletterInput}
+                placeholder="Your email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#6B7280"
+              />
+              <TouchableOpacity style={styles.newsletterButton} onPress={handleNewsletterSubmit}>
+                <Text style={styles.newsletterButtonText}>Subscribe</Text>
+              </TouchableOpacity>
+            </View>
+            {subscriptionStatus && (
+              <Text
+                style={[
+                  styles.subscriptionStatus,
+                  subscriptionStatus.includes('Failed') ? styles.subscriptionStatusError : styles.subscriptionStatusSuccess,
+                ]}
+              >
+                {subscriptionStatus}
+              </Text>
+            )}
+          </View>
+
+          {/* Bookmarks Popup */}
+          {showBookmarkPopup && (
+            <View style={styles.popup}>
+              <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
+                <Text style={styles.popupTitle}>Your Bookmarks</Text>
+                {bookmarkedBlogs.length > 0 ? (
+                  bookmarkedBlogs.map(blog => (
+                    <TouchableOpacity
+                      key={`bookmark-${blog.id}`}
+                      style={styles.bookmarkItem}
+                      onPress={() => {
+                        setShowBookmarkPopup(false);
+                        navigation.navigate('BlogPost', { blogId: blog.id });
+                      }}
+                    >
+                      <Image
+                        source={getValidImageSource(blog.images?.[0]?.fileUrl)}
+                        style={styles.bookmarkImage}
+                      />
+                      <View style={styles.bookmarkInfo}>
+                        <Text style={styles.bookmarkTitle} numberOfLines={2}>
+                          {blog.title || 'Untitled'}
+                        </Text>
+                        <Text style={styles.bookmarkMeta}>
+                          {new Date(blog.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <Text style={styles.popupText}>No bookmarks yet.</Text>
+                )}
                 <TouchableOpacity
                   style={styles.popupButton}
-                  onPress={() => navigation.navigate('Login')}
-                >
-                  <Text style={styles.popupButtonText}>Sign In</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.popupButton}
-                  onPress={() => navigation.navigate('Register')}
-                >
-                  <Text style={styles.popupButtonText}>Sign Up</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.popupButton, styles.popupCloseButton]}
-                  onPress={() => setShowAuthPopup(false)}
+                  onPress={() => setShowBookmarkPopup(false)}
                 >
                   <Text style={styles.popupButtonText}>Close</Text>
                 </TouchableOpacity>
-              </View>
-            </Animatable.View>
-          </View>
-        )}
-      </ScrollView>
+              </Animatable.View>
+            </View>
+          )}
 
-      {/* Bookmarks Button */}
-      <TouchableOpacity
-        style={styles.bookmarksFab}
-        onPress={() => setShowBookmarkPopup(true)}
-      >
-        <Feather name="bookmark" size={24} color="#fff" />
-      </TouchableOpacity>
-    </LinearGradient>
+          {/* Auth Popup */}
+          {showAuthPopup && (
+            <View style={styles.popup}>
+              <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
+                <Text style={styles.popupTitle}>Please Log In</Text>
+                <Text style={styles.popupText}>Log in to like or bookmark posts.</Text>
+                <View style={styles.popupButtons}>
+                  <TouchableOpacity
+                    style={styles.popupButton}
+                    onPress={() => navigation.navigate('Login')}
+                  >
+                    <Text style={styles.popupButtonText}>Sign In</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.popupButton}
+                    onPress={() => navigation.navigate('Register')}
+                  >
+                    <Text style={styles.popupButtonText}>Sign Up</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.popupButton, styles.popupCloseButton]}
+                    onPress={() => setShowAuthPopup(false)}
+                  >
+                    <Text style={styles.popupButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animatable.View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Bookmarks Button */}
+        <TouchableOpacity
+          style={styles.bookmarksFab}
+          onPress={() => setShowBookmarkPopup(true)}
+        >
+          <Feather name="bookmark" size={24} color="#fff" />
+        </TouchableOpacity>
+      </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  blogContainer: {
+    flex: 1,
+    paddingTop: 70, // Offset for fixed header
   },
   scrollContent: {
     padding: 16,
@@ -983,7 +1050,7 @@ const styles = StyleSheet.create({
   },
   popup: {
     position: 'absolute',
-    top: 0,
+    top: 70, // Offset for header
     left: 0,
     right: 0,
     bottom: 0,
@@ -1072,6 +1139,84 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+    zIndex: 1001,
+  },
+  header: {
+    backgroundColor: '#04668D',
+    paddingHorizontal: 8,
+    paddingVertical: 15,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1002,
+    height: 70,
+  },
+  headerContainer: {
+    maxWidth: 1280,
+    width: '100%',
+    marginHorizontal: 'auto',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    height: '100%',
+  },
+  logo: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#feffe9',
+    textDecorationLine: 'none',
+  },
+  menuToggle: {
+    padding: 6,
+  },
+  navLinks: {
+    position: 'absolute',
+    top: 70,
+    left: 0,
+    right: 0,
+    backgroundColor: '#04668D',
+    flexDirection: 'column',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    zIndex: 1003,
+    height: Dimensions.get('window').height - 70,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  navLink: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginVertical: 5,
+  },
+  navLinkText: {
+    color: '#feffe9',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
