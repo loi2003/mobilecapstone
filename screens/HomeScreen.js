@@ -505,20 +505,21 @@ const HomeScreen = ({ navigation }) => {
         <Text style={styles.contactIconText}>💬</Text>
       </TouchableOpacity>
 
+   
       {/* Contact Popup */}
       {isContactPopupOpen && (
         <Animated.View style={[styles.contactPopup, { opacity: fadeAnim }]}>
           <TouchableOpacity
             style={styles.popupButton}
-            onPress={() => navigation.navigate('Contact')}
+            onPress={() => navigation.navigate('NutritionAdvice')}
           >
-            <Text style={styles.buttonText}>Liên Hệ</Text>
+            <Text style={styles.buttonText}>Nutrition Advice</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.popupButton}
-            onPress={() => navigation.navigate('Assessment')}
+            onPress={() => navigation.navigate('AIAdvice')}
           >
-            <Text style={styles.buttonText}>Kiểm Tra Sức Khỏe</Text>
+            <Text style={styles.buttonText}>AI Advice</Text>
           </TouchableOpacity>
         </Animated.View>
       )}
