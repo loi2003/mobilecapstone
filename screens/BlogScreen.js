@@ -19,7 +19,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { getAllBlogs, getAllLikedBlogs, getAllBookmarkedBlogs, deleteLike, deleteBookmark } from '../api/blog-api';
 import apiClient from '../api/url-api';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Header Component (Copied from HomeScreen)
 const Header = ({ navigation, user, setUser, handleLogout }) => {
@@ -103,8 +103,9 @@ const BlogScreen = ({ navigation }) => {
   const [showBookmarkPopup, setShowBookmarkPopup] = useState(false);
   const [email, setEmail] = useState('');
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
-  const [user, setUser] = useState(null); // Added for Header props
+  const [user, setUser] = useState(null);
   const postsPerPage = 10;
+  const bottomSheetAnim = useRef(new Animated.Value(height)).current;
 
   // Define placeholder images for blogs with no valid image
   const placeholderImages = [
@@ -122,9 +123,9 @@ const BlogScreen = ({ navigation }) => {
   // Validate and handle image URIs, returning placeholder if invalid
   const getValidImageSource = (uri) => {
     if (!uri || typeof uri !== 'string' || !uri.startsWith('http')) {
-      return getRandomPlaceholder(); // Use placeholder if no valid image
+      return getRandomPlaceholder();
     }
-    return { uri }; // Return valid URI for Image component
+    return { uri };
   };
 
   // Generate author avatar URL
@@ -189,6 +190,15 @@ const BlogScreen = ({ navigation }) => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Animate bookmarks popup
+  useEffect(() => {
+    Animated.timing(bottomSheetAnim, {
+      toValue: showBookmarkPopup ? 0 : height,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [showBookmarkPopup]);
 
   const handleSearch = (text) => {
     setSearchTerm(text);
@@ -330,7 +340,6 @@ const BlogScreen = ({ navigation }) => {
     }
   };
 
-  // Placeholder for handleLogout (required by Header but not implemented)
   const handleLogout = () => {};
 
   if (loading) {
@@ -346,10 +355,7 @@ const BlogScreen = ({ navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={fetchData}
-        >
+        <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -362,7 +368,7 @@ const BlogScreen = ({ navigation }) => {
   const currentPosts = filteredBlogs.slice(indexOfFirstPost, indexOfLastPost);
   const totalPages = Math.ceil(filteredBlogs.length / postsPerPage);
 
-  // Create featured posts with unique IDs
+  // Initialize uniqueBlogIds to prevent ReferenceError
   const uniqueBlogIds = new Set();
   const featuredPosts = [
     ...blogs
@@ -651,12 +657,29 @@ const BlogScreen = ({ navigation }) => {
               </Text>
             )}
           </View>
+        </ScrollView>
 
-          {/* Bookmarks Popup */}
-          {showBookmarkPopup && (
-            <View style={styles.popup}>
-              <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
-                <Text style={styles.popupTitle}>Your Bookmarks</Text>
+        {/* Bookmarks Popup (Bottom Sheet) */}
+        {showBookmarkPopup && (
+          <View style={styles.bottomSheetOverlay}>
+            <Animated.View
+              style={[
+                styles.bottomSheet,
+                { transform: [{ translateY: bottomSheetAnim }] },
+              ]}
+            >
+              <View style={styles.bottomSheetHandle} />
+              <View style={styles.bottomSheetHeader}>
+                <Text style={styles.bottomSheetTitle}>Your Bookmarks</Text>
+                <TouchableOpacity
+                  style={styles.bottomSheetCloseButton}
+                  onPress={() => setShowBookmarkPopup(false)}
+                  accessibilityLabel="Close bookmarks"
+                >
+                  <Ionicons name="close" size={24} color="#6b9fff" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.bottomSheetContent}>
                 {bookmarkedBlogs.length > 0 ? (
                   bookmarkedBlogs.map(blog => (
                     <TouchableOpacity
@@ -666,6 +689,7 @@ const BlogScreen = ({ navigation }) => {
                         setShowBookmarkPopup(false);
                         navigation.navigate('BlogPost', { blogId: blog.id });
                       }}
+                      accessibilityLabel={`View bookmarked post ${blog.title || 'Untitled'}`}
                     >
                       <Image
                         source={getValidImageSource(blog.images?.[0]?.fileUrl)}
@@ -682,60 +706,72 @@ const BlogScreen = ({ navigation }) => {
                             year: 'numeric',
                           })}
                         </Text>
+                        <TouchableOpacity
+                          style={styles.bookmarkRemoveButton}
+                          onPress={() => toggleBookmark(blog.id)}
+                          accessibilityLabel={`Remove bookmark for ${blog.title || 'Untitled'}`}
+                        >
+                          <Feather name="bookmark" size={16} color="#ff6b6b" />
+                          <Text style={styles.bookmarkRemoveText}>Remove</Text>
+                        </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
                   ))
                 ) : (
-                  <Text style={styles.popupText}>No bookmarks yet.</Text>
+                  <Text style={styles.bottomSheetEmptyText}>No bookmarks yet.</Text>
                 )}
+              </ScrollView>
+            </Animated.View>
+          </View>
+        )}
+
+        {/* Auth Popup */}
+        {showAuthPopup && (
+          <View style={styles.popup}>
+            <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
+              <Text style={styles.popupTitle}>Please Log In</Text>
+              <Text style={styles.popupText}>Log in to like or bookmark posts.</Text>
+              <View style={styles.popupButtons}>
                 <TouchableOpacity
                   style={styles.popupButton}
-                  onPress={() => setShowBookmarkPopup(false)}
+                  onPress={() => navigation.navigate('Login')}
+                  accessibilityLabel="Sign in"
+                >
+                  <Text style={styles.popupButtonText}>Sign In</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.popupButton}
+                  onPress={() => navigation.navigate('Register')}
+                  accessibilityLabel="Sign up"
+                >
+                  <Text style={styles.popupButtonText}>Sign Up</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.popupButton, styles.popupCloseButton]}
+                  onPress={() => setShowAuthPopup(false)}
+                  accessibilityLabel="Close login prompt"
                 >
                   <Text style={styles.popupButtonText}>Close</Text>
                 </TouchableOpacity>
-              </Animatable.View>
-            </View>
-          )}
-
-          {/* Auth Popup */}
-          {showAuthPopup && (
-            <View style={styles.popup}>
-              <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
-                <Text style={styles.popupTitle}>Please Log In</Text>
-                <Text style={styles.popupText}>Log in to like or bookmark posts.</Text>
-                <View style={styles.popupButtons}>
-                  <TouchableOpacity
-                    style={styles.popupButton}
-                    onPress={() => navigation.navigate('Login')}
-                  >
-                    <Text style={styles.popupButtonText}>Sign In</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.popupButton}
-                    onPress={() => navigation.navigate('Register')}
-                  >
-                    <Text style={styles.popupButtonText}>Sign Up</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.popupButton, styles.popupCloseButton]}
-                    onPress={() => setShowAuthPopup(false)}
-                  >
-                    <Text style={styles.popupButtonText}>Close</Text>
-                  </TouchableOpacity>
-                </View>
-              </Animatable.View>
-            </View>
-          )}
-        </ScrollView>
+              </View>
+            </Animatable.View>
+          </View>
+        )}
 
         {/* Bookmarks Button */}
-        <TouchableOpacity
+        <Animatable.View
           style={styles.bookmarksFab}
-          onPress={() => setShowBookmarkPopup(true)}
+          animation="pulse"
+          iterationCount="infinite"
+          iterationDelay={2000}
         >
-          <Feather name="bookmark" size={24} color="#fff" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowBookmarkPopup(true)}
+            accessibilityLabel="View bookmarks"
+          >
+            <Feather name="bookmark" size={24} color="#fff" />
+          </TouchableOpacity>
+        </Animatable.View>
       </LinearGradient>
     </View>
   );
@@ -747,7 +783,7 @@ const styles = StyleSheet.create({
   },
   blogContainer: {
     flex: 1,
-    paddingTop: 70, // Offset for fixed header
+    paddingTop: 70,
   },
   scrollContent: {
     padding: 16,
@@ -757,7 +793,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f7fa',
   },
   loadingText: {
     marginTop: 8,
@@ -771,10 +807,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2e6da4',
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   retryButtonText: {
     color: '#fff',
@@ -819,8 +855,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   categoryButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#6b9fff',
+    borderColor: '#6b9fff',
   },
   categoryButtonText: {
     fontSize: 14,
@@ -845,8 +881,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sortButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#6b9fff',
+    borderColor: '#6b9fff',
   },
   sortButtonText: {
     fontSize: 14,
@@ -893,7 +929,7 @@ const styles = StyleSheet.create({
   featuredTag: {
     fontSize: 12,
     color: '#fff',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2e6da4',
     borderRadius: 12,
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -958,6 +994,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    padding: 8,
   },
   actionText: {
     fontSize: 12,
@@ -971,10 +1008,10 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   pageButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2e6da4',
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   pageButtonDisabled: {
     backgroundColor: '#D1D5DB',
@@ -1027,7 +1064,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
   },
   newsletterButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2e6da4',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -1050,7 +1087,7 @@ const styles = StyleSheet.create({
   },
   popup: {
     position: 'absolute',
-    top: 70, // Offset for header
+    top: 70,
     left: 0,
     right: 0,
     bottom: 0,
@@ -1060,7 +1097,7 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   popupContent: {
-    backgroundColor: '#fff',
+    backgroundColor: '#feffe9',
     borderRadius: 12,
     padding: 16,
     width: '90%',
@@ -1085,61 +1122,147 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   popupButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 8,
-    paddingVertical: 10,
+    backgroundColor: '#2e6da4',
+    borderRadius: 12,
+    paddingVertical: 12,
     paddingHorizontal: 16,
+    minWidth: 100,
   },
   popupCloseButton: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
   popupButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+    textAlign: 'center',
+  },
+  bottomSheetOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 1000,
+  },
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#f5f7fa',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 1001,
+  },
+  bottomSheetHandle: {
+    width: 48,
+    height: 5,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2.5,
+    alignSelf: 'center',
+    marginVertical: 10,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  bottomSheetCloseButton: {
+    padding: 12,
+  },
+  bottomSheetContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+  },
+  bottomSheetEmptyText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingVertical: 16,
   },
   bookmarkItem: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   bookmarkImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    marginRight: 10,
   },
   bookmarkInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   bookmarkTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   bookmarkMeta: {
     fontSize: 12,
     color: '#6B7280',
+    marginBottom: 4,
+  },
+  bookmarkRemoveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+  },
+  bookmarkRemoveText: {
+    fontSize: 12,
+    color: '#ff6b6b',
+    fontWeight: '600',
   },
   bookmarksFab: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 24,
     right: 16,
-    backgroundColor: '#2563EB',
-    borderRadius: 50,
-    width: 50,
-    height: 50,
+    backgroundColor: '#6b9fff',
+    borderRadius: 30,
+    width: 60,
+    height: 60,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 1001,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 1002,
   },
   header: {
     backgroundColor: '#04668D',
@@ -1193,7 +1316,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     zIndex: 1003,
-    height: Dimensions.get('window').height - 70,
+    height: height - 70,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
