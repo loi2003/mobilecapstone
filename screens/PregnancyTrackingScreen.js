@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+  TextInput,
+  useWindowDimensions,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Linking } from 'react-native';
 import TrackingForm from '../screens/pregnacytracker/TrackingForm';
 import PregnancyOverview from '../screens/pregnacytracker/TrackingForm';
 import PregnancyProgressBar from '../screens/pregnacytracker/PregnancyProgressBar';
 import JournalSection from '../screens/pregnacytracker/JournalSection';
 import BabyDevelopment from '../screens/pregnacytracker/BabyDevelopment';
 import UpcomingAppointments from '../screens/pregnacytracker/UpcomingAppointments';
-// import SymptomsAndMood from '../components/tracking/SymptomsAndMood';
 import TrimesterChecklists from '../screens/pregnacytracker/TrimesterChecklists';
 import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner';
 import CheckupReminder from '../screens/pregnacytracker/CheckupReminder';
@@ -22,17 +32,11 @@ import { createBasicBioMetric } from '../api/basic-bio-metric-api';
 import { getCurrentUser, logout } from '../api/auth';
 import { viewAllOfflineConsultation } from '../api/offline-consultation-api';
 
-// Commented out image imports to reduce payload
-// import weightIcon from '../assets/icons/weight-hanging-svgrepo-com.svg';
-// import calculatorIcon from '../assets/icons/calculator-svgrepo-com.svg';
-// import heartRateIcon from '../assets/icons/heart-pulse-2-svgrepo-com.svg';
-
-const { width } = Dimensions.get('window');
-
-// Header Component
+// Header Component (unchanged)
 const Header = ({ navigation, user, setUser, handleLogout }) => {
+  const { width } = useWindowDimensions();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const slideAnim = new Animated.Value(-width);
+  const slideAnim = React.useRef(new Animated.Value(-width)).current;
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -40,7 +44,7 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [isMenuOpen]);
+  }, [isMenuOpen, width]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -56,13 +60,13 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
   ];
 
   return (
-    <View style={styles.header}>
-      <View style={styles.headerContainer}>
+    <View style={styles(width).header}>
+      <View style={styles(width).headerContainer}>
         <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.logo}>NestlyCare</Text>
+          <Text style={styles(width).logo}>NestlyCare</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.menuToggle}
+          style={styles(width).menuToggle}
           onPress={toggleMenu}
           accessibilityLabel="Toggle navigation"
         >
@@ -74,31 +78,31 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
         </TouchableOpacity>
         <Animated.View
           style={[
-            styles.navLinks,
-            { transform: [{ translateX: slideAnim }], display: isMenuOpen ? 'flex' : 'none' },
+            styles(width).navLinks,
+            { transform: [{ translateX: slideAnim }] },
           ]}
         >
           {navLinks.map((link, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.navLink}
+              style={styles(width).navLink}
               onPress={() => {
                 navigation.navigate(link.route);
                 setIsMenuOpen(false);
               }}
             >
-              <Text style={styles.navLinkText}>{link.name}</Text>
+              <Text style={styles(width).navLinkText}>{link.name}</Text>
             </TouchableOpacity>
           ))}
           {user && (
             <TouchableOpacity
-              style={styles.navLink}
+              style={styles(width).navLink}
               onPress={() => {
                 handleLogout();
                 setIsMenuOpen(false);
               }}
             >
-              <Text style={styles.navLinkText}>Logout</Text>
+              <Text style={styles(width).navLinkText}>Logout</Text>
             </TouchableOpacity>
           )}
         </Animated.View>
@@ -107,8 +111,9 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
   );
 };
 
-// Footer Component
+// Footer Component (unchanged)
 const Footer = ({ navigation }) => {
+  const { width } = useWindowDimensions();
   const footerLinks = [
     { name: 'About Us', route: 'About' },
     { name: 'Privacy Policy', route: 'Privacy' },
@@ -130,48 +135,51 @@ const Footer = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.footer}>
-      <View style={styles.footerContainer}>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Contact</Text>
-          <Text style={styles.footerText}>Email: support@genderhealthweb.com</Text>
-          <Text style={styles.footerText}>Phone: (123) 456-7890</Text>
+    <View style={styles(width).footer}>
+      <View style={styles(width).footerContainer}>
+        <View style={styles(width).footerSection}>
+          <Text style={styles(width).footerSectionTitle}>Contact</Text>
+          <Text style={styles(width).footerText}>Email: support@genderhealthweb.com</Text>
+          <Text style={styles(width).footerText}>Phone: (123) 456-7890</Text>
         </View>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Follow Us</Text>
-          <View style={styles.socialLinks}>
+        <View style={styles(width).footerSection}>
+          <Text style={styles(width).footerSectionTitle}>Follow Us</Text>
+          <View style={styles(width).socialLinks}>
             {socialLinks.map((social, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.socialLink}
+                style={styles(width).socialLink}
                 onPress={() => Linking.openURL(social.url)}
+                accessibilityLabel={`${social.name} link`}
               >
                 <Ionicons name={social.icon} size={20} color="#ffffff" />
               </TouchableOpacity>
             ))}
           </View>
         </View>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Stay Updated</Text>
-          <View style={styles.newsletterForm}>
+        <View style={styles(width).footerSection}>
+          <Text style={styles(width).footerSectionTitle}>Stay Updated</Text>
+          <View style={styles(width).newsletterForm}>
             <TextInput
-              style={styles.newsletterInput}
+              style={styles(width).newsletterInput}
               placeholder="Enter your email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              accessibilityLabel="Newsletter email input"
             />
             <TouchableOpacity
-              style={styles.newsletterButton}
+              style={styles(width).newsletterButton}
               onPress={handleNewsletterSubmit}
+              accessibilityLabel="Subscribe to newsletter"
             >
-              <Text style={styles.buttonText}>Subscribe</Text>
+              <Text style={styles(width).buttonText}>Subscribe</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
-      <Text style={styles.footerCopyright}>
+      <Text style={styles(width).footerCopyright}>
         © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
       </Text>
     </View>
@@ -179,6 +187,7 @@ const Footer = ({ navigation }) => {
 };
 
 const PregnancyTrackingPage = () => {
+  const { width } = useWindowDimensions();
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [user, setUser] = useState(null);
   const [pregnancyData, setPregnancyData] = useState(null);
@@ -189,75 +198,124 @@ const PregnancyTrackingPage = () => {
   const [openJournalModal, setOpenJournalModal] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+  const [userId, setUserId] = useState(null);
+  const [token, setToken] = useState(null);
 
   const navigation = useNavigation();
   const route = useRoute();
 
-  // Commented out static data to reduce payload
-  /*
-  const reminders = [
-    {
-      title: "Blood Pressure Check",
-      startDate: "2023-05-15",
-      endDate: "2023-05-15",
-      note: "Recommended during week 20",
-      type: "recommended",
-    },
-    {
-      title: "Lab Work",
-      startDate: "2023-05-25",
-      endDate: "2023-05-25",
-      note: "Urgent test results follow-up",
-      type: "urgent",
-    },
-  ];
-  */
-
+  // Combined initialization for auth and page data
   useEffect(() => {
-    const fetchAppointments = async () => {
+    const initializeApp = async () => {
+      setIsLoading(true);
       try {
-        setLoadingAppointments(true);
-        const token = await AsyncStorage.getItem('token');
-        const userId = await AsyncStorage.getItem('userId');
+        // Fetch token and userId from AsyncStorage
+        const storedToken = await AsyncStorage.getItem('authToken'); // Changed from 'token'
+        const storedUserId = await AsyncStorage.getItem('userId');
+        console.log('Stored token:', storedToken, 'Stored userId:', storedUserId);
 
-        const response = await viewAllOfflineConsultation(userId, null, token);
-        const consultations = Array.isArray(response.data?.data)
-          ? response.data.data
-          : [];
+        if (!storedToken) {
+          setError('Please sign in to access pregnancy tracking');
+          navigation.navigate('Login');
+          return;
+        }
 
-        const mappedAppointments = consultations.map((c) => {
-          const start = new Date(c.startDate);
-          const end = new Date(c.endDate);
-          return {
-            id: c.id,
-            name: c.checkupName || 'Unknown name',
-            note: c.healthNote || 'No notes available',
-            type: c.consultationType?.toLowerCase(),
-            doctor: c.doctor?.fullName || 'Unknown Doctor',
-            clinic: c.clinic?.name || 'Unknown Clinic',
-            address: c.clinic?.address,
-            start,
-            end,
-            status: c.status?.toLowerCase(),
-          };
-        });
+        setToken(storedToken);
+        setUserId(storedUserId);
 
-        setAppointments(mappedAppointments);
+        // Fetch user data
+        const res = await getCurrentUser(storedToken);
+        const userData = res?.data?.data;
+        console.log('User data:', userData);
+
+        if (!userData || userData.roleId !== 2 || !userData.id) {
+          setError('Access denied or user ID missing.');
+          return;
+        }
+
+        setUser(userData);
+        if (!storedUserId) {
+          setUserId(userData.id);
+          await AsyncStorage.setItem('userId', userData.id);
+        }
+
+        // Fetch pregnancy data
+        const currentDate = new Date().toISOString().split('T')[0];
+        const { data: pregRes } = await getCurrentWeekGrowthData(
+          userData.id,
+          currentDate,
+          storedToken
+        );
+        console.log('Pregnancy data:', pregRes);
+
+        if (pregRes?.error === 0 && pregRes?.data) {
+          setPregnancyData(pregRes.data);
+          setSelectedWeek(pregRes.data.currentGestationalAgeInWeeks);
+          await AsyncStorage.setItem('growthDataId', pregRes.data.id);
+        } else {
+          setPregnancyData(null);
+        }
+
+        // Fetch appointments
+        if (userData.id && storedToken) {
+          try {
+            setLoadingAppointments(true);
+            console.log('Fetching appointments with userId:', userData.id, 'and token:', storedToken);
+            const response = await viewAllOfflineConsultation(userData.id, null, storedToken);
+            console.log('Appointments response:', response);
+
+            const consultations = Array.isArray(response.data?.data) ? response.data.data : [];
+            const mappedAppointments = consultations.map((c) => {
+              const start = new Date(c.startDate);
+              const end = new Date(c.endDate);
+              return {
+                id: c.id,
+                name: c.checkupName || 'Unknown name',
+                note: c.healthNote || 'No notes available',
+                type: c.consultationType?.toLowerCase(),
+                doctor: c.doctor?.fullName || 'Unknown Doctor',
+                clinic: c.clinic?.name || 'Unknown Clinic',
+                address: c.clinic?.address,
+                start,
+                end,
+                status: c.status?.toLowerCase(),
+              };
+            });
+            setAppointments(mappedAppointments);
+          } catch (err) {
+            console.error('Error fetching appointments:', err);
+            let errorMessage = 'Failed to fetch appointments. Please try again.';
+            if (err.response) {
+              errorMessage = err.response.data?.message || err.response.data?.title || khiến
+            } else if (err.request) {
+              errorMessage = 'Network error: Could not reach the server.';
+            }
+            setError(errorMessage);
+          } finally {
+            setLoadingAppointments(false);
+          }
+        } else {
+          console.warn('Skipping fetchAppointments: userId or token still missing after initialization');
+          setLoadingAppointments(false);
+        }
       } catch (err) {
-        console.error('Error fetching appointments:', err);
+        console.error('Error initializing app:', err);
+        let errorMessage = 'Failed to load page. Please try again.';
+        if (err.response) {
+          errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
+        } else if (err.request) {
+          errorMessage = 'Network error: Could not reach the server.';
+        }
+        setError(errorMessage);
       } finally {
-        setLoadingAppointments(false);
+        setIsLoading(false);
       }
     };
 
-    fetchAppointments();
-  }, []);
+    initializeApp();
+  }, [navigation]);
 
   const appointmentDates = appointments.map((a) => a.start.toISOString());
-
-  useEffect(() => {
-    initializePage();
-  }, []);
 
   useEffect(() => {
     if (activeTab === 'journal') {
@@ -265,61 +323,18 @@ const PregnancyTrackingPage = () => {
     }
   }, [activeTab]);
 
-  const initializePage = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        setError('Please sign in to access pregnancy tracking');
-        navigation.navigate('DueDateCalculator');
-        return;
-      }
-
-      const res = await getCurrentUser(token);
-      const userData = res?.data?.data;
-
-      if (!userData || userData.roleId !== 2 || !userData.id) {
-        setError('Access denied or user ID missing.');
-        setIsLoading(false);
-        return;
-      }
-
-      setUser(userData);
-      await AsyncStorage.setItem('userId', userData.id);
-
-      const currentDate = new Date().toISOString().split('T')[0];
-      const { data: pregRes } = await getCurrentWeekGrowthData(
-        userData.id,
-        currentDate,
-        token
-      );
-
-      if (pregRes?.error === 0 && pregRes?.data) {
-        setPregnancyData(pregRes.data);
-        setSelectedWeek(pregRes.data.currentGestationalAgeInWeeks);
-        await AsyncStorage.setItem('growthDataId', pregRes.data.id);
-      } else {
-        setPregnancyData(null);
-      }
-    } catch (err) {
-      console.error('Error initializing page:', err);
-      setError('Failed to load page. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleCreateProfile = async (formData) => {
     setIsCreating(true);
     setError(null);
 
     try {
-      const token = await AsyncStorage.getItem('token');
-      const { userId, firstDayOfLastMenstrualPeriod, preWeight, preHeight } = formData;
-
-      if (!userId) {
-        setError('User ID is missing. Cannot create growth data profile.');
+      if (!token || !userId) {
+        setError('Authentication data missing. Please sign in again.');
+        navigation.navigate('Login');
         return;
       }
+
+      const { firstDayOfLastMenstrualPeriod, preWeight, preHeight } = formData;
 
       const growthDataRes = await createGrowthDataProfile(
         {
@@ -375,7 +390,13 @@ const PregnancyTrackingPage = () => {
       }
     } catch (err) {
       console.error('Error creating profile and biometric:', err);
-      setError(err?.response?.data?.message || 'Something went wrong. Please try again.');
+      let errorMessage = 'Something went wrong. Please try again.';
+      if (err.response) {
+        errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
+      } else if (err.request) {
+        errorMessage = 'Network error: Could not reach the server.';
+      }
+      setError(errorMessage);
     } finally {
       setIsCreating(false);
     }
@@ -383,25 +404,40 @@ const PregnancyTrackingPage = () => {
 
   const handleLogout = async () => {
     try {
-      const userId = user?.id;
-      const token = await AsyncStorage.getItem('token');
-
-      if (!token) {
-        console.error('No auth token found');
-        await AsyncStorage.removeItem('token');
+      if (!token || !userId) {
+        console.warn('No auth token or userId found');
+        await AsyncStorage.removeItem('authToken');
+        await AsyncStorage.removeItem('userId');
+        setUserId(null);
+        setToken(null);
+        setUser(null);
+        setPregnancyData(null);
+        setAppointments([]);
         navigation.replace('Login');
         return;
       }
 
       await logout(userId, token);
-      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('growthDataId');
+      setUserId(null);
+      setToken(null);
+      setUser(null);
+      setPregnancyData(null);
+      setAppointments([]);
       navigation.replace('Login');
-      console.log('✅ Logout thành công cho userId:', userId);
+      console.log('✅ Logout successful for userId:', userId);
     } catch (error) {
-      console.error('❌ Logout failed:', error.response?.data || error);
-      await AsyncStorage.removeItem('token');
+      console.error('❌ Logout failed:', error);
+      await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('growthDataId');
+      setUserId(null);
+      setToken(null);
+      setUser(null);
+      setPregnancyData(null);
+      setAppointments([]);
       navigation.replace('Login');
     }
   };
@@ -417,12 +453,12 @@ const PregnancyTrackingPage = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.pregnancyTrackingPage}>
+      <View style={styles(width).pregnancyTrackingPage}>
         <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-        <View style={styles.mainContent}>
-          <View style={styles.loadingContainer}>
+        <View style={styles(width).mainContent}>
+          <View style={styles(width).loadingContainer}>
             <ActivityIndicator size="large" color="#067DAD" />
-            <Text style={styles.loadingText}>Loading your pregnancy data...</Text>
+            <Text style={styles(width).loadingText}>Loading your pregnancy data...</Text>
           </View>
         </View>
         <Footer navigation={navigation} />
@@ -432,16 +468,25 @@ const PregnancyTrackingPage = () => {
 
   if (error) {
     return (
-      <View style={styles.pregnancyTrackingPage}>
+      <View style={styles(width).pregnancyTrackingPage}>
         <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-        <View style={styles.mainContent}>
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={initializePage} style={styles.retryBtn}>
-              <Text style={styles.retryBtnText}>Try Again</Text>
-            </TouchableOpacity>
+        <View style={styles(width).mainContent}>
+          <View style={styles(width).errorContainer}>
+            <Text style={styles(width).errorIcon}>⚠️</Text>
+            <Text style={styles(width).errorTitle}>Oops! Something went wrong</Text>
+            <Text style={styles(width).errorText}>{error}</Text>
+            {error.includes('sign in') ? (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Login')}
+                style={styles(width).retryBtn}
+              >
+                <Text style={styles(width).retryBtnText}>Go to Login</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => initializeApp()} style={styles(width).retryBtn}>
+                <Text style={styles(width).retryBtnText}>Try Again</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <Footer navigation={navigation} />
@@ -450,15 +495,15 @@ const PregnancyTrackingPage = () => {
   }
 
   return (
-    <View style={styles.pregnancyTrackingPage}>
+    <View style={styles(width).pregnancyTrackingPage}>
       <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <ScrollView contentContainerStyle={styles.mainContent}>
-        <View style={styles.pregnancyTrackingContainer}>
+      <ScrollView contentContainerStyle={styles(width).mainContent}>
+        <View style={styles(width).pregnancyTrackingContainer}>
           {!hasValidPregnancyData ? (
-            <View style={styles.trackingWelcomeSection}>
-              <View style={styles.trackingWelcomeHeader}>
-                <Text style={styles.welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
-                <Text style={styles.welcomeHeaderText}>
+            <View style={styles(width).trackingWelcomeSection}>
+              <View style={styles(width).trackingWelcomeHeader}>
+                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
+                <Text style={styles(width).welcomeHeaderText}>
                   Start your beautiful journey of motherhood with personalized tracking and insights
                 </Text>
               </View>
@@ -469,8 +514,8 @@ const PregnancyTrackingPage = () => {
               />
             </View>
           ) : (
-            <View style={styles.trackingDashboard}>
-              <View style={styles.navTabs}>
+            <View style={styles(width).trackingDashboard}>
+              <View style={styles(width).navTabs}>
                 {[
                   { key: 'weekly', label: 'Weekly Info', queryKey: 'weeklyinfo' },
                   { key: 'reminderconsultation', label: 'Checkup Reminder', queryKey: 'reminderconsultationinfo' },
@@ -479,13 +524,14 @@ const PregnancyTrackingPage = () => {
                 ].map((tab) => (
                   <TouchableOpacity
                     key={tab.key}
-                    style={[styles.tab, activeTab === tab.key ? styles.tabActive : {}]}
+                    style={[styles(width).tab, activeTab === tab.key ? styles(width).tabActive : {}]}
                     onPress={() => {
                       setActiveTab(tab.key);
                       navigation.setParams({ [tab.queryKey]: 'true', growthDataId: pregnancyData?.id });
                     }}
+                    accessibilityLabel={`Switch to ${tab.label} tab`}
                   >
-                    <Text style={[styles.tabText, activeTab === tab.key ? styles.tabTextActive : {}]}>
+                    <Text style={[styles(width).tabText, activeTab === tab.key ? styles(width).tabTextActive : {}]}>
                       {tab.label}
                     </Text>
                   </TouchableOpacity>
@@ -493,78 +539,79 @@ const PregnancyTrackingPage = () => {
               </View>
 
               {activeTab === 'weekly' && (
-                <View style={styles.tabContent}>
+                <View style={styles(width).tabContent}>
                   <PregnancyOverview pregnancyData={pregnancyData} />
                   <PregnancyProgressBar
                     pregnancyData={pregnancyData}
                     selectedWeek={selectedWeek}
                     setSelectedWeek={setSelectedWeek}
                   />
-                  <View style={styles.dashboardGrid}>
-                    <View style={styles.leftColumn}>
+                  <View style={styles(width).dashboardGrid}>
+                    <View style={styles(width).leftColumn}>
                       <BabyDevelopment
                         pregnancyData={pregnancyData}
                         selectedWeek={selectedWeek}
                       />
-                      {/* <SymptomsAndMood pregnancyData={pregnancyData} /> */}
                     </View>
-                    <View style={styles.rightColumn}>
+                    <View style={styles(width).rightColumn}>
                       <UpcomingAppointments
                         growthDataId={pregnancyData?.id}
-                        userId={AsyncStorage.getItem('userId')}
-                        token={AsyncStorage.getItem('token')}
+                        userId={userId}
+                        token={token}
+                        appointments={appointments}
+                        loadingAppointments={loadingAppointments}
                       />
                       <TrimesterChecklists
                         growthDataId={pregnancyData?.id}
-                        token={AsyncStorage.getItem('token')}
+                        token={token}
                       />
                     </View>
                   </View>
                   {pregnancyData.basicBioMetric && (
-                    <View style={styles.biometricSection}>
-                      <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderTitle}>Health Metrics</Text>
-                        <Text style={styles.sectionHeaderText}>Your current health measurements</Text>
+                    <View style={styles(width).biometricSection}>
+                      <View style={styles(width).sectionHeader}>
+                        <Text style={styles(width).sectionHeaderTitle}>Health Metrics</Text>
+                        <Text style={styles(width).sectionHeaderText}>Your current health measurements</Text>
                       </View>
-                      <View style={styles.biometricCards}>
+                      <View style={styles(width).biometricCards}>
                         {pregnancyData.basicBioMetric.weightKg > 0 && (
-                          <View style={styles.biometricCard}>
-                            <View style={styles.metricIcon}>
-                              <Text style={styles.placeholderIcon}>⚖️</Text>
+                          <View style={styles(width).biometricCard}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>⚖️</Text>
                             </View>
-                            <View style={styles.metricInfo}>
-                              <Text style={styles.metricValue}>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
                                 {pregnancyData.basicBioMetric.weightKg} Kg
                               </Text>
-                              <Text style={styles.metricLabel}>Current Weight</Text>
+                              <Text style={styles(width).metricLabel}>Current Weight</Text>
                             </View>
                           </View>
                         )}
                         {pregnancyData.basicBioMetric.bmi > 0 && (
-                          <View style={styles.biometricCard}>
-                            <View style={styles.metricIcon}>
-                              <Text style={styles.placeholderIcon}>🧮</Text>
+                          <View style={styles(width).biometricCard}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>🧮</Text>
                             </View>
-                            <View style={styles.metricInfo}>
-                              <Text style={styles.metricValue}>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
                                 {pregnancyData.basicBioMetric.bmi.toFixed(1)}
                               </Text>
-                              <Text style={styles.metricLabel}>BMI</Text>
+                              <Text style={styles(width).metricLabel}>BMI</Text>
                             </View>
                           </View>
                         )}
                         {(pregnancyData.basicBioMetric.systolicBP > 0 ||
                           pregnancyData.basicBioMetric.diastolicBP > 0) && (
-                          <View style={styles.biometricCard}>
-                            <View style={styles.metricIcon}>
-                              <Text style={styles.placeholderIcon}>❤️</Text>
+                          <View style={styles(width).biometricCard}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>❤️</Text>
                             </View>
-                            <View style={styles.metricInfo}>
-                              <Text style={styles.metricValue}>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
                                 {pregnancyData.basicBioMetric.systolicBP}/
                                 {pregnancyData.basicBioMetric.diastolicBP} mmHg
                               </Text>
-                              <Text style={styles.metricLabel}>Blood Pressure</Text>
+                              <Text style={styles(width).metricLabel}>Blood Pressure</Text>
                             </View>
                           </View>
                         )}
@@ -574,24 +621,26 @@ const PregnancyTrackingPage = () => {
                 </View>
               )}
               {activeTab === 'reminderconsultation' && (
-                <View style={styles.tabContent}>
+                <View style={styles(width).tabContent}>
                   <CheckupReminder
-                    token={AsyncStorage.getItem('token')}
-                    userId={AsyncStorage.getItem('userId')}
+                    token={token}
+                    userId={userId}
                     reminders={[]}
                     appointments={appointments}
                     appointmentDates={appointmentDates}
+                    loadingAppointments={loadingAppointments}
                   />
                   <UpcomingAppointments
-                    userId={AsyncStorage.getItem('userId')}
-                    token={AsyncStorage.getItem('token')}
+                    userId={userId}
+                    token={token}
                     expanded={true}
                     appointments={appointments}
+                    loadingAppointments={loadingAppointments}
                   />
                 </View>
               )}
               {activeTab === 'journal' && (
-                <View style={styles.tabContent}>
+                <View style={styles(width).tabContent}>
                   <JournalSection
                     journalEntries={[]}
                     growthDataId={pregnancyData?.id}
@@ -601,7 +650,7 @@ const PregnancyTrackingPage = () => {
                 </View>
               )}
               {activeTab === 'nutrition' && (
-                <View style={styles.tabContent}>
+                <View style={styles(width).tabContent}>
                   <SystemMealPlanner />
                 </View>
               )}
@@ -614,7 +663,7 @@ const PregnancyTrackingPage = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (width) => StyleSheet.create({
   pregnancyTrackingPage: {
     flex: 1,
     backgroundColor: '#f5f7fa',
@@ -856,7 +905,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     zIndex: 1002,
-    height: Dimensions.get('window').height - 70,
+    height: width < 768 ? '100%' : 400,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -939,17 +988,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#6b9fff',
     borderRadius: 12,
   },
-  footerCopyright: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
-  },
   buttonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
 
