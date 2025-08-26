@@ -40,7 +40,6 @@ export const createTailoredCheckupReminder = async (reminderData, token) => {
       }
     );
 
-    console.log("Create tailored checkup reminder response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -88,7 +87,6 @@ export const editTailoredCheckupReminder = async (reminderId, reminderData, toke
       }
     );
 
-    console.log("Edit tailored checkup reminder response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -110,7 +108,6 @@ export const deleteTailoredCheckupReminder = async (reminderId, token) => {
       }
     );
 
-    console.log("Delete tailored checkup reminder response:", response.data);
     return response;
   } catch (error) {
     console.error(

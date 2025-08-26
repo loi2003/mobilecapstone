@@ -20,7 +20,6 @@ export const viewAllOfflineConsultation = async (userId, status = '', token) => 
       }
     );
 
-    console.log('Viewing offline consultation:', response.data);
     return response;
   } catch (error) {
     console.error(

@@ -22,6 +22,7 @@ import BlogDetailScreen from '../screens/BlogDetailScreen';
 import NutritionAdviceScreen from '../screens/NutritionAdviceScreen';
 import AIAdviceScreen from '../screens/AIAdviceScreen';
 import JournalEntryDetail from '../screens/pregnacytracker/JournalEntryDetail';
+import JournalEntryForm from '../screens/pregnacytracker/JournalEntryForm';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
@@ -36,6 +37,7 @@ const HomeStack = () => {
       <Stack.Screen name="DueDateCalculator" component={DueDateCalculatorScreen} />
       <Stack.Screen name="PregnancyTracking" component={PregnancyTrackingScreen} />
       <Stack.Screen name="JournalEntryDetail" component={JournalEntryDetail} />
+      <Stack.Screen name="JournalEntryForm" component={JournalEntryForm} />
       <Stack.Screen name="NutritionalGuidance" component={NutritionalGuidanceScreen} />
       <Stack.Screen name="Consultation" component={ConsultationScreen} />
       <Stack.Screen name="Blog" component={BlogScreen} />
