@@ -136,7 +136,6 @@ const PregnancyTrackingPage = () => {
         // Fetch token and userId from AsyncStorage
         const storedToken = await AsyncStorage.getItem('authToken');
         const storedUserId = await AsyncStorage.getItem('userId');
-        console.log('Stored token:', storedToken, 'Stored userId:', storedUserId);
 
         if (!storedToken) {
           setError('Please sign in to access pregnancy tracking');
@@ -150,7 +149,6 @@ const PregnancyTrackingPage = () => {
         // Fetch user data
         const res = await getCurrentUser(storedToken);
         const userData = res?.data?.data;
-        console.log('User data:', userData);
 
         if (!userData || userData.roleId !== 2 || !userData.id) {
           setError('Access denied or user ID missing.');
@@ -170,7 +168,6 @@ const PregnancyTrackingPage = () => {
           currentDate,
           storedToken
         );
-        console.log('Pregnancy data:', pregRes);
 
         if (pregRes?.error === 0 && pregRes?.data) {
           setPregnancyData(pregRes.data);
@@ -184,9 +181,7 @@ const PregnancyTrackingPage = () => {
         if (userData.id && storedToken) {
           try {
             setLoadingAppointments(true);
-            console.log('Fetching appointments with userId:', userData.id, 'and token:', storedToken);
             const response = await viewAllOfflineConsultation(userData.id, null, storedToken);
-            console.log('Appointments response:', response);
 
             const consultations = Array.isArray(response.data?.data) ? response.data.data : [];
             const mappedAppointments = consultations.map((c) => {
@@ -207,7 +202,6 @@ const PregnancyTrackingPage = () => {
             });
             setAppointments(mappedAppointments);
           } catch (err) {
-            console.error('Error fetching appointments:', err);
             let errorMessage = 'Failed to fetch appointments. Please try again.';
             if (err.response) {
               errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
@@ -219,11 +213,9 @@ const PregnancyTrackingPage = () => {
             setLoadingAppointments(false);
           }
         } else {
-          console.warn('Skipping fetchAppointments: userId or token still missing after initialization');
           setLoadingAppointments(false);
         }
       } catch (err) {
-        console.error('Error initializing app:', err);
         let errorMessage = 'Failed to load page. Please try again.';
         if (err.response) {
           errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
@@ -313,7 +305,6 @@ const PregnancyTrackingPage = () => {
         setError(pregRes?.message || 'Failed to fetch updated pregnancy data');
       }
     } catch (err) {
-      console.error('Error creating profile and biometric:', err);
       let errorMessage = 'Something went wrong. Please try again.';
       if (err.response) {
         errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
@@ -329,7 +320,6 @@ const PregnancyTrackingPage = () => {
   const handleLogout = async () => {
     try {
       if (!token || !userId) {
-        console.warn('No auth token or userId found');
         await AsyncStorage.removeItem('authToken');
         await AsyncStorage.removeItem('userId');
         setUserId(null);

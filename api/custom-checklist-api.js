@@ -12,7 +12,6 @@ export const getAllCustomChecklistsByGrowthData = async (growthDataId, token) =>
         growthDataId,
       },
     });
-    console.log('Fetched custom checklists:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching custom checklists:', error.response?.data || error.message);

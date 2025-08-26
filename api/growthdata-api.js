@@ -74,7 +74,6 @@ export const createGrowthDataProfile = async (data, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Create growthdata response:', response.data);
     return response;
   } catch (error) {
     console.error('Error creating growthdata:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -98,7 +97,6 @@ export const editGrowthDataProfile = async (data, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Edit growthdata response:', response.data);
     return response;
   } catch (error) {
     console.error('Error editing growthdata:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -114,7 +112,6 @@ export const deleteGrowthData = async (id, token) => {
         Authorization: `Bearer ${token}`,
       },
     });
-    console.log('Delete growthdata response:', response.data);
     return response;
   } catch (error) {
     console.error('Error deleting growthdata:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);

@@ -8,7 +8,6 @@ export const getAllJournals = async (token) => {
         Accept: "text/plain",
       },
     });
-    console.log("Get all journals response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -30,7 +29,6 @@ export const getJournalById = async (journalId, token) => {
         journalId,
       },
     });
-    console.log("Get journal by ID response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -51,7 +49,6 @@ export const getJournalDetail = async (journalId, token) => {
         journalId,
       },
     });
-    console.log("Get journal detail response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -73,7 +70,6 @@ export const getJournalByGrowthDataId = async (growthDataId, token) => {
         },
       }
     );
-    console.log("Get journal by growthDataId response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -131,7 +127,6 @@ export const createJournalEntry = async (journalData, token) => {
       }
     );
 
-    console.log("Create journal response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -184,7 +179,6 @@ export const editJournalEntry = async (journalData, token) => {
       }
     );
 
-    console.log("Edit journal response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -206,7 +200,6 @@ export const deleteJournal = async (journalId, token) => {
         },
       }
     );
-    console.log("Delete journal response:", response.data);
     return response;
   } catch (error) {
     console.error(

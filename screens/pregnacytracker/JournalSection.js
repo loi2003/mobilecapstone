@@ -8,6 +8,7 @@ import {
   getJournalDetail,
 } from '../../api/journal-api';
 import { getCurrentWeekGrowthData } from '../../api/growthdata-api';
+import { Ionicons } from '@expo/vector-icons';
 
 const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError }) => {
   const { width } = useWindowDimensions();
@@ -18,7 +19,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (growthDataId && token) {
         fetchJournals(token);
         fetchCurrentWeek(token);
@@ -66,7 +67,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
 
   const handleDelete = async (journalId) => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       await deleteJournal(journalId, token);
       setEntries(entries.filter((entry) => entry.id !== journalId));
     } catch (error) {
@@ -78,12 +79,13 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
 
   const handleViewDetails = async (journalId) => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await getJournalDetail(journalId, token);
       if (response.data?.error === 0 && response.data?.data) {
-        navigation.navigate('JournalEntryDetail', { 
+        navigation.navigate('JournalEntryDetail', {
           journal: response.data,
-          search: `growthDataId=${growthDataId}`
+          growthDataId,
+          journalinfo: 'true',
         });
       } else {
         const errorMessage = response.data?.message || 'Failed to fetch journal details';
@@ -98,14 +100,14 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
   };
 
   const handleAddOrEditEntry = (entryId = null) => {
-    navigation.navigate('JournalEntryDetail', { 
+    navigation.navigate('JournalEntryForm', {
       growthDataId,
       entryId,
-      journalinfo: true
+      journalinfo: 'true',
     });
   };
 
-  const token = AsyncStorage.getItem('token');
+  const token = AsyncStorage.getItem('authToken');
 
   if (!entries || entries.length === 0) {
     return (
@@ -120,6 +122,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
               style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
               onPress={() => handleAddOrEditEntry()}
               disabled={!token}
+              accessibilityLabel="Add new journal entry"
             >
               <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
             </TouchableOpacity>
@@ -140,6 +143,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
             style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
             onPress={() => handleAddOrEditEntry()}
             disabled={!token}
+            accessibilityLabel="Add new journal entry"
           >
             <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
           </TouchableOpacity>
@@ -161,6 +165,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
             style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
             onPress={() => handleAddOrEditEntry()}
             disabled={!token}
+            accessibilityLabel="Add new journal entry"
           >
             <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
           </TouchableOpacity>
@@ -180,7 +185,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
                   <Text style={styles(width).weekBadgeText}>Week {entry.currentWeek || 'N/A'}</Text>
                 </View>
                 <Text style={styles(width).entryDate}>
-                  {new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })}
+                  {new Date(entry.createdAt || Date.now()).toLocaleDateString('en-US', { dateStyle: 'medium' })}
                 </Text>
               </View>
               <View style={styles(width).entryActions}>
@@ -188,22 +193,25 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
                   style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
                   onPress={() => handleAddOrEditEntry(entry.id)}
                   disabled={!token}
+                  accessibilityLabel={`Edit journal entry for week ${entry.currentWeek}`}
                 >
-                  <Text style={styles(width).actionIcon}>✏️</Text>
+                  <Ionicons name="pencil-outline" size={20} color="#848785" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
                   onPress={() => handleDelete(entry.id)}
                   disabled={!token}
+                  accessibilityLabel={`Delete journal entry for week ${entry.currentWeek}`}
                 >
-                  <Text style={styles(width).actionIcon}>🗑️</Text>
+                  <Ionicons name="trash-outline" size={20} color="#FE6B6A" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
                   onPress={() => handleViewDetails(entry.id)}
                   disabled={!token}
+                  accessibilityLabel={`View details for journal entry week ${entry.currentWeek}`}
                 >
-                  <Text style={styles(width).actionIcon}>👁️</Text>
+                  <Ionicons name="eye-outline" size={20} color="#848785" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -266,7 +274,6 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
   );
 };
 
-// Styles as a function to accept width
 const styles = (width) => StyleSheet.create({
   journalSection: {
     backgroundColor: '#F5F7FA',
@@ -277,8 +284,7 @@ const styles = (width) => StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 3,
-    position: 'relative',
-    overflow: 'hidden',
+    margin: width < 768 ? 8 : 16,
   },
   sectionHeader: {
     flexDirection: width < 768 ? 'column' : 'row',
@@ -411,10 +417,6 @@ const styles = (width) => StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  actionIcon: {
-    fontSize: 20,
-    color: '#848785',
   },
   entryContent: {
     flexDirection: 'column',

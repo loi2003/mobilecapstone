@@ -12,7 +12,6 @@ export const getAllChecklistProgressForGrowthData = async (growthDataId, token) 
         growthDataId,
       },
     });
-    console.log('Fetched checklist progress:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching checklist progress:', error.response?.data || error.message);
