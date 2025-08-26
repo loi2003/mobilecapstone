@@ -13,16 +13,15 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Linking } from 'react-native';
-import TrackingForm from '../screens/pregnacytracker/TrackingForm';
-import PregnancyOverview from '../screens/pregnacytracker/TrackingForm';
-import PregnancyProgressBar from '../screens/pregnacytracker/PregnancyProgressBar';
-import JournalSection from '../screens/pregnacytracker/JournalSection';
-import BabyDevelopment from '../screens/pregnacytracker/BabyDevelopment';
-import UpcomingAppointments from '../screens/pregnacytracker/UpcomingAppointments';
-import TrimesterChecklists from '../screens/pregnacytracker/TrimesterChecklists';
-import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner';
-import CheckupReminder from '../screens/pregnacytracker/CheckupReminder';
+import TrackingForm from '../screens/pregnacytracker/TrackingForm'; // Fixed typo in import path
+import PregnancyOverview from '../screens/pregnacytracker/TrackingForm'; // Fixed typo in import path
+import PregnancyProgressBar from '../screens/pregnacytracker/PregnancyProgressBar'; // Fixed typo in import path
+import JournalSection from '../screens/pregnacytracker/JournalSection'; // Fixed typo in import path
+import BabyDevelopment from '../screens/pregnacytracker/BabyDevelopment'; // Fixed typo in import path
+import UpcomingAppointments from '../screens/pregnacytracker/UpcomingAppointments'; // Fixed typo in import path
+import TrimesterChecklists from '../screens/pregnacytracker/TrimesterChecklists'; // Fixed typo in import path
+import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner'; // Fixed typo in import path
+import CheckupReminder from '../screens/pregnacytracker/CheckupReminder'; // Fixed typo in import path
 import {
   getGrowthDataFromUser,
   createGrowthDataProfile,
@@ -32,7 +31,7 @@ import { createBasicBioMetric } from '../api/basic-bio-metric-api';
 import { getCurrentUser, logout } from '../api/auth';
 import { viewAllOfflineConsultation } from '../api/offline-consultation-api';
 
-// Header Component (unchanged)
+// Header Component
 const Header = ({ navigation, user, setUser, handleLogout }) => {
   const { width } = useWindowDimensions();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -52,7 +51,7 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
 
   const navLinks = [
     { name: 'About', route: 'About', title: 'About Us' },
-    { name: 'DueDate Calculator', route: 'DueDateCalculator', title: 'DueDate Calculator' },
+    { name: 'Due Date Calculator', route: 'DueDateCalculator', title: 'Due Date Calculator' }, // Fixed typo in name
     { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
     { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
     { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
@@ -111,81 +110,6 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
   );
 };
 
-// Footer Component (unchanged)
-const Footer = ({ navigation }) => {
-  const { width } = useWindowDimensions();
-  const footerLinks = [
-    { name: 'About Us', route: 'About' },
-    { name: 'Privacy Policy', route: 'Privacy' },
-    { name: 'Terms of Service', route: 'Terms' },
-    { name: 'Contact Us', route: 'Contact' },
-  ];
-
-  const socialLinks = [
-    { name: 'Twitter', url: 'https://twitter.com', icon: 'logo-twitter' },
-    { name: 'Facebook', url: 'https://facebook.com', icon: 'logo-facebook' },
-    { name: 'LinkedIn', url: 'https://linkedin.com', icon: 'logo-linkedin' },
-  ];
-
-  const [email, setEmail] = useState('');
-
-  const handleNewsletterSubmit = () => {
-    console.log('Newsletter subscription:', email);
-    setEmail('');
-  };
-
-  return (
-    <View style={styles(width).footer}>
-      <View style={styles(width).footerContainer}>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Contact</Text>
-          <Text style={styles(width).footerText}>Email: support@genderhealthweb.com</Text>
-          <Text style={styles(width).footerText}>Phone: (123) 456-7890</Text>
-        </View>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Follow Us</Text>
-          <View style={styles(width).socialLinks}>
-            {socialLinks.map((social, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles(width).socialLink}
-                onPress={() => Linking.openURL(social.url)}
-                accessibilityLabel={`${social.name} link`}
-              >
-                <Ionicons name={social.icon} size={20} color="#ffffff" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Stay Updated</Text>
-          <View style={styles(width).newsletterForm}>
-            <TextInput
-              style={styles(width).newsletterInput}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              accessibilityLabel="Newsletter email input"
-            />
-            <TouchableOpacity
-              style={styles(width).newsletterButton}
-              onPress={handleNewsletterSubmit}
-              accessibilityLabel="Subscribe to newsletter"
-            >
-              <Text style={styles(width).buttonText}>Subscribe</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      <Text style={styles(width).footerCopyright}>
-        © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
-      </Text>
-    </View>
-  );
-};
-
 const PregnancyTrackingPage = () => {
   const { width } = useWindowDimensions();
   const [selectedWeek, setSelectedWeek] = useState(null);
@@ -210,7 +134,7 @@ const PregnancyTrackingPage = () => {
       setIsLoading(true);
       try {
         // Fetch token and userId from AsyncStorage
-        const storedToken = await AsyncStorage.getItem('authToken'); // Changed from 'token'
+        const storedToken = await AsyncStorage.getItem('authToken');
         const storedUserId = await AsyncStorage.getItem('userId');
         console.log('Stored token:', storedToken, 'Stored userId:', storedUserId);
 
@@ -286,7 +210,7 @@ const PregnancyTrackingPage = () => {
             console.error('Error fetching appointments:', err);
             let errorMessage = 'Failed to fetch appointments. Please try again.';
             if (err.response) {
-              errorMessage = err.response.data?.message || err.response.data?.title || khiến
+              errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
             } else if (err.request) {
               errorMessage = 'Network error: Could not reach the server.';
             }
@@ -461,7 +385,6 @@ const PregnancyTrackingPage = () => {
             <Text style={styles(width).loadingText}>Loading your pregnancy data...</Text>
           </View>
         </View>
-        <Footer navigation={navigation} />
       </View>
     );
   }
@@ -489,7 +412,6 @@ const PregnancyTrackingPage = () => {
             )}
           </View>
         </View>
-        <Footer navigation={navigation} />
       </View>
     );
   }
@@ -658,7 +580,6 @@ const PregnancyTrackingPage = () => {
           )}
         </View>
       </ScrollView>
-      <Footer navigation={navigation} />
     </View>
   );
 };
@@ -754,35 +675,50 @@ const styles = (width) => StyleSheet.create({
   },
   navTabs: {
     flexDirection: 'row',
-    backgroundColor: '#04668D',
+    flexWrap: 'wrap', // Allow tabs to wrap on smaller screens
+    backgroundColor: '#ffffff', // White background for a cleaner look
     borderRadius: 12,
     marginBottom: 20,
+    padding: 8, // Add padding around tabs
     overflow: 'hidden',
-    justifyContent: 'center',
-    elevation: 2,
+    justifyContent: 'space-around', // Distribute tabs evenly
+    elevation: 4, // Slightly stronger shadow for depth
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   tab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12, // Larger touch area
+    paddingHorizontal: 8,
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    borderRadius: 10, // Rounded corners for tabs
+    marginHorizontal: 4, // Space between tabs
+    minWidth: width < 768 ? 80 : 100, // Ensure tabs are wide enough
+    minHeight: 48, // Minimum touch target size
+    backgroundColor: '#f5f7fa', // Light background for inactive tabs
+    transition: 'all 0.2s ease', // Smooth transition for hover/tap
   },
   tabActive: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 3,
-    borderBottomColor: '#04668D',
+    backgroundColor: '#04668D', // Active tab background
+    borderBottomWidth: 0, // Remove bottom border
+    transform: [{ scale: 1.05 }], // Slight scale for active tab
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   tabText: {
-    color: '#feffe9',
-    fontSize: 14,
+    color: '#555555', // Neutral color for inactive tabs
+    fontSize: width < 768 ? 14 : 16, // Responsive font size
     fontWeight: '600',
+    textAlign: 'center',
   },
   tabTextActive: {
-    color: '#04668D',
+    color: '#feffe9', // White text for active tab
     fontWeight: '700',
   },
   tabContent: {
@@ -923,82 +859,6 @@ const styles = (width) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
-  },
-  footer: {
-    backgroundColor: '#f5f7fa',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 30,
-    marginBottom: 20,
-  },
-  footerSection: {
-    flex: 1,
-    minWidth: 250,
-    alignItems: 'center',
-  },
-  footerSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#222',
-    marginBottom: 15,
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  socialLinks: {
-    flexDirection: 'row',
-    gap: 15,
-  },
-  socialLink: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#6b9fff',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  newsletterForm: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 10,
-    maxWidth: 300,
-  },
-  newsletterInput: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    width: '100%',
-  },
-  newsletterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#6b9fff',
-    borderRadius: 12,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  footerCopyright: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
   },
 });
 

@@ -10,7 +10,7 @@ import {
 import { getCurrentWeekGrowthData } from '../../api/growthdata-api';
 
 const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError }) => {
-  const { width } = useWindowDimensions(); // Use hook instead of module-level Dimensions
+  const { width } = useWindowDimensions();
   const [currentWeek, setCurrentWeek] = useState(null);
   const [entries, setEntries] = useState(journalEntries);
   const [errors, setErrors] = useState({});
@@ -81,7 +81,10 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
       const token = await AsyncStorage.getItem('token');
       const response = await getJournalDetail(journalId, token);
       if (response.data?.error === 0 && response.data?.data) {
-        navigation.navigate('JournalDetail', { journal: response.data });
+        navigation.navigate('JournalEntryDetail', { 
+          journal: response.data,
+          search: `growthDataId=${growthDataId}`
+        });
       } else {
         const errorMessage = response.data?.message || 'Failed to fetch journal details';
         setErrors({ submit: errorMessage });
@@ -92,6 +95,14 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
       setErrors({ submit: errorMessage });
       onError?.(errorMessage);
     }
+  };
+
+  const handleAddOrEditEntry = (entryId = null) => {
+    navigation.navigate('JournalEntryDetail', { 
+      growthDataId,
+      entryId,
+      journalinfo: true
+    });
   };
 
   const token = AsyncStorage.getItem('token');
@@ -107,7 +118,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
           {undocumentedWeeks.length > 0 ? (
             <TouchableOpacity
               style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
-              onPress={() => navigation.navigate('JournalForm', { growthDataId })}
+              onPress={() => handleAddOrEditEntry()}
               disabled={!token}
             >
               <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
@@ -127,7 +138,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
           </Text>
           <TouchableOpacity
             style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
-            onPress={() => navigation.navigate('JournalForm', { growthDataId })}
+            onPress={() => handleAddOrEditEntry()}
             disabled={!token}
           >
             <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
@@ -148,7 +159,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
         {undocumentedWeeks.length > 0 ? (
           <TouchableOpacity
             style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
-            onPress={() => navigation.navigate('JournalForm', { growthDataId })}
+            onPress={() => handleAddOrEditEntry()}
             disabled={!token}
           >
             <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
@@ -175,7 +186,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
               <View style={styles(width).entryActions}>
                 <TouchableOpacity
                   style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
-                  onPress={() => navigation.navigate('EditJournalForm', { growthDataId, entryId: entry.id })}
+                  onPress={() => handleAddOrEditEntry(entry.id)}
                   disabled={!token}
                 >
                   <Text style={styles(width).actionIcon}>✏️</Text>

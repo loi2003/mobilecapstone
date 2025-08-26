@@ -7,169 +7,15 @@ import {
   StyleSheet,
   ScrollView,
   useWindowDimensions,
-  Animated,
   PanResponder,
   TouchableWithoutFeedback,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Linking } from 'react-native';
-
-// Header Component
-const Header = ({ navigation, user, setUser, handleLogout }) => {
-  const { width } = useWindowDimensions(); // Use hook for dynamic dimensions
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-width)).current; // Use ref for animation value
-
-  useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: isMenuOpen ? 0 : -width,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [isMenuOpen, width]);
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const navLinks = [
-    { name: 'About', route: 'About', title: 'About Us' },
-    { name: 'DueDate Calculator', route: 'DueDateCalculator', title: 'DueDate Calculator' },
-    { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
-    { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
-    { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
-    { name: 'Blog', route: 'Blog', title: 'Blog' },
-  ];
-
-  return (
-    <View style={styles(width).header}>
-      <View style={styles(width).headerContainer}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles(width).logo}>NestlyCare</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles(width).menuToggle}
-          onPress={toggleMenu}
-          accessibilityLabel="Toggle navigation"
-        >
-          <Ionicons
-            name={isMenuOpen ? 'close' : 'menu'}
-            size={24}
-            color="#feffe9"
-          />
-        </TouchableOpacity>
-        <Animated.View
-          style={[
-            styles(width).navLinks,
-            { transform: [{ translateX: slideAnim }] },
-          ]}
-        >
-          {navLinks.map((link, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles(width).navLink}
-              onPress={() => {
-                navigation.navigate(link.route);
-                setIsMenuOpen(false);
-              }}
-            >
-              <Text style={styles(width).navLinkText}>{link.name}</Text>
-            </TouchableOpacity>
-          ))}
-          {user && (
-            <TouchableOpacity
-              style={styles(width).navLink}
-              onPress={() => {
-                handleLogout();
-                setIsMenuOpen(false);
-              }}
-            >
-              <Text style={styles(width).navLinkText}>Logout</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-      </View>
-    </View>
-  );
-};
-
-// Footer Component
-const Footer = ({ navigation }) => {
-  const { width } = useWindowDimensions(); // Use hook for dynamic dimensions
-  const footerLinks = [
-    { name: 'About Us', route: 'About' },
-    { name: 'Privacy Policy', route: 'Privacy' },
-    { name: 'Terms of Service', route: 'Terms' },
-    { name: 'Contact Us', route: 'Contact' },
-  ];
-
-  const socialLinks = [
-    { name: 'Twitter', url: 'https://twitter.com', icon: 'logo-twitter' },
-    { name: 'Facebook', url: 'https://facebook.com', icon: 'logo-facebook' },
-    { name: 'LinkedIn', url: 'https://linkedin.com', icon: 'logo-linkedin' },
-  ];
-
-  const [email, setEmail] = useState('');
-
-  const handleNewsletterSubmit = () => {
-    console.log('Newsletter subscription:', email);
-    setEmail('');
-  };
-
-  return (
-    <View style={styles(width).footer}>
-      <View style={styles(width).footerContainer}>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Contact</Text>
-          <Text style={styles(width).footerText}>Email: support@genderhealthweb.com</Text>
-          <Text style={styles(width).footerText}>Phone: (123) 456-7890</Text>
-        </View>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Follow Us</Text>
-          <View style={styles(width).socialLinks}>
-            {socialLinks.map((social, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles(width).socialLink}
-                onPress={() => Linking.openURL(social.url)}
-              >
-                <Ionicons name={social.icon} size={20} color="#ffffff" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Stay Updated</Text>
-          <View style={styles(width).newsletterForm}>
-            <TextInput
-              style={styles(width).newsletterInput}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={styles(width).newsletterButton}
-              onPress={handleNewsletterSubmit}
-            >
-              <Text style={styles(width).buttonText}>Subscribe</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      <Text style={styles(width).footerCopyright}>
-        © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
-      </Text>
-    </View>
-  );
-};
 
 const SystemMealPlanner = () => {
-  const { width } = useWindowDimensions(); // Use hook for dynamic dimensions
+  const { width } = useWindowDimensions();
   const [week, setWeek] = useState('Week 1');
   const [day, setDay] = useState('');
   const [allergies, setAllergies] = useState('');
@@ -291,7 +137,7 @@ const SystemMealPlanner = () => {
       try {
         const token = await AsyncStorage.getItem('token');
         if (token) {
-          const res = await getCurrentUser(token); // Assume getCurrentUser is defined elsewhere
+          const res = await getCurrentUser(token);
           setUser(res?.data?.data || null);
         }
       } catch (err) {
@@ -310,7 +156,7 @@ const SystemMealPlanner = () => {
         navigation.replace('Login');
         return;
       }
-      await logout(userId, token); // Assume logout is defined elsewhere
+      await logout(userId, token);
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('userId');
       navigation.replace('Login');
@@ -408,7 +254,6 @@ const SystemMealPlanner = () => {
 
   return (
     <View style={styles(width).mealplannerPageWrapper}>
-      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
       <ScrollView contentContainerStyle={styles(width).mainContent}>
         <View style={styles(width).mealplannerHeading}>
           <Text style={styles(width).headingTitle}>System Meal Planner</Text>
@@ -747,12 +592,10 @@ const SystemMealPlanner = () => {
           </View>
         )}
       </ScrollView>
-      <Footer navigation={navigation} />
     </View>
   );
 };
 
-// Styles as a function to accept width
 const styles = (width) => StyleSheet.create({
   mealplannerPageWrapper: {
     flex: 1,
@@ -761,7 +604,7 @@ const styles = (width) => StyleSheet.create({
   },
   mainContent: {
     paddingVertical: 20,
-    paddingTop: 90,
+    paddingTop: 20,
     paddingHorizontal: 10,
   },
   mealplannerHeading: {
@@ -1063,147 +906,6 @@ const styles = (width) => StyleSheet.create({
   backBtnWrapper: {
     alignItems: 'flex-end',
     marginVertical: 12,
-  },
-  header: {
-    backgroundColor: '#04668D',
-    paddingHorizontal: 8,
-    paddingVertical: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    height: 70,
-  },
-  headerContainer: {
-    maxWidth: 1280,
-    width: '100%',
-    marginHorizontal: 'auto',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    height: '100%',
-  },
-  logo: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#feffe9',
-    textDecorationLine: 'none',
-  },
-  menuToggle: {
-    padding: 6,
-  },
-  navLinks: {
-    position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
-    backgroundColor: '#04668D',
-    flexDirection: 'column',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    zIndex: 1002,
-    height: width < 768 ? '100%' : 400, // Dynamic height based on screen size
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  navLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginVertical: 5,
-  },
-  navLinkText: {
-    color: '#feffe9',
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  footer: {
-    backgroundColor: '#f5f7fa',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 30,
-    marginBottom: 20,
-  },
-  footerSection: {
-    flex: 1,
-    minWidth: 250,
-    alignItems: 'center',
-  },
-  footerSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#222',
-    marginBottom: 15,
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  socialLinks: {
-    flexDirection: 'row',
-    gap: 15,
-  },
-  socialLink: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#6b9fff',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  newsletterForm: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 10,
-    maxWidth: 300,
-  },
-  newsletterInput: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    width: '100%',
-  },
-  newsletterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#6b9fff',
-    borderRadius: 12,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  footerCopyright: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
   },
 });
 
