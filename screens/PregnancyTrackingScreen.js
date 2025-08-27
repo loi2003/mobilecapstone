@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
-  TextInput,
   useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,7 +20,7 @@ import BabyDevelopment from '../screens/pregnacytracker/BabyDevelopment'; // Fix
 import UpcomingAppointments from '../screens/pregnacytracker/UpcomingAppointments'; // Fixed typo in import path
 import TrimesterChecklists from '../screens/pregnacytracker/TrimesterChecklists'; // Fixed typo in import path
 import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner'; // Fixed typo in import path
-import CheckupReminder from '../screens/pregnacytracker/CheckupReminder'; // Fixed typo in import path
+import CheckupReminder from '../screens/pregnacytracker/CheckupReminder';
 import {
   getGrowthDataFromUser,
   createGrowthDataProfile,
@@ -51,7 +50,7 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
 
   const navLinks = [
     { name: 'About', route: 'About', title: 'About Us' },
-    { name: 'Due Date Calculator', route: 'DueDateCalculator', title: 'Due Date Calculator' }, // Fixed typo in name
+    { name: 'Due Date Calculator', route: 'DueDateCalculator', title: 'Due Date Calculator' },
     { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
     { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
     { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
@@ -128,18 +127,24 @@ const PregnancyTrackingPage = () => {
   const navigation = useNavigation();
   const route = useRoute();
 
-  // Combined initialization for auth and page data
+  // Initialize app data
   useEffect(() => {
+    let isMounted = true;
+
     const initializeApp = async () => {
+      if (!isMounted) return;
+
       setIsLoading(true);
+      setError(null);
+
       try {
         // Fetch token and userId from AsyncStorage
         const storedToken = await AsyncStorage.getItem('authToken');
         const storedUserId = await AsyncStorage.getItem('userId');
 
-        if (!storedToken) {
+        if (!storedToken || !storedUserId) {
           setError('Please sign in to access pregnancy tracking');
-          navigation.navigate('Login');
+          if (isMounted) navigation.navigate('Login');
           return;
         }
 
@@ -147,34 +152,50 @@ const PregnancyTrackingPage = () => {
         setUserId(storedUserId);
 
         // Fetch user data
-        const res = await getCurrentUser(storedToken);
-        const userData = res?.data?.data;
-
-        if (!userData || userData.roleId !== 2 || !userData.id) {
-          setError('Access denied or user ID missing.');
-          return;
+        let userData;
+        try {
+          const res = await getCurrentUser(storedToken);
+          userData = res?.data?.data;
+        } catch (userError) {
+          console.error('Error fetching user:', userError);
+          throw new Error('Failed to fetch user data. Please sign in again.');
         }
 
-        setUser(userData);
-        if (!storedUserId) {
-          setUserId(userData.id);
+        if (!userData || userData.roleId !== 2 || !userData.id) {
+          throw new Error('Access denied or user ID missing.');
+        }
+
+        if (isMounted) setUser(userData);
+
+        // Ensure userId consistency
+        if (storedUserId !== userData.id) {
           await AsyncStorage.setItem('userId', userData.id);
+          if (isMounted) setUserId(userData.id);
         }
 
         // Fetch pregnancy data
         const currentDate = new Date().toISOString().split('T')[0];
-        const { data: pregRes } = await getCurrentWeekGrowthData(
-          userData.id,
-          currentDate,
-          storedToken
-        );
+        let pregRes;
+        try {
+          const response = await getCurrentWeekGrowthData(
+            userData.id,
+            currentDate,
+            storedToken
+          );
+          pregRes = response.data;
+        } catch (pregError) {
+          console.error('Error fetching pregnancy data:', pregError);
+          throw new Error('Failed to fetch pregnancy data.');
+        }
 
         if (pregRes?.error === 0 && pregRes?.data) {
-          setPregnancyData(pregRes.data);
-          setSelectedWeek(pregRes.data.currentGestationalAgeInWeeks);
-          await AsyncStorage.setItem('growthDataId', pregRes.data.id);
+          if (isMounted) {
+            setPregnancyData(pregRes.data);
+            setSelectedWeek(pregRes.data.currentGestationalAgeInWeeks);
+            await AsyncStorage.setItem('growthDataId', pregRes.data.id);
+          }
         } else {
-          setPregnancyData(null);
+          if (isMounted) setPregnancyData(null);
         }
 
         // Fetch appointments
@@ -182,7 +203,6 @@ const PregnancyTrackingPage = () => {
           try {
             setLoadingAppointments(true);
             const response = await viewAllOfflineConsultation(userData.id, null, storedToken);
-
             const consultations = Array.isArray(response.data?.data) ? response.data.data : [];
             const mappedAppointments = consultations.map((c) => {
               const start = new Date(c.startDate);
@@ -200,35 +220,49 @@ const PregnancyTrackingPage = () => {
                 status: c.status?.toLowerCase(),
               };
             });
-            setAppointments(mappedAppointments);
+            if (isMounted) setAppointments(mappedAppointments);
           } catch (err) {
+            console.error('Error fetching appointments:', err);
             let errorMessage = 'Failed to fetch appointments. Please try again.';
             if (err.response) {
               errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
             } else if (err.request) {
               errorMessage = 'Network error: Could not reach the server.';
             }
-            setError(errorMessage);
+            if (isMounted) setError(errorMessage);
           } finally {
-            setLoadingAppointments(false);
+            if (isMounted) setLoadingAppointments(false);
           }
         } else {
-          setLoadingAppointments(false);
+          if (isMounted) setLoadingAppointments(false);
         }
       } catch (err) {
-        let errorMessage = 'Failed to load page. Please try again.';
-        if (err.response) {
-          errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
-        } else if (err.request) {
-          errorMessage = 'Network error: Could not reach the server.';
+        console.error('Initialization error:', err);
+        let errorMessage = err.message || 'Failed to load page. Please try again.';
+        if (err.response?.data?.message === 'User does not exist!') {
+          // Clear AsyncStorage and redirect to login
+          await AsyncStorage.multiRemove(['authToken', 'userId', 'growthDataId']);
+          errorMessage = 'User session invalid. Please sign in again.';
+          if (isMounted) {
+            setUserId(null);
+            setToken(null);
+            setUser(null);
+            setPregnancyData(null);
+            setAppointments([]);
+            navigation.navigate('Login');
+          }
         }
-        setError(errorMessage);
+        if (isMounted) setError(errorMessage);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     initializeApp();
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigation]);
 
   const appointmentDates = appointments.map((a) => a.start.toISOString());
@@ -245,25 +279,28 @@ const PregnancyTrackingPage = () => {
 
     try {
       if (!token || !userId) {
-        setError('Authentication data missing. Please sign in again.');
-        navigation.navigate('Login');
-        return;
+        throw new Error('Authentication data missing. Please sign in again.');
       }
 
       const { firstDayOfLastMenstrualPeriod, preWeight, preHeight } = formData;
 
-      const growthDataRes = await createGrowthDataProfile(
-        {
-          userId,
-          firstDayOfLastMenstrualPeriod,
-          preWeight,
-        },
-        token
-      );
+      let growthDataRes;
+      try {
+        growthDataRes = await createGrowthDataProfile(
+          {
+            userId,
+            firstDayOfLastMenstrualPeriod,
+            preWeight,
+          },
+          token
+        );
+      } catch (growthError) {
+        console.error('Error creating growth data profile:', growthError);
+        throw new Error('Failed to create pregnancy profile.');
+      }
 
       if (growthDataRes?.data?.error !== 0) {
-        setError(growthDataRes?.data?.message || 'Failed to create pregnancy profile.');
-        return;
+        throw new Error(growthDataRes?.data?.message || 'Failed to create pregnancy profile.');
       }
 
       let growthDataId = growthDataRes?.data?.data?.id;
@@ -278,40 +315,57 @@ const PregnancyTrackingPage = () => {
         if (fallbackRes?.error === 0 && fallbackRes?.data?.id) {
           growthDataId = fallbackRes.data.id;
         } else {
-          setError('Could not retrieve newly created growth data profile.');
-          return;
+          throw new Error('Could not retrieve newly created growth data profile.');
         }
       }
 
-      await createBasicBioMetric(
-        {
-          GrowthDataId: growthDataId,
-          WeightKg: preWeight,
-          HeightCm: preHeight,
-        },
-        token
-      );
+      try {
+        await createBasicBioMetric(
+          {
+            GrowthDataId: growthDataId,
+            WeightKg: preWeight,
+            HeightCm: preHeight,
+          },
+          token
+        );
+      } catch (bioMetricError) {
+        console.error('Error creating biometric data:', bioMetricError);
+        throw new Error('Failed to save biometric data.');
+      }
 
       const currentDate = new Date().toISOString().split('T')[0];
-      const { data: pregRes } = await getCurrentWeekGrowthData(
-        userId,
-        currentDate,
-        token
-      );
+      let pregRes;
+      try {
+        const response = await getCurrentWeekGrowthData(
+          userId,
+          currentDate,
+          token
+        );
+        pregRes = response.data;
+      } catch (pregError) {
+        console.error('Error fetching updated pregnancy data:', pregError);
+        throw new Error('Failed to fetch updated pregnancy data.');
+      }
 
       if (pregRes?.error === 0 && pregRes?.data) {
         setPregnancyData(pregRes.data);
+        setSelectedWeek(pregRes.data.currentGestationalAgeInWeeks);
+        await AsyncStorage.setItem('growthDataId', pregRes.data.id);
       } else {
-        setError(pregRes?.message || 'Failed to fetch updated pregnancy data');
+        throw new Error(pregRes?.message || 'Failed to fetch updated pregnancy data.');
       }
     } catch (err) {
-      let errorMessage = 'Something went wrong. Please try again.';
+      console.error('Create profile error:', err);
+      let errorMessage = err.message || 'Something went wrong. Please try again.';
       if (err.response) {
         errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
       } else if (err.request) {
         errorMessage = 'Network error: Could not reach the server.';
       }
       setError(errorMessage);
+      if (errorMessage.includes('sign in')) {
+        navigation.navigate('Login');
+      }
     } finally {
       setIsCreating(false);
     }
@@ -319,34 +373,13 @@ const PregnancyTrackingPage = () => {
 
   const handleLogout = async () => {
     try {
-      if (!token || !userId) {
-        await AsyncStorage.removeItem('authToken');
-        await AsyncStorage.removeItem('userId');
-        setUserId(null);
-        setToken(null);
-        setUser(null);
-        setPregnancyData(null);
-        setAppointments([]);
-        navigation.replace('Login');
-        return;
+      if (token && userId) {
+        await logout({ userId }, token);
       }
-
-      await logout(userId, token);
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('userId');
-      await AsyncStorage.removeItem('growthDataId');
-      setUserId(null);
-      setToken(null);
-      setUser(null);
-      setPregnancyData(null);
-      setAppointments([]);
-      navigation.replace('Login');
-      console.log('✅ Logout successful for userId:', userId);
     } catch (error) {
-      console.error('❌ Logout failed:', error);
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('userId');
-      await AsyncStorage.removeItem('growthDataId');
+      console.error('Logout error:', error);
+    } finally {
+      await AsyncStorage.multiRemove(['authToken', 'userId', 'growthDataId']);
       setUserId(null);
       setToken(null);
       setUser(null);
@@ -388,18 +421,14 @@ const PregnancyTrackingPage = () => {
             <Text style={styles(width).errorIcon}>⚠️</Text>
             <Text style={styles(width).errorTitle}>Oops! Something went wrong</Text>
             <Text style={styles(width).errorText}>{error}</Text>
-            {error.includes('sign in') ? (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Login')}
-                style={styles(width).retryBtn}
-              >
-                <Text style={styles(width).retryBtnText}>Go to Login</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={() => initializeApp()} style={styles(width).retryBtn}>
-                <Text style={styles(width).retryBtnText}>Try Again</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={() => error.includes('sign in') ? navigation.navigate('Login') : initializeApp()}
+              style={styles(width).retryBtn}
+            >
+              <Text style={styles(width).retryBtnText}>
+                {error.includes('sign in') ? 'Go to Login' : 'Try Again'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -665,14 +694,14 @@ const styles = (width) => StyleSheet.create({
   },
   navTabs: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // Allow tabs to wrap on smaller screens
-    backgroundColor: '#ffffff', // White background for a cleaner look
+    flexWrap: 'wrap',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     marginBottom: 20,
-    padding: 8, // Add padding around tabs
+    padding: 8,
     overflow: 'hidden',
-    justifyContent: 'space-around', // Distribute tabs evenly
-    elevation: 4, // Slightly stronger shadow for depth
+    justifyContent: 'space-around',
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -680,21 +709,20 @@ const styles = (width) => StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 12, // Larger touch area
+    paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10, // Rounded corners for tabs
-    marginHorizontal: 4, // Space between tabs
-    minWidth: width < 768 ? 80 : 100, // Ensure tabs are wide enough
-    minHeight: 48, // Minimum touch target size
-    backgroundColor: '#f5f7fa', // Light background for inactive tabs
-    transition: 'all 0.2s ease', // Smooth transition for hover/tap
+    borderRadius: 10,
+    marginHorizontal: 4,
+    minWidth: width < 768 ? 80 : 100,
+    minHeight: 48,
+    backgroundColor: '#f5f7fa',
   },
   tabActive: {
-    backgroundColor: '#04668D', // Active tab background
-    borderBottomWidth: 0, // Remove bottom border
-    transform: [{ scale: 1.05 }], // Slight scale for active tab
+    backgroundColor: '#04668D',
+    borderBottomWidth: 0,
+    transform: [{ scale: 1.05 }],
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -702,13 +730,13 @@ const styles = (width) => StyleSheet.create({
     elevation: 3,
   },
   tabText: {
-    color: '#555555', // Neutral color for inactive tabs
-    fontSize: width < 768 ? 14 : 16, // Responsive font size
+    color: '#555555',
+    fontSize: width < 768 ? 14 : 16,
     fontWeight: '600',
     textAlign: 'center',
   },
   tabTextActive: {
-    color: '#feffe9', // White text for active tab
+    color: '#feffe9',
     fontWeight: '700',
   },
   tabContent: {
