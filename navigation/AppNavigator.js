@@ -19,8 +19,7 @@ import NutritionalGuidanceScreen from '../screens/NutritionalGuidanceScreen';
 import ConsultationScreen from '../screens/ConsultationScreen';
 import BlogScreen from '../screens/BlogScreen';
 import BlogDetailScreen from '../screens/BlogDetailScreen';
-import NutritionAdviceScreen from '../screens/NutritionAdviceScreen';
-import AIAdviceScreen from '../screens/AIAdviceScreen';
+import AdviceScreen from '../screens/AdviceScreen';
 import JournalEntryDetail from '../screens/pregnacytracker/JournalEntryDetail';
 import JournalEntryForm from '../screens/pregnacytracker/JournalEntryForm';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,8 +41,7 @@ const HomeStack = () => {
       <Stack.Screen name="Consultation" component={ConsultationScreen} />
       <Stack.Screen name="Blog" component={BlogScreen} />
       <Stack.Screen name="BlogPost" component={BlogDetailScreen} />
-      <Stack.Screen name="NutritionAdvice" component={NutritionAdviceScreen} />
-      <Stack.Screen name="AIAdvice" component={AIAdviceScreen} />
+      <Stack.Screen name="AIAdvice" component={AdviceScreen} />
     </Stack.Navigator>
   );
 };

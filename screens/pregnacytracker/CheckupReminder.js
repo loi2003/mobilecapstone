@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -22,6 +23,7 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
   const [date, setDate] = useState({
     month: today.getMonth(),
     year: today.getFullYear(),
+    day: today.getDate(),
   });
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
@@ -81,13 +83,18 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
   const firstDay = new Date(date.year, date.month, 1).getDay();
 
   const handleDayClick = (dateObj, isCurrentMonth) => {
-    if (!isCurrentMonth) return;
+    if (!isCurrentMonth && viewMode === 'month') return;
     const key = dateObj.toDateString();
     if (selectedDay === key) {
       setSelectedDay(null);
       setSelectedItems([]);
     } else {
       setSelectedDay(key);
+      setDate({
+        month: dateObj.getMonth(),
+        year: dateObj.getFullYear(),
+        day: dateObj.getDate(),
+      });
       const items = [
         ...(reminderDatesMap[key] || []),
         ...(appointmentDatesMap[key] || []),
@@ -97,7 +104,11 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
   };
 
   const goToToday = () => {
-    setDate({ month: today.getMonth(), year: today.getFullYear() });
+    setDate({
+      month: today.getMonth(),
+      year: today.getFullYear(),
+      day: today.getDate(),
+    });
     setSelectedDay(today.toDateString());
     setSelectedItems([
       ...(reminderDatesMap[today.toDateString()] || []),
@@ -108,13 +119,19 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
 
   const goToPrev = () => {
     if (viewMode === 'month') {
-      setDate(({ month, year }) =>
-        month === 0 ? { month: 11, year: year - 1 } : { month: month - 1, year }
-      );
+      setDate(({ month, year }) => ({
+        month: month === 0 ? 11 : month - 1,
+        year: month === 0 ? year - 1 : year,
+        day: 1,
+      }));
     } else {
-      const newDate = new Date(date.year, date.month, 1);
+      const newDate = new Date(date.year, date.month, date.day);
       newDate.setDate(newDate.getDate() - 7);
-      setDate({ month: newDate.getMonth(), year: newDate.getFullYear() });
+      setDate({
+        month: newDate.getMonth(),
+        year: newDate.getFullYear(),
+        day: newDate.getDate(),
+      });
     }
     setSelectedDay(null);
     setSelectedItems([]);
@@ -122,13 +139,19 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
 
   const goToNext = () => {
     if (viewMode === 'month') {
-      setDate(({ month, year }) =>
-        month === 11 ? { month: 0, year: year + 1 } : { month: month + 1, year }
-      );
+      setDate(({ month, year }) => ({
+        month: month === 11 ? 0 : month + 1,
+        year: month === 11 ? year + 1 : year,
+        day: 1,
+      }));
     } else {
-      const newDate = new Date(date.year, date.month, 1);
+      const newDate = new Date(date.year, date.month, date.day);
       newDate.setDate(newDate.getDate() + 7);
-      setDate({ month: newDate.getMonth(), year: newDate.getFullYear() });
+      setDate({
+        month: newDate.getMonth(),
+        year: newDate.getFullYear(),
+        day: newDate.getDate(),
+      });
     }
     setSelectedDay(null);
     setSelectedItems([]);
@@ -282,7 +305,7 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
   };
 
   const renderWeekView = () => {
-    const startOfWeek = new Date(date.year, date.month, 1);
+    const startOfWeek = new Date(date.year, date.month, date.day);
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
     const days = [];
 
@@ -294,7 +317,6 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
       const isSelected = selectedDay === dateKey;
       const hasAppointment = !!appointmentDatesMap[dateKey];
       const remindersForDay = reminderDatesMap[dateKey];
-      const isCurrentMonth = dateObj.getMonth() === date.month;
 
       let reminderStyle = {};
       let reminderClass = '';
@@ -326,20 +348,19 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
         isToday && styles(width).today,
         hasAppointment && styles(width).appointmentHighlight,
         reminderStyle,
-        !isCurrentMonth && styles(width).calendarDayOutside,
       ].filter(Boolean);
 
       days.push(
         <TouchableOpacity
           key={dateKey}
           style={dayStyles}
-          onPress={() => handleDayClick(dateObj, isCurrentMonth)}
+          onPress={() => handleDayClick(dateObj, true)}
         >
-          <Text style={styles(width).calendarDayText}>
-            {dateObj.getDate()}
-          </Text>
           <Text style={styles(width).calendarDayNameText}>
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dateObj.getDay()]}
+          </Text>
+          <Text style={styles(width).calendarDayText}>
+            {dateObj.getDate()}
           </Text>
           {(hasAppointment || remindersForDay?.length > 0) && (
             <View style={styles(width).eventDots}>
@@ -376,15 +397,7 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
           onPress={() => openModal('month')}
         >
           <Text style={styles(width).monthYearText}>
-            {months[date.month]}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles(width).monthYearContainer}
-          onPress={() => openModal('year')}
-        >
-          <Text style={styles(width).monthYearText}>
-            {date.year}
+            {months[date.month]} {date.year}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -409,14 +422,17 @@ const CheckupCalendar = ({ reminders = [], appointments = [] }) => {
         <Text style={styles(width).todayButtonText}>Today</Text>
       </TouchableOpacity>
 
-      <View style={viewMode === 'month' ? styles(width).calendarGrid : styles(width).calendarWeekGrid}>
-        {viewMode === 'month' &&
-          ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+      <View style={styles(width).calendarGrid}>
+        <View style={styles(width).calendarDayNames}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <View key={d} style={styles(width).calendarDayName}>
               <Text style={styles(width).calendarDayNameText}>{d}</Text>
             </View>
           ))}
-        {viewMode === 'month' ? renderMonthView() : renderWeekView()}
+        </View>
+        <View style={viewMode === 'month' ? styles(width).calendarMonthGrid : styles(width).calendarWeekGrid}>
+          {viewMode === 'month' ? renderMonthView() : renderWeekView()}
+        </View>
       </View>
 
       <View style={styles(width).calendarInstruction}>
@@ -797,7 +813,7 @@ const styles = (width) => StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    minWidth: 80,
+    flex: 1,
     alignItems: 'center',
   },
   monthYearText: {
@@ -830,22 +846,32 @@ const styles = (width) => StyleSheet.create({
     fontWeight: '600',
   },
   calendarGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
-    gap: width < 768 ? 4 : 6,
+    flexDirection: 'column',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     paddingTop: 8,
+  },
+  calendarDayNames: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  calendarMonthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: width < 768 ? 4 : 6,
   },
   calendarWeekGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: width < 768 ? 4 : 6,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingTop: 8,
+    paddingVertical: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
   },
   calendarDayName: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
@@ -856,6 +882,7 @@ const styles = (width) => StyleSheet.create({
     fontWeight: '700',
   },
   calendarDay: {
+    width: (width < 768 ? width - 48 : width - 64) / 7 - (width < 768 ? 4 : 6),
     height: width < 768 ? 50 : 60,
     alignItems: 'center',
     justifyContent: 'center',
@@ -865,15 +892,18 @@ const styles = (width) => StyleSheet.create({
     borderColor: '#e0e0e0',
   },
   calendarDayWeek: {
-    height: width < 768 ? 70 : 80,
+    width: (width < 768 ? width - 48 : width - 64) / 7 - (width < 768 ? 4 : 6),
+    height: width < 768 ? 80 : 100,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    paddingVertical: 8,
   },
   calendarDayOutside: {
+    width: (width < 768 ? width - 48 : width - 64) / 7 - (width < 768 ? 4 : 6),
     height: width < 768 ? 50 : 60,
     alignItems: 'center',
     justifyContent: 'center',
@@ -894,26 +924,20 @@ const styles = (width) => StyleSheet.create({
   },
   today: {
     backgroundColor: '#04668d',
-    color: '#ffffff',
-    fontWeight: '700',
     borderWidth: 2,
     borderColor: '#034b67',
   },
   todayMarker: {
-    fontSize: width < 768 ? 8 : 10,
+    fontSize: width < 768 ? 10 : 12,
     color: '#ffffff',
     fontWeight: '700',
     marginTop: 4,
   },
   appointmentHighlight: {
     backgroundColor: '#049aa8',
-    color: '#ffffff',
-    fontWeight: '700',
   },
   recommended: {
     backgroundColor: '#038474',
-    color: '#ffffff',
-    fontWeight: '700',
     borderWidth: 2,
     borderColor: '#333',
   },
@@ -922,8 +946,6 @@ const styles = (width) => StyleSheet.create({
   },
   emergency: {
     backgroundColor: '#e74c3c',
-    color: '#ffffff',
-    fontWeight: '700',
     borderWidth: 2,
     borderColor: '#333',
   },
@@ -1066,7 +1088,6 @@ const styles = (width) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Existing styles for reminder cards
   reminderSection: {
     marginTop: 20,
   },

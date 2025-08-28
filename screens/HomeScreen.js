@@ -179,7 +179,6 @@ const HomeScreen = ({ navigation }) => {
         const token = await AsyncStorage.getItem('authToken');
         if (token) {
           const response = await getCurrentUser(token);
-          console.log('User data:', response.data);
           setUser(response.data);
         }
       } catch (error) {
@@ -511,15 +510,15 @@ const HomeScreen = ({ navigation }) => {
         <Animated.View style={[styles.contactPopup, { opacity: fadeAnim }]}>
           <TouchableOpacity
             style={styles.popupButton}
-            onPress={() => navigation.navigate('NutritionAdvice')}
+            onPress={() => navigation.navigate('NutritionalGuidance')}
           >
-            <Text style={styles.buttonText}>Nutrition Advice</Text>
+            <Text style={styles.buttonText}>Consultant Chat</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.popupButton}
             onPress={() => navigation.navigate('AIAdvice')}
           >
-            <Text style={styles.buttonText}>AI Advice</Text>
+            <Text style={styles.buttonText}>Quick Advice</Text>
           </TouchableOpacity>
         </Animated.View>
       )}
