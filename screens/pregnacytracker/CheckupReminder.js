@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -617,12 +616,8 @@ const CheckupReminder = ({ token, userId, appointments = [] }) => {
     fetchReminders();
   }, [token, userId, navigation]);
 
-  const handleBookInside = (reminder) => {
-    navigation.navigate('ClinicList');
-  };
-
-  const handleBookOutside = (reminder) => {
-    console.log(`Booking outside platform for: ${reminder.title}`);
+  const handleBook = (reminder) => {
+    navigation.navigate('Consultation');
   };
 
   const formatDate = (dateStr) => {
@@ -676,17 +671,11 @@ const CheckupReminder = ({ token, userId, appointments = [] }) => {
       <View style={styles(width).reminderActions}>
         <TouchableOpacity
           style={[styles(width).bookBtn, isUrgent ? styles(width).emergency : {}]}
-          onPress={() => handleBookInside(reminder)}
+          onPress={() => handleBook(reminder)}
         >
           <Text style={styles(width).bookBtnText}>
             {isUrgent ? 'Book Urgently' : 'Schedule Consultation'}
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles(width).outsideBtn}
-          onPress={() => handleBookOutside(reminder)}
-        >
-          <Text style={styles(width).outsideBtnText}>Book Outside</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -1169,20 +1158,6 @@ const styles = (width) => StyleSheet.create({
   },
   emergency: {
     backgroundColor: '#d32f2f',
-  },
-  outsideBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#f1f1f1',
-    borderRadius: 8,
-    alignItems: 'center',
-    flex: width < 768 ? 1 : 0,
-    minWidth: width < 768 ? 0 : 200,
-  },
-  outsideBtnText: {
-    color: '#333',
-    fontSize: 14,
-    fontWeight: '600',
   },
   emptyText: {
     fontSize: 14,
