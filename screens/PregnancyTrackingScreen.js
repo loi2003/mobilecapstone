@@ -12,14 +12,14 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import TrackingForm from '../screens/pregnacytracker/TrackingForm'; // Fixed typo in import path
-import PregnancyOverview from '../screens/pregnacytracker/TrackingForm'; // Fixed typo in import path
-import PregnancyProgressBar from '../screens/pregnacytracker/PregnancyProgressBar'; // Fixed typo in import path
-import JournalSection from '../screens/pregnacytracker/JournalSection'; // Fixed typo in import path
-import BabyDevelopment from '../screens/pregnacytracker/BabyDevelopment'; // Fixed typo in import path
-import UpcomingAppointments from '../screens/pregnacytracker/UpcomingAppointments'; // Fixed typo in import path
-import TrimesterChecklists from '../screens/pregnacytracker/TrimesterChecklists'; // Fixed typo in import path
-import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner'; // Fixed typo in import path
+import TrackingForm from '../screens/pregnacytracker/TrackingForm';
+import PregnancyOverview from '../screens/pregnacytracker/PregnancyOverview';
+import PregnancyProgressBar from '../screens/pregnacytracker/PregnancyProgressBar';
+import JournalSection from '../screens/pregnacytracker/JournalSection';
+import BabyDevelopment from '../screens/pregnacytracker/BabyDevelopment';
+import UpcomingAppointments from '../screens/pregnacytracker/UpcomingAppointments';
+import TrimesterChecklists from '../screens/pregnacytracker/TrimesterChecklists';
+import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner';
 import CheckupReminder from '../screens/pregnacytracker/CheckupReminder';
 import {
   getGrowthDataFromUser,
@@ -74,37 +74,40 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
             color="#feffe9"
           />
         </TouchableOpacity>
-        <Animated.View
-          style={[
-            styles(width).navLinks,
-            { transform: [{ translateX: slideAnim }] },
-          ]}
-        >
-          {navLinks.map((link, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles(width).navLink}
-              onPress={() => {
-                navigation.navigate(link.route);
-                setIsMenuOpen(false);
-              }}
-            >
-              <Text style={styles(width).navLinkText}>{link.name}</Text>
-            </TouchableOpacity>
-          ))}
-          {user && (
-            <TouchableOpacity
-              style={styles(width).navLink}
-              onPress={() => {
-                handleLogout();
-                setIsMenuOpen(false);
-              }}
-            >
-              <Text style={styles(width).navLinkText}>Logout</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
       </View>
+      <Animated.View
+        style={[
+          styles(width).navLinks,
+          {
+            transform: [{ translateX: slideAnim }],
+            display: isMenuOpen ? 'flex' : 'none', // Ensure visibility control
+          },
+        ]}
+      >
+        {navLinks.map((link, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles(width).navLink}
+            onPress={() => {
+              navigation.navigate(link.route);
+              setIsMenuOpen(false);
+            }}
+          >
+            <Text style={styles(width).navLinkText}>{link.name}</Text>
+          </TouchableOpacity>
+        ))}
+        {user && (
+          <TouchableOpacity
+            style={styles(width).navLink}
+            onPress={() => {
+              handleLogout();
+              setIsMenuOpen(false);
+            }}
+          >
+            <Text style={styles(width).navLinkText}>Logout</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
     </View>
   );
 };
@@ -138,18 +141,15 @@ const PregnancyTrackingPage = () => {
       setError(null);
 
       try {
-        // Fetch token and userId from AsyncStorage
+        // Fetch token
         const storedToken = await AsyncStorage.getItem('authToken');
-        const storedUserId = await AsyncStorage.getItem('userId');
-
-        if (!storedToken || !storedUserId) {
+        if (!storedToken) {
           setError('Please sign in to access pregnancy tracking');
           if (isMounted) navigation.navigate('Login');
           return;
         }
 
         setToken(storedToken);
-        setUserId(storedUserId);
 
         // Fetch user data
         let userData;
@@ -157,35 +157,41 @@ const PregnancyTrackingPage = () => {
           const res = await getCurrentUser(storedToken);
           userData = res?.data?.data;
         } catch (userError) {
-          console.error('Error fetching user:', userError);
           throw new Error('Failed to fetch user data. Please sign in again.');
         }
 
-        if (!userData || userData.roleId !== 2 || !userData.id) {
+        if (!userData || !userData.id) {
           throw new Error('Access denied or user ID missing.');
+        }
+
+        if (userData.roleId !== 2) {
+          setError('This feature is only available for specific users. Please contact support.');
+          return;
         }
 
         if (isMounted) setUser(userData);
 
-        // Ensure userId consistency
-        if (storedUserId !== userData.id) {
+        // Fetch stored userId and ensure consistency
+        let storedUserId = await AsyncStorage.getItem('userId');
+        if (!storedUserId) {
+          storedUserId = userData.id;
           await AsyncStorage.setItem('userId', userData.id);
-          if (isMounted) setUserId(userData.id);
+        } else if (storedUserId !== userData.id) {
+          await AsyncStorage.setItem('userId', userData.id);
         }
+
+        if (isMounted) setUserId(storedUserId);
 
         // Fetch pregnancy data
         const currentDate = new Date().toISOString().split('T')[0];
         let pregRes;
         try {
-          const response = await getCurrentWeekGrowthData(
-            userData.id,
-            currentDate,
-            storedToken
-          );
+          const response = await getCurrentWeekGrowthData(userData.id, currentDate, storedToken);
           pregRes = response.data;
         } catch (pregError) {
-          console.error('Error fetching pregnancy data:', pregError);
-          throw new Error('Failed to fetch pregnancy data.');
+          setError('No pregnancy data found. Please create a profile to start tracking.');
+          if (isMounted) setPregnancyData(null);
+          return;
         }
 
         if (pregRes?.error === 0 && pregRes?.data) {
@@ -195,7 +201,10 @@ const PregnancyTrackingPage = () => {
             await AsyncStorage.setItem('growthDataId', pregRes.data.id);
           }
         } else {
-          if (isMounted) setPregnancyData(null);
+          if (isMounted) {
+            setPregnancyData(null);
+            setError('No pregnancy data found. Please create a profile to start tracking.');
+          }
         }
 
         // Fetch appointments
@@ -204,43 +213,28 @@ const PregnancyTrackingPage = () => {
             setLoadingAppointments(true);
             const response = await viewAllOfflineConsultation(userData.id, null, storedToken);
             const consultations = Array.isArray(response.data?.data) ? response.data.data : [];
-            const mappedAppointments = consultations.map((c) => {
-              const start = new Date(c.startDate);
-              const end = new Date(c.endDate);
-              return {
-                id: c.id,
-                name: c.checkupName || 'Unknown name',
-                note: c.healthNote || 'No notes available',
-                type: c.consultationType?.toLowerCase(),
-                doctor: c.doctor?.fullName || 'Unknown Doctor',
-                clinic: c.clinic?.name || 'Unknown Clinic',
-                address: c.clinic?.address,
-                start,
-                end,
-                status: c.status?.toLowerCase(),
-              };
-            });
+            const mappedAppointments = consultations.map((c) => ({
+              id: c.id,
+              name: c.checkupName || 'Unknown name',
+              note: c.healthNote || 'No notes available',
+              type: c.consultationType?.toLowerCase(),
+              doctor: c.doctor?.fullName || 'Unknown Doctor',
+              clinic: c.clinic?.name || 'Unknown Clinic',
+              address: c.clinic?.address,
+              start: new Date(c.startDate),
+              end: new Date(c.endDate),
+              status: c.status?.toLowerCase(),
+            }));
             if (isMounted) setAppointments(mappedAppointments);
           } catch (err) {
-            console.error('Error fetching appointments:', err);
-            let errorMessage = 'Failed to fetch appointments. Please try again.';
-            if (err.response) {
-              errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
-            } else if (err.request) {
-              errorMessage = 'Network error: Could not reach the server.';
-            }
-            if (isMounted) setError(errorMessage);
+            setError('Failed to fetch appointments. Please try again.');
           } finally {
             if (isMounted) setLoadingAppointments(false);
           }
-        } else {
-          if (isMounted) setLoadingAppointments(false);
         }
       } catch (err) {
-        console.error('Initialization error:', err);
         let errorMessage = err.message || 'Failed to load page. Please try again.';
-        if (err.response?.data?.message === 'User does not exist!') {
-          // Clear AsyncStorage and redirect to login
+        if (err.response?.data?.message === 'User does not exist!' || err.response?.status === 401) {
           await AsyncStorage.multiRemove(['authToken', 'userId', 'growthDataId']);
           errorMessage = 'User session invalid. Please sign in again.';
           if (isMounted) {
@@ -251,8 +245,9 @@ const PregnancyTrackingPage = () => {
             setAppointments([]);
             navigation.navigate('Login');
           }
+        } else {
+          if (isMounted) setError(errorMessage);
         }
-        if (isMounted) setError(errorMessage);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -277,6 +272,8 @@ const PregnancyTrackingPage = () => {
     setIsCreating(true);
     setError(null);
 
+ ப
+
     try {
       if (!token || !userId) {
         throw new Error('Authentication data missing. Please sign in again.');
@@ -295,7 +292,6 @@ const PregnancyTrackingPage = () => {
           token
         );
       } catch (growthError) {
-        console.error('Error creating growth data profile:', growthError);
         throw new Error('Failed to create pregnancy profile.');
       }
 
@@ -329,7 +325,6 @@ const PregnancyTrackingPage = () => {
           token
         );
       } catch (bioMetricError) {
-        console.error('Error creating biometric data:', bioMetricError);
         throw new Error('Failed to save biometric data.');
       }
 
@@ -343,7 +338,6 @@ const PregnancyTrackingPage = () => {
         );
         pregRes = response.data;
       } catch (pregError) {
-        console.error('Error fetching updated pregnancy data:', pregError);
         throw new Error('Failed to fetch updated pregnancy data.');
       }
 
@@ -355,7 +349,6 @@ const PregnancyTrackingPage = () => {
         throw new Error(pregRes?.message || 'Failed to fetch updated pregnancy data.');
       }
     } catch (err) {
-      console.error('Create profile error:', err);
       let errorMessage = err.message || 'Something went wrong. Please try again.';
       if (err.response) {
         errorMessage = err.response.data?.message || err.response.data?.title || errorMessage;
@@ -441,7 +434,7 @@ const PregnancyTrackingPage = () => {
       <ScrollView contentContainerStyle={styles(width).mainContent}>
         <View style={styles(width).pregnancyTrackingContainer}>
           {!hasValidPregnancyData ? (
-            <View style={styles(width).trackingWelcomeSection}>
+            <View style={ Mumfordstyles(width).trackingWelcomeSection}>
               <View style={styles(width).trackingWelcomeHeader}>
                 <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
                 <Text style={styles(width).welcomeHeaderText}>
@@ -451,7 +444,6 @@ const PregnancyTrackingPage = () => {
               <TrackingForm
                 onSubmit={handleCreateProfile}
                 isLoading={isCreating}
-                user={user}
               />
             </View>
           ) : (
@@ -481,7 +473,11 @@ const PregnancyTrackingPage = () => {
 
               {activeTab === 'weekly' && (
                 <View style={styles(width).tabContent}>
-                  <PregnancyOverview pregnancyData={pregnancyData} />
+                  <PregnancyOverview
+                    pregnancyData={pregnancyData}
+                    setPregnancyData={setPregnancyData}
+                    setError={setError}
+                  />
                   <PregnancyProgressBar
                     pregnancyData={pregnancyData}
                     selectedWeek={selectedWeek}
@@ -502,10 +498,10 @@ const PregnancyTrackingPage = () => {
                         appointments={appointments}
                         loadingAppointments={loadingAppointments}
                       />
-                      <TrimesterChecklists
+                      {/* <TrimesterChecklists
                         growthDataId={pregnancyData?.id}
                         token={token}
-                      />
+                      /> */}
                     </View>
                   </View>
                   {pregnancyData.basicBioMetric && (
@@ -838,6 +834,7 @@ const styles = (width) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     height: '100%',
+    zIndex: 1001, // Ensure header content is above navLinks
   },
   logo: {
     fontSize: 24,
@@ -847,10 +844,11 @@ const styles = (width) => StyleSheet.create({
   },
   menuToggle: {
     padding: 6,
+    zIndex: 1002, // Ensure toggle button is clickable
   },
   navLinks: {
     position: 'absolute',
-    top: 70,
+    top: 70, // Position below header
     left: 0,
     right: 0,
     backgroundColor: '#04668D',
@@ -858,8 +856,8 @@ const styles = (width) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 10,
-    zIndex: 1002,
-    height: width < 768 ? '100%' : 400,
+    zIndex: 1000, // Lower than headerContainer to avoid overlap issues
+    minHeight: width < 768 ? 'auto' : 400, // Flexible height for responsiveness
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -871,6 +869,8 @@ const styles = (width) => StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     marginVertical: 5,
+    width: '100%', // Ensure links take full width for better touch area
+    alignItems: 'center',
   },
   navLinkText: {
     color: '#feffe9',

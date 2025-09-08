@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { getCurrentUser } from '../../api/auth.js';
-import { formatDateForApi } from '../../utils/date.js';
+import { getCurrentUser } from '../../api/auth';
+import { formatDateForApi } from '../../utils/date';
 
 const TrackingForm = ({ onSubmit, isLoading }) => {
   const [user, setUser] = useState(null);
@@ -97,7 +105,7 @@ const TrackingForm = ({ onSubmit, isLoading }) => {
 
         <View style={styles.lmpForm}>
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Last Menstrual Period Date *</Text>
+            <Text style={styles.label}>Last Menstrual Period Date <Text style={styles.required}>*</Text></Text>
             <TouchableOpacity
               style={[styles.input, errors.firstDayOfLastMenstrualPeriod ? styles.inputError : {}]}
               onPress={() => setShowDatePicker(true)}
@@ -121,7 +129,7 @@ const TrackingForm = ({ onSubmit, isLoading }) => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Pre-pregnancy Weight (kg) *</Text>
+            <Text style={styles.label}>Pre-pregnancy Weight (kg) <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={[styles.input, errors.preWeight ? styles.inputError : {}]}
               value={formData.preWeight}
@@ -138,7 +146,7 @@ const TrackingForm = ({ onSubmit, isLoading }) => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Pre-pregnancy Height (cm) *</Text>
+            <Text style={styles.label}>Pre-pregnancy Height (cm) <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={[styles.input, errors.preHeight ? styles.inputError : {}]}
               value={formData.preHeight}
@@ -176,31 +184,30 @@ const TrackingForm = ({ onSubmit, isLoading }) => {
 
 const styles = StyleSheet.create({
   lmpFormContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    minHeight: 600,
+    backgroundColor: '#f5f7fa',
   },
   lmpFormCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 30,
-    maxWidth: 500,
+    borderRadius: 12,
+    padding: 24,
     width: '100%',
+    maxWidth: 500,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 4,
   },
   trackingFormHeader: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   formIcon: {
     fontSize: 40,
-    marginBottom: 10,
+    marginBottom: 12,
     color: '#04668D',
   },
   headerTitle: {
@@ -217,7 +224,7 @@ const styles = StyleSheet.create({
   },
   lmpForm: {
     flexDirection: 'column',
-    rowGap: 20,
+    gap: 20,
   },
   formGroup: {
     flexDirection: 'column',
@@ -226,11 +233,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#013F50',
     marginBottom: 8,
+    fontWeight: '600',
+  },
+  required: {
+    color: '#E74C3C',
+    fontSize: 16,
   },
   input: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#F4F4F4',
+    borderColor: '#E0E0E0',
     borderRadius: 8,
     fontSize: 16,
     backgroundColor: '#FFFFFF',
@@ -248,19 +260,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   trackingSubmitBtn: {
-    backgroundColor: '#02808F',
+    backgroundColor: '#04668D',
     padding: 16,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    columnGap: 8,
+    gap: 8,
   },
   disabledBtn: {
     opacity: 0.7,
   },
   submitBtnText: {
-    color: '#FFFFFF',
+    color: '#feffe9',
     fontSize: 16,
     fontWeight: '600',
   },
