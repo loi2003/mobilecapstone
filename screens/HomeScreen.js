@@ -17,10 +17,11 @@ import { getCurrentUser, logout } from '../api/auth';
 import { homepageData } from '../data/homepageData';
 import { chartData } from '../data/chartData';
 import { Ionicons } from '@expo/vector-icons';
+import ChatBox from './ChatBox'; // Import the ChatBox component
 
 const { width } = Dimensions.get('window');
 
-// Header Component (Exported)
+// Header Component (Unchanged)
 export const Header = ({ navigation, user, setUser, handleLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const slideAnim = new Animated.Value(-width);
@@ -87,13 +88,13 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
   );
 };
 
-// Footer Component (Exported)
+// Footer Component (Unchanged)
 export const Footer = ({ navigation }) => {
   const footerLinks = [
     { name: 'About Us', route: 'About' },
-    { name: 'Privacy Policy', route: 'Privacy' }, // Placeholder, not in AppNavigator
-    { name: 'Terms of Service', route: 'Terms' }, // Placeholder, not in AppNavigator
-    { name: 'Contact Us', route: 'Contact' }, // Placeholder, to be implemented
+    { name: 'Privacy Policy', route: 'Privacy' },
+    { name: 'Terms of Service', route: 'Terms' },
+    { name: 'Contact Us', route: 'Contact' },
   ];
 
   const socialLinks = [
@@ -112,7 +113,6 @@ export const Footer = ({ navigation }) => {
   return (
     <View style={styles.footer}>
       <View style={styles.footerContainer}>
-        
         <View style={styles.footerSection}>
           <Text style={styles.footerSectionTitle}>Contact</Text>
           <Text style={styles.footerText}>Email: support@genderhealthweb.com</Text>
@@ -164,7 +164,7 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isContactPopupOpen, setIsContactPopupOpen] = useState(false);
+  const [isChatBoxOpen, setIsChatBoxOpen] = useState(false); // Replaced isContactPopupOpen
   const fadeAnim = new Animated.Value(0);
   const scrollRef = useRef(null);
   const prevIndexRef = useRef(-1);
@@ -191,11 +191,11 @@ const HomeScreen = ({ navigation }) => {
     fetchUser();
 
     Animated.timing(fadeAnim, {
-      toValue: isContactPopupOpen ? 1 : 0,
+      toValue: isChatBoxOpen ? 1 : 0,
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [navigation, isContactPopupOpen]);
+  }, [navigation, isChatBoxOpen]);
 
   useEffect(() => {
     if (prevIndexRef.current !== -1) {
@@ -499,34 +499,18 @@ const HomeScreen = ({ navigation }) => {
       {/* Contact Icon */}
       <TouchableOpacity
         style={styles.contactIcon}
-        onPress={() => setIsContactPopupOpen(!isContactPopupOpen)}
+        onPress={() => setIsChatBoxOpen(!isChatBoxOpen)}
       >
         <Text style={styles.contactIconText}>💬</Text>
       </TouchableOpacity>
 
-   
-      {/* Contact Popup */}
-      {isContactPopupOpen && (
-        <Animated.View style={[styles.contactPopup, { opacity: fadeAnim }]}>
-          <TouchableOpacity
-            style={styles.popupButton}
-            onPress={() => navigation.navigate('NutritionalGuidance')}
-          >
-            <Text style={styles.buttonText}>Consultant Chat</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.popupButton}
-            onPress={() => navigation.navigate('AIAdvice')}
-          >
-            <Text style={styles.buttonText}>Quick Advice</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
+      {/* ChatBox Component */}
+      <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation}/>
     </View>
   );
 };
 
-// Styles (unchanged)
+// Styles (Unchanged)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1176,33 +1160,6 @@ const styles = StyleSheet.create({
   contactIconText: {
     fontSize: 24,
     color: '#ffffff',
-  },
-  contactPopup: {
-    position: 'absolute',
-    bottom: 100,
-    right: 30,
-    backgroundColor: '#ffffff',
-    padding: 15,
-    borderRadius: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 15,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-    width: 220,
-  },
-  popupButton: {
-    backgroundColor: '#2e6da4',
-    padding: 14,
-    marginVertical: 6,
-    borderRadius: 10,
-    alignItems: 'center',
   },
   loadingContainer: {
     flex: 1,

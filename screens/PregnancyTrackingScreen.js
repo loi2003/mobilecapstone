@@ -452,7 +452,6 @@ const PregnancyTrackingPage = () => {
                 {[
                   { key: 'weekly', label: 'Weekly Info', queryKey: 'weeklyinfo' },
                   { key: 'reminderconsultation', label: 'Checkup Reminder', queryKey: 'reminderconsultationinfo' },
-                  { key: 'nutrition', label: 'Nutrition Tips', queryKey: 'nutritioninfo' },
                   { key: 'journal', label: 'Journal Entries', queryKey: 'journalinfo' },
                 ].map((tab) => (
                   <TouchableOpacity
