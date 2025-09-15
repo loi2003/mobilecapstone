@@ -22,6 +22,10 @@ import BlogDetailScreen from '../screens/BlogDetailScreen';
 import AdviceScreen from '../screens/AdviceScreen';
 import JournalEntryDetail from '../screens/pregnacytracker/JournalEntryDetail';
 import JournalEntryForm from '../screens/pregnacytracker/JournalEntryForm';
+import RecommendedNutritionalNeeds from '../screens/pregnacytracker/RecommendedNutritionalNeeds';
+import FoodWarning from '../screens/pregnacytracker/FoodWarning';
+import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner';
+import CustomMealPlanner from '../screens/pregnacytracker/CustomMealPlanner';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
@@ -42,6 +46,10 @@ const HomeStack = () => {
       <Stack.Screen name="Blog" component={BlogScreen} />
       <Stack.Screen name="BlogPost" component={BlogDetailScreen} />
       <Stack.Screen name="AIAdvice" component={AdviceScreen} />
+      <Stack.Screen name="RecommendedNutritionalNeeds" component={RecommendedNutritionalNeeds} />
+      <Stack.Screen name="FoodWarning" component={FoodWarning} />
+      <Stack.Screen name="SystemMealPlanner" component={SystemMealPlanner} />
+      <Stack.Screen name="CustomMealPlanner" component={CustomMealPlanner} />
     </Stack.Navigator>
   );
 };
