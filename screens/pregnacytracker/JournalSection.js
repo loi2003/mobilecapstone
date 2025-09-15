@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import {
   getJournalByGrowthDataId,
   deleteJournal,
@@ -16,6 +16,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
   const [entries, setEntries] = useState(journalEntries);
   const [errors, setErrors] = useState({});
   const navigation = useNavigation();
+  const isFocused = useIsFocused(); // Hook to detect when screen is focused
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,7 +27,7 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
       }
     };
     fetchData();
-  }, [growthDataId]);
+  }, [growthDataId, isFocused]); // Re-fetch when screen is focused
 
   const fetchJournals = async (token) => {
     try {
@@ -99,59 +100,19 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
     }
   };
 
-  const handleAddOrEditEntry = (entryId = null) => {
+  const handleAddOrEditEntry = async (entryId = null) => {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) {
+      setErrors({ submit: 'Please log in to add or edit a journal entry' });
+      onError?.('Please log in to add or edit a journal entry');
+      return;
+    }
     navigation.navigate('JournalEntryForm', {
       growthDataId,
-      entryId,
+      entryId: entryId || undefined,
       journalinfo: 'true',
     });
   };
-
-  const token = AsyncStorage.getItem('authToken');
-
-  if (!entries || entries.length === 0) {
-    return (
-      <View style={styles(width).journalSection}>
-        <View style={styles(width).sectionHeader}>
-          <View style={styles(width).headerContent}>
-            <Text style={styles(width).headerTitle}>Pregnancy Journal</Text>
-            <Text style={styles(width).headerText}>Your pregnancy journey documented week by week</Text>
-          </View>
-          {undocumentedWeeks.length > 0 ? (
-            <TouchableOpacity
-              style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
-              onPress={() => handleAddOrEditEntry()}
-              disabled={!token}
-              accessibilityLabel="Add new journal entry"
-            >
-              <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles(width).infoMessage}>
-              You've already documented all weeks up to Week {currentWeek}.
-            </Text>
-          )}
-        </View>
-
-        <View style={styles(width).emptyState}>
-          <Text style={styles(width).emptyIcon}>📓</Text>
-          <Text style={styles(width).emptyTitle}>No journal entries yet</Text>
-          <Text style={styles(width).emptyText}>
-            Start documenting your pregnancy journey by adding your first entry!
-          </Text>
-          <TouchableOpacity
-            style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
-            onPress={() => handleAddOrEditEntry()}
-            disabled={!token}
-            accessibilityLabel="Add new journal entry"
-          >
-            <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
-          </TouchableOpacity>
-        </View>
-        {errors.submit && <Text style={styles(width).errorMessage}>{errors.submit}</Text>}
-      </View>
-    );
-  }
 
   return (
     <View style={styles(width).journalSection}>
@@ -162,9 +123,9 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
         </View>
         {undocumentedWeeks.length > 0 ? (
           <TouchableOpacity
-            style={[styles(width).addEntryBtn, !token ? styles(width).disabledBtn : {}]}
+            style={[styles(width).addEntryBtn, !growthDataId && styles(width).disabledBtn]}
             onPress={() => handleAddOrEditEntry()}
-            disabled={!token}
+            disabled={!growthDataId}
             accessibilityLabel="Add new journal entry"
           >
             <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
@@ -176,99 +137,117 @@ const JournalSection = ({ journalEntries = [], growthDataId, growthData, onError
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles(width).journalEntries}>
-        {entries.map((entry) => (
-          <View key={entry.id || Math.random()} style={styles(width).journalEntry}>
-            <View style={styles(width).entryHeader}>
-              <View style={styles(width).entryInfo}>
-                <View style={styles(width).weekBadge}>
-                  <Text style={styles(width).weekBadgeText}>Week {entry.currentWeek || 'N/A'}</Text>
+      {(!entries || entries.length === 0) ? (
+        <View style={styles(width).emptyState}>
+          <Text style={styles(width).emptyIcon}>📓</Text>
+          <Text style={styles(width).emptyTitle}>No journal entries yet</Text>
+          <Text style={styles(width).emptyText}>
+            Start documenting your pregnancy journey by adding your first entry!
+          </Text>
+          <TouchableOpacity
+            style={[styles(width).addEntryBtn, !growthDataId && styles(width).disabledBtn]}
+            onPress={() => handleAddOrEditEntry()}
+            disabled={!growthDataId}
+            accessibilityLabel="Add new journal entry"
+          >
+            <Text style={styles(width).addEntryBtnText}>Add Entry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles(width).journalEntries}>
+          {entries.map((entry) => (
+            <View key={entry.id || Math.random()} style={styles(width).journalEntry}>
+              <View style={styles(width).entryHeader}>
+                <View style={styles(width).entryInfo}>
+                  <View style={styles(width).weekBadge}>
+                    <Text style={styles(width).weekBadgeText}>Week {entry.currentWeek || 'N/A'}</Text>
+                  </View>
+                  <Text style={styles(width).entryDate}>
+                    {new Date(entry.createdAt || Date.now()).toLocaleDateString('en-US', { dateStyle: 'medium' })}
+                  </Text>
                 </View>
-                <Text style={styles(width).entryDate}>
-                  {new Date(entry.createdAt || Date.now()).toLocaleDateString('en-US', { dateStyle: 'medium' })}
-                </Text>
+                <View style={styles(width).entryActions}>
+                  <TouchableOpacity
+                    style={[styles(width).actionBtn, !growthDataId && styles(width).disabledBtn]}
+                    onPress={() => handleAddOrEditEntry(entry.id)}
+                    disabled={!growthDataId}
+                    accessibilityLabel={`Edit journal entry for week ${entry.currentWeek}`}
+                  >
+                    <Ionicons name="pencil-outline" size={20} color="#848785" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles(width).actionBtn, !growthDataId && styles(width).disabledBtn]}
+                    onPress={() => handleDelete(entry.id)}
+                    disabled={!growthDataId}
+                    accessibilityLabel={`Delete journal entry for week ${entry.currentWeek}`}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FE6B6A" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles(width).actionBtn, !growthDataId && styles(width).disabledBtn]}
+                    onPress={() => handleViewDetails(entry.id)}
+                    disabled={!growthDataId}
+                    accessibilityLabel={`View details for journal entry week ${entry.currentWeek}`}
+                  >
+                    <Ionicons name="eye-outline" size={20} color="#848785" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles(width).entryActions}>
-                <TouchableOpacity
-                  style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
-                  onPress={() => handleAddOrEditEntry(entry.id)}
-                  disabled={!token}
-                  accessibilityLabel={`Edit journal entry for week ${entry.currentWeek}`}
-                >
-                  <Ionicons name="pencil-outline" size={20} color="#848785" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
-                  onPress={() => handleDelete(entry.id)}
-                  disabled={!token}
-                  accessibilityLabel={`Delete journal entry for week ${entry.currentWeek}`}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#FE6B6A" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles(width).actionBtn, !token ? styles(width).disabledBtn : {}]}
-                  onPress={() => handleViewDetails(entry.id)}
-                  disabled={!token}
-                  accessibilityLabel={`View details for journal entry week ${entry.currentWeek}`}
-                >
-                  <Ionicons name="eye-outline" size={20} color="#848785" />
-                </TouchableOpacity>
+              <View style={styles(width).entryContent}>
+                {entry.note && (
+                  <View style={styles(width).entryField}>
+                    <Text style={styles(width).entryFieldTitle}>Notes</Text>
+                    <Text style={styles(width).entryText}>{entry.note}</Text>
+                  </View>
+                )}
+                <View style={styles(width).entryMetrics}>
+                  {entry.currentWeight > 0 && (
+                    <View style={styles(width).metric}>
+                      <Text style={styles(width).metricIcon}>⚖️</Text>
+                      <View style={styles(width).metricContent}>
+                        <Text style={styles(width).metricValue}>{entry.currentWeight} kg</Text>
+                        <Text style={styles(width).metricLabel}>Current Weight</Text>
+                      </View>
+                    </View>
+                  )}
+                  {entry.mood && (
+                    <View style={styles(width).metric}>
+                      <Text style={styles(width).metricIcon}>😊</Text>
+                      <View style={styles(width).metricContent}>
+                        <Text style={styles(width).metricValue}>{entry.mood}</Text>
+                        <Text style={styles(width).metricLabel}>Mood</Text>
+                      </View>
+                    </View>
+                  )}
+                  {entry.symptomNames?.length > 0 && (
+                    <View style={styles(width).entryField}>
+                      <Text style={styles(width).entryFieldTitle}>Symptoms</Text>
+                      <Text style={styles(width).entryText}>{entry.symptomNames.join(', ') || 'No symptoms'}</Text>
+                    </View>
+                  )}
+                  {(entry.relatedImages?.length > 0 || entry.ultraSoundImages?.length > 0) && (
+                    <View style={styles(width).entryField}>
+                      <Text style={styles(width).entryFieldTitle}>Images</Text>
+                      <View style={styles(width).imageGallery}>
+                        {entry.relatedImages?.map((img, index) => (
+                          <Text key={`related-${index}`} style={styles(width).imagePlaceholder}>
+                            [Image {index + 1}]
+                          </Text>
+                        ))}
+                        {entry.ultraSoundImages?.map((img, index) => (
+                          <Text key={`ultrasound-${index}`} style={styles(width).imagePlaceholder}>
+                            [Ultrasound {index + 1}]
+                          </Text>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
-            <View style={styles(width).entryContent}>
-              {entry.note && (
-                <View style={styles(width).entryField}>
-                  <Text style={styles(width).entryFieldTitle}>Notes</Text>
-                  <Text style={styles(width).entryText}>{entry.note}</Text>
-                </View>
-              )}
-              <View style={styles(width).entryMetrics}>
-                {entry.currentWeight > 0 && (
-                  <View style={styles(width).metric}>
-                    <Text style={styles(width).metricIcon}>⚖️</Text>
-                    <View style={styles(width).metricContent}>
-                      <Text style={styles(width).metricValue}>{entry.currentWeight} kg</Text>
-                      <Text style={styles(width).metricLabel}>Current Weight</Text>
-                    </View>
-                  </View>
-                )}
-                {entry.mood && (
-                  <View style={styles(width).metric}>
-                    <Text style={styles(width).metricIcon}>😊</Text>
-                    <View style={styles(width).metricContent}>
-                      <Text style={styles(width).metricValue}>{entry.mood}</Text>
-                      <Text style={styles(width).metricLabel}>Mood</Text>
-                    </View>
-                  </View>
-                )}
-                {entry.symptomNames?.length > 0 && (
-                  <View style={styles(width).entryField}>
-                    <Text style={styles(width).entryFieldTitle}>Symptoms</Text>
-                    <Text style={styles(width).entryText}>{entry.symptomNames.join(', ') || 'No symptoms'}</Text>
-                  </View>
-                )}
-                {(entry.relatedImages?.length > 0 || entry.ultraSoundImages?.length > 0) && (
-                  <View style={styles(width).entryField}>
-                    <Text style={styles(width).entryFieldTitle}>Images</Text>
-                    <View style={styles(width).imageGallery}>
-                      {entry.relatedImages?.map((img, index) => (
-                        <Text key={`related-${index}`} style={styles(width).imagePlaceholder}>
-                          [Image {index + 1}]
-                        </Text>
-                      ))}
-                      {entry.ultraSoundImages?.map((img, index) => (
-                        <Text key={`ultrasound-${index}`} style={styles(width).imagePlaceholder}>
-                          [Ultrasound {index + 1}]
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+          ))}
+        </ScrollView>
+      )}
       {errors.submit && <Text style={styles(width).errorMessage}>{errors.submit}</Text>}
     </View>
   );
