@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -28,12 +27,12 @@ const RecommendedNutritionalNeeds = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expandedTooltip, setExpandedTooltip] = useState(null);
-  const token = AsyncStorage.getItem('authToken');
 
   useEffect(() => {
     const fetchUser = async () => {
-      if (token) {
-        try {
+      try {
+        const token = await AsyncStorage.getItem('authToken');
+        if (token) {
           const response = await getCurrentUser(token);
           if (response.data?.data?.dateOfBirth) {
             const formattedDob = response.data.data.dateOfBirth.split('T')[0];
@@ -41,17 +40,18 @@ const RecommendedNutritionalNeeds = () => {
             setDate(new Date(formattedDob));
             setSavedDob(formattedDob);
           }
-        } catch (error) {
-          console.error('Failed to fetch user DOB:', error);
         }
+      } catch (error) {
+        console.error('Failed to fetch user DOB:', error);
+        setError('Failed to fetch user data. Please try again.');
       }
     };
     fetchUser();
-  }, [token]);
+  }, []);
 
   const onDateChange = (event, selectedDate) => {
     const currentDate = selectedDate || date;
-    setShowDatePicker(Platform.OS === 'ios'); // Keep picker open on iOS until user confirms
+    setShowDatePicker(Platform.OS === 'ios');
     setDate(currentDate);
     const formattedDate = currentDate.toISOString().split('T')[0];
     setDob(formattedDate);
@@ -253,7 +253,38 @@ const RecommendedNutritionalNeeds = () => {
       return;
     }
 
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dob)) {
+      setError('Invalid date of birth format. Please use YYYY-MM-DD.');
+      setLoading(false);
+      return;
+    }
+
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+
+    if (age < 20) {
+      setError('This feature is only available for users 20 years and older.');
+      setLoading(false);
+      return;
+    }
+
     try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
       if (dob && dob !== savedDob) {
         await editUserProfile({ dateOfBirth: dob }, token);
         const storedUser = await AsyncStorage.getItem('user');
@@ -277,7 +308,7 @@ const RecommendedNutritionalNeeds = () => {
           items: [
             {
               name: 'Total Demanded Energy',
-              value: rawData.totalDemanedEnergy,
+              value: rawData.totalDemandedEnergy || rawData.totalDemanedEnergy,
               unit: 'kcal',
             },
           ],
@@ -319,7 +350,20 @@ const RecommendedNutritionalNeeds = () => {
       setNutrients(formattedData);
     } catch (err) {
       console.error('Error fetching nutritional needs:', err);
-      setError('Failed to fetch nutritional needs. Please try again.');
+      if (err.response?.status === 400) {
+        const errors = err.response.data.errors;
+        if (errors?.DateOfBirth) {
+          setError(`Date of Birth error: ${errors.DateOfBirth.join(', ')}`);
+        } else if (errors?.Id) {
+          setError(`ID error: ${errors.Id.join(', ')}`);
+        } else {
+          setError('Invalid input. Please check your data and try again.');
+        }
+      } else if (err.code === 'ERR_NETWORK') {
+        setError('Network error. Please check your internet connection and try again.');
+      } else {
+        setError('Failed to fetch nutritional needs. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -368,7 +412,7 @@ const RecommendedNutritionalNeeds = () => {
             mode="date"
             display={Platform.OS === 'ios' ? 'inline' : 'default'}
             onChange={onDateChange}
-            maximumDate={new Date()} // Prevent selecting future dates
+            maximumDate={new Date()}
           />
         )}
 
