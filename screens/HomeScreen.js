@@ -61,7 +61,7 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
           <Ionicons
             name={isMenuOpen ? 'close' : 'menu'}
             size={24}
-            color="#feffe9"
+            color="#FFFFFFFF"
           />
         </TouchableOpacity>
         <Animated.View
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#feffe9',
+    color: '#FFFFFFFF',
     textDecorationLine: 'none',
   },
   menuToggle: {
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     marginVertical: 5,
   },
   navLinkText: {
-    color: '#feffe9',
+    color: '#FFFFFFFF',
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
@@ -759,7 +759,7 @@ const styles = StyleSheet.create({
   featureItem: {
     width: width * 0.4,
     padding: 15,
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     borderRadius: 12,
     alignItems: 'center',
     margin: 5,
@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
   },
   pregnancyTrackerSection: {
     padding: 20,
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     alignItems: 'center',
   },
   sectionTitle: {
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     maxWidth: 600,
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     borderRadius: 12,
     padding: 20,
     ...Platform.select({
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   weekPopup: {
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     padding: 20,
     borderRadius: 12,
     marginTop: 20,
@@ -997,7 +997,7 @@ const styles = StyleSheet.create({
   },
   communitySection: {
     padding: 20,
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     alignItems: 'center',
   },
   communityHighlight: {
@@ -1021,7 +1021,7 @@ const styles = StyleSheet.create({
   resourceItem: {
     width: '90%',
     padding: 15,
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     borderRadius: 12,
     marginBottom: 10,
     ...Platform.select({
@@ -1096,7 +1096,7 @@ const styles = StyleSheet.create({
   },
   partnersSection: {
     padding: 20,
-    backgroundColor: '#feffe9',
+    backgroundColor: '#FFFFFFFF',
     alignItems: 'center',
   },
   partnersContainer: {

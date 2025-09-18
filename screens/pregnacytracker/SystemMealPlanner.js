@@ -7,199 +7,71 @@ import {
   StyleSheet,
   ScrollView,
   useWindowDimensions,
-  PanResponder,
-  TouchableWithoutFeedback,
+  Animated,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { viewMenuSuggestionByTrimester } from '../../api/meal-api';
 
 const SystemMealPlanner = () => {
   const { width } = useWindowDimensions();
   const [week, setWeek] = useState('Week 1');
   const [day, setDay] = useState('');
-  const [allergies, setAllergies] = useState('');
-  const [diseases, setDiseases] = useState('');
   const [preferredFoods, setPreferredFoods] = useState('');
   const [error, setError] = useState('');
   const [mode, setMode] = useState('day');
   const [generatedPlan, setGeneratedPlan] = useState(null);
-  const [showAllergyList, setShowAllergyList] = useState(false);
-  const [showDiseaseList, setShowDiseaseList] = useState(false);
-  const [showPreferredFoodList, setShowPreferredFoodList] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [weekViewMode, setWeekViewMode] = useState('list');
   const [selectedDayDetail, setSelectedDayDetail] = useState(null);
-  const [selectedMealDetail, setSelectedMealDetail] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedMeal, setSelectedMeal] = useState(null);
   const navigation = useNavigation();
-  const [user, setUser] = useState(null);
 
-  const allergyRef = useRef(null);
-  const diseaseRef = useRef(null);
-  const preferredFoodRef = useRef(null);
-
-  const allergyOptions = ['Peanuts', 'Dairy', 'Shellfish', 'Gluten', 'Soy'];
-  const diseaseOptions = ['Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid Disorder'];
-  const preferredFoodOptions = [
-    'Salmon', 'Spinach', 'Chicken', 'Avocado', 'Broccoli', 'Oats', 'Eggs', 'Tofu', 'Blueberries', 'Quinoa',
-  ];
-
-  const staticMealsDay = [
-    {
-      type: 'Breakfast',
-      dishes: [
-        { name: 'Grilled Cheese Sandwich', image: 'placeholder', calories: 250 },
-        { name: 'Avocado', image: 'placeholder', calories: 120 },
-        { name: 'Milk', image: 'placeholder', calories: 150 },
-      ],
-    },
-    {
-      type: 'Lunch',
-      dishes: [
-        { name: 'Grilled Salmon', image: 'placeholder', calories: 350 },
-        { name: 'Brown Rice', image: 'placeholder', calories: 200 },
-      ],
-    },
-    {
-      type: 'Dinner',
-      dishes: [
-        { name: 'Chicken Soup', image: 'placeholder', calories: 300 },
-        { name: 'Spinach Salad', image: 'placeholder', calories: 100 },
-      ],
-    },
-    {
-      type: 'Snack',
-      dishes: [{ name: 'Greek Yogurt', image: 'placeholder', calories: 180 }],
-    },
-  ];
-
-  const staticMealsWeek = [
-    {
-      day: 'Monday',
-      meals: [
-        {
-          type: 'Breakfast',
-          dishes: [
-            { name: 'Grilled Cheese Sandwich', image: 'placeholder', calories: 250 },
-            { name: 'Avocado', image: 'placeholder', calories: 120 },
-          ],
-        },
-        {
-          type: 'Lunch',
-          dishes: [
-            { name: 'Grilled Salmon', image: 'placeholder', calories: 350 },
-            { name: 'Brown Rice', image: 'placeholder', calories: 200 },
-          ],
-        },
-        {
-          type: 'Dinner',
-          dishes: [
-            { name: 'Chicken Soup', image: 'placeholder', calories: 300 },
-            { name: 'Spinach Salad', image: 'placeholder', calories: 100 },
-          ],
-        },
-        {
-          type: 'Snack',
-          dishes: [{ name: 'Greek Yogurt', image: 'placeholder', calories: 180 }],
-        },
-      ],
-    },
-    {
-      day: 'Tuesday',
-      meals: [
-        {
-          type: 'Breakfast',
-          dishes: [
-            { name: 'Oatmeal', image: 'placeholder', calories: 200 },
-            { name: 'Banana', image: 'placeholder', calories: 100 },
-          ],
-        },
-        {
-          type: 'Lunch',
-          dishes: [
-            { name: 'Grilled Chicken', image: 'placeholder', calories: 300 },
-            { name: 'Quinoa Salad', image: 'placeholder', calories: 220 },
-          ],
-        },
-        {
-          type: 'Dinner',
-          dishes: [{ name: 'Beef Stir Fry', image: 'placeholder', calories: 400 }],
-        },
-        {
-          type: 'Snack',
-          dishes: [{ name: 'Apple Slices', image: 'placeholder', calories: 80 }],
-        },
-      ],
-    },
-  ];
+  // Animation for error shake
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const animateShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, {
+        toValue: 4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: -4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (token) {
-          const res = await getCurrentUser(token);
-          setUser(res?.data?.data || null);
-        }
-      } catch (err) {
-        console.error('Error fetching user:', err);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      const userId = user?.id;
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        await AsyncStorage.removeItem('token');
-        navigation.replace('Login');
-        return;
-      }
-      await logout(userId, token);
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('userId');
-      navigation.replace('Login');
-    } catch (error) {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('userId');
-      navigation.replace('Login');
+    if (error) {
+      animateShake();
     }
-  };
+  }, [error]);
 
-  const handleClickOutside = (ref, setShowList) => {
-    return PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => {
-        const { pageX, pageY } = gestureState;
-        const node = ref.current;
-        if (node) {
-          node.measure((x, y, w, h, px, py) => {
-            const isOutside = pageX < px || pageX > px + w || pageY < py || pageY > py + h;
-            if (isOutside) {
-              setShowList(false);
-            }
-          });
-        }
-        return false;
-      },
-    });
-  };
-
-  const allergyPanResponder = useRef(
-    handleClickOutside(allergyRef, setShowAllergyList)
-  ).current;
-  const diseasePanResponder = useRef(
-    handleClickOutside(diseaseRef, setShowDiseaseList)
-  ).current;
-  const preferredFoodPanResponder = useRef(
-    handleClickOutside(preferredFoodRef, setShowPreferredFoodList)
-  ).current;
-
+  // Reset state when mode changes
   useEffect(() => {
     if (mode === 'day') {
       setWeekViewMode('list');
       setSelectedDayDetail(null);
-      setSelectedMealDetail(null);
+      setSelectedMeal(null);
+      setModalVisible(false);
       setError('');
       setGeneratedPlan(null);
     }
@@ -207,57 +79,175 @@ const SystemMealPlanner = () => {
       setDay('');
       setError('');
       setGeneratedPlan(null);
+      setSelectedMeal(null);
+      setModalVisible(false);
     }
   }, [mode]);
 
-  const handleAllergySelect = (a) => {
-    setAllergies(a);
-    setShowAllergyList(false);
+  // Clear generated plan when day changes
+  useEffect(() => {
+    if (day) {
+      setGeneratedPlan(null);
+    }
+  }, [day]);
+
+  // Reorder days to start from Monday
+  const reorderDays = (days) => {
+    const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days.sort((a, b) => order.indexOf(a.dayOfWeek) - order.indexOf(b.dayOfWeek));
   };
 
-  const handleDiseaseSelect = (d) => {
-    setDiseases(d);
-    setShowDiseaseList(false);
-  };
-
-  const handlePreferredFoodSelect = (food) => {
-    setPreferredFoods(food);
-    setShowPreferredFoodList(false);
-  };
-
-  const handleGenerate = () => {
+  // Handle meal plan generation
+  const handleGenerate = async () => {
     if (mode === 'day' && !day) {
       setError('Please select a day before submitting.');
       return;
     }
     setError('');
-    setGeneratedPlan(mode === 'day' ? staticMealsDay : staticMealsWeek);
+    setGeneratedPlan(null);
+    setLoading(true);
+
+    try {
+      const weekNumber = parseInt(week.replace('Week ', ''), 10);
+      const res = await viewMenuSuggestionByTrimester({ stage: weekNumber });
+      const data = res?.data;
+
+      console.log('API Response:', JSON.stringify(data, null, 2));
+
+      if (!data?.days) {
+        throw new Error('No data returned for this week.');
+      }
+
+      const orderedDays = reorderDays(data.days);
+
+      if (mode === 'day') {
+        const dayIndex = Number(day) - 1;
+        const dayData = orderedDays[dayIndex];
+
+        if (!dayData) {
+          throw new Error('No meal plan available for selected day.');
+        }
+
+        const transformedDay = dayData.meals.map((meal) => ({
+          type: meal.mealType,
+          dishes: meal.dishes
+            .sort((a, b) => b.calories - a.calories)
+            .map((dish) => ({
+              name: dish.dishName,
+              image: dish.imageUrl || 'https://images.pexels.com/photos/30945514/pexels-photo-30945514.jpeg',
+              calories: Number(dish.calories.toFixed(1)),
+            })),
+        }));
+
+        console.log('Transformed Day Plan:', JSON.stringify(transformedDay, null, 2));
+        setGeneratedPlan(transformedDay);
+      } else {
+        const transformedWeek = orderedDays.map((day) => ({
+          day: day.dayOfWeek,
+          meals: day.meals.map((meal) => ({
+            type: meal.mealType,
+            dishes: meal.dishes
+              .sort((a, b) => b.calories - a.calories)
+              .map((dish) => ({
+                name: dish.dishName,
+                image: dish.imageUrl || 'https://images.pexels.com/photos/30945514/pexels-photo-30945514.jpeg',
+                calories: Number(dish.calories.toFixed(1)),
+              })),
+          })),
+        }));
+
+        console.log('Transformed Week Plan:', JSON.stringify(transformedWeek, null, 2));
+        setGeneratedPlan(transformedWeek);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to fetch meal suggestions. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewDayDetail = (day) => {
-    setSelectedMealDetail(null);
+    setSelectedMeal(null);
+    setModalVisible(false);
     setSelectedDayDetail(day);
     setWeekViewMode('dayDetail');
   };
 
   const handleViewMealDetail = (day, meal) => {
-    setSelectedDayDetail(null);
-    setSelectedMealDetail({ day, meal });
-    setWeekViewMode('mealDetail');
+    setSelectedMeal({ day, meal });
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedMeal(null);
+    setModalVisible(false);
   };
 
   const handleBackToWeek = () => {
     setSelectedDayDetail(null);
-    setSelectedMealDetail(null);
+    setSelectedMeal(null);
+    setModalVisible(false);
     setWeekViewMode('list');
+  };
+
+  // Button press animation
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.95, useNativeDriver: true }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }).start();
+  };
+
+  // Render meal item for FlatList
+  const renderMealItem = ({ item, index }) => {
+    console.log(`Rendering meal: ${item.type}`);
+    return (
+      <View key={index} style={styles(width).mealCard}>
+        <View style={styles(width).mealHeader}>
+          <Text style={styles(width).mealHeaderText}>{item.type || 'Unknown Meal'}</Text>
+        </View>
+        <View style={styles(width).mealDishes}>
+          {(item?.dishes?.length > 0 ? item.dishes : [{ name: 'No dishes available', calories: 0, image: null }]).map(
+            (dish, i) => (
+              <View key={i} style={styles(width).dishCard}>
+                {dish.image ? (
+                  <Image
+                    source={{ uri: dish.image }}
+                    style={styles(width).dishImage}
+                    resizeMode="cover"
+                    accessibilityLabel={`Image of ${dish.name}`}
+                    onError={() => console.log(`Failed to load image for ${dish.name}`)}
+                  />
+                ) : (
+                  <Text style={styles(width).dishPlaceholderImage}>🍽️</Text>
+                )}
+                <View style={styles(width).dishInfo}>
+                  <Text style={styles(width).dishName}>{dish.name}</Text>
+                  <Text style={styles(width).dishCalories}>{dish.calories.toFixed(1)} kcal</Text>
+                </View>
+              </View>
+            )
+          )}
+        </View>
+      </View>
+    );
   };
 
   return (
     <View style={styles(width).mealplannerPageWrapper}>
+      {loading && (
+        <View style={styles(width).loadingOverlay}>
+          <ActivityIndicator size="large" color="#02808f" />
+        </View>
+      )}
       <ScrollView contentContainerStyle={styles(width).mainContent}>
         <View style={styles(width).mealplannerHeading}>
-          <Text style={styles(width).headingTitle}>System Meal Planner</Text>
-          <Text style={styles(width).headingText}>Enter your details and choose to generate by day or by week.</Text>
+          <Text style={styles(width).headingTitle}>Meal Planner</Text>
+          <Text style={styles(width).headingText}>
+            Plan your meals by day or week for a healthy pregnancy.
+          </Text>
         </View>
         <View style={styles(width).mealplannerForm}>
           <Text style={styles(width).label}>Gestational Week</Text>
@@ -266,6 +256,7 @@ const SystemMealPlanner = () => {
               selectedValue={week}
               onValueChange={(value) => setWeek(value)}
               style={styles(width).mealplannerSelect}
+              accessibilityLabel="Select gestational week"
             >
               {Array.from({ length: 40 }, (_, i) => (
                 <Picker.Item key={i} label={`Week ${i + 1}`} value={`Week ${i + 1}`} />
@@ -273,76 +264,28 @@ const SystemMealPlanner = () => {
             </Picker>
           </View>
 
-          <Text style={styles(width).label}>Allergies</Text>
-          <View style={styles(width).mealplannerAutocompleteWrapper} ref={allergyRef} {...allergyPanResponder.panHandlers}>
-            <TextInput
-              style={styles(width).mealplannerInput}
-              value={allergies}
-              onChangeText={(text) => {
-                setAllergies(text);
-                setShowAllergyList(true);
-              }}
-              placeholder="Optional - Type to search for allergy e.g. peanuts"
-              onFocus={() => setShowAllergyList(true)}
-            />
-            {showAllergyList && allergies && (
-              <View style={styles(width).mealplannerAutocompleteList}>
-                {allergyOptions
-                  .filter((a) => a.toLowerCase().includes(allergies.toLowerCase()))
-                  .map((a, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles(width).autocompleteItem}
-                      onPress={() => handleAllergySelect(a)}
-                    >
-                      <Text style={styles(width).autocompleteText}>{a}</Text>
-                    </TouchableOpacity>
-                  ))}
-              </View>
-            )}
-          </View>
-
-          <Text style={styles(width).label}>Chronic Diseases</Text>
-          <View style={styles(width).mealplannerAutocompleteWrapper} ref={diseaseRef} {...diseasePanResponder.panHandlers}>
-            <TextInput
-              style={styles(width).mealplannerInput}
-              value={diseases}
-              onChangeText={(text) => {
-                setDiseases(text);
-                setShowDiseaseList(true);
-              }}
-              placeholder="Optional - Type to search for disease e.g. diabetes"
-              onFocus={() => setShowDiseaseList(true)}
-            />
-            {showDiseaseList && diseases && (
-              <View style={styles(width).mealplannerAutocompleteList}>
-                {diseaseOptions
-                  .filter((d) => d.toLowerCase().includes(diseases.toLowerCase()))
-                  .map((d, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles(width).autocompleteItem}
-                      onPress={() => handleDiseaseSelect(d)}
-                    >
-                      <Text style={styles(width).autocompleteText}>{d}</Text>
-                    </TouchableOpacity>
-                  ))}
-              </View>
-            )}
-          </View>
-
           <View style={styles(width).modeToggle}>
             <TouchableOpacity
-              style={[styles(width).modeOption, mode === 'day' ? styles(width).modeOptionActive : {}]}
+              style={[styles(width).modeOption, mode === 'day' && styles(width).modeOptionActive]}
               onPress={() => setMode('day')}
+              accessibilityLabel="Suggest meals by day"
             >
-              <Text style={[styles(width).modeText, mode === 'day' ? styles(width).modeTextActive : {}]}>Suggest by Day</Text>
+              <Text
+                style={[styles(width).modeText, mode === 'day' && styles(width).modeTextActive]}
+              >
+                By Day
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles(width).modeOption, mode === 'week' ? styles(width).modeOptionActive : {}]}
+              style={[styles(width).modeOption, mode === 'week' && styles(width).modeOptionActive]}
               onPress={() => setMode('week')}
+              accessibilityLabel="Suggest meals by week"
             >
-              <Text style={[styles(width).modeText, mode === 'week' ? styles(width).modeTextActive : {}]}>Suggest by Week</Text>
+              <Text
+                style={[styles(width).modeText, mode === 'week' && styles(width).modeTextActive]}
+              >
+                By Week
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -354,129 +297,110 @@ const SystemMealPlanner = () => {
                   selectedValue={day}
                   onValueChange={(value) => setDay(value)}
                   style={styles(width).mealplannerSelect}
+                  accessibilityLabel="Select day"
                 >
                   <Picker.Item label="-- Choose a Day --" value="" />
-                  {[...Array(7)].map((_, i) => (
-                    <Picker.Item key={i + 1} label={`Day ${i + 1}`} value={`${i + 1}`} />
-                  ))}
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
+                    (dayName, i) => (
+                      <Picker.Item key={i + 1} label={dayName} value={`${i + 1}`} />
+                    )
+                  )}
                 </Picker>
               </View>
             </View>
           )}
 
-          <Text style={styles(width).label}>Preferred Foods</Text>
-          <View style={styles(width).mealplannerAutocompleteWrapper} ref={preferredFoodRef} {...preferredFoodPanResponder.panHandlers}>
-            <TextInput
-              style={styles(width).mealplannerInput}
-              value={preferredFoods}
-              onChangeText={(text) => {
-                setPreferredFoods(text);
-                setShowPreferredFoodList(true);
-              }}
-              placeholder="Optional - Type to search e.g. salmon, spinach"
-              onFocus={() => setShowPreferredFoodList(true)}
-            />
-            {showPreferredFoodList && preferredFoods && (
-              <View style={styles(width).mealplannerAutocompleteList}>
-                {preferredFoodOptions
-                  .filter((f) => f.toLowerCase().includes(preferredFoods.toLowerCase()))
-                  .map((f, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles(width).autocompleteItem}
-                      onPress={() => handlePreferredFoodSelect(f)}
-                    >
-                      <Text style={styles(width).autocompleteText}>{f}</Text>
-                    </TouchableOpacity>
-                  ))}
-              </View>
-            )}
-          </View>
+         
 
           <View style={styles(width).mealplannerBtnWrapper}>
-            <TouchableOpacity style={styles(width).mealplannerBtn} onPress={handleGenerate}>
-              <Text style={styles(width).mealplannerBtnText}>Suggest Meal Plan</Text>
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <TouchableOpacity
+                style={styles(width).mealplannerBtn}
+                onPress={handleGenerate}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                disabled={loading}
+                accessibilityLabel="Generate meal plan"
+              >
+                <Text style={styles(width).mealplannerBtnText}>Generate Plan</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
-          {error && <Text style={styles(width).errorText}>{error}</Text>}
+          {error && (
+            <Animated.View style={[styles(width).errorTextWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+              <Text style={styles(width).errorText}>{error}</Text>
+            </Animated.View>
+          )}
         </View>
 
-        {generatedPlan && mode === 'day' && Array.isArray(generatedPlan) && generatedPlan[0]?.dishes && (
+        {generatedPlan && mode === 'day' && Array.isArray(generatedPlan) && generatedPlan.length > 0 && (
           <View style={styles(width).mealplannerOutput}>
-            {(() => {
-              const totalCalories = generatedPlan.reduce((mealSum, meal) => {
-                return mealSum + (meal?.dishes?.reduce((dishSum, dish) => dishSum + (dish?.calories || 0), 0) || 0);
-              }, 0);
-              return (
-                <Text style={styles(width).outputTitle}>
-                  Suggested Meals for {week}{day && ` - Day ${day}`}{'\n'}
-                  <Text style={styles(width).totalCalories}>
-                    Total Calories: <Text style={styles(width).bold}>{totalCalories} kcal</Text>
-                  </Text>
+            <Text style={styles(width).outputTitle}>
+              Meals for {week}{day && ` - ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(day) - 1]}`}
+              {'\n'}
+              <Text style={styles(width).totalCalories}>
+                Total Calories: <Text style={styles(width).bold}>
+                  {generatedPlan
+                    .reduce((mealSum, meal) => mealSum + (meal?.dishes?.reduce((dishSum, dish) => dishSum + (dish?.calories || 0), 0) || 0), 0)
+                    .toFixed(1)} kcal
                 </Text>
-              );
-            })()}
-            {generatedPlan.map((meal, idx) => (
-              <View key={idx} style={styles(width).mealCard}>
-                <View style={styles(width).mealHeader}>
-                  <Text style={styles(width).mealHeaderText}>{meal.type}</Text>
-                </View>
-                <View style={styles(width).mealDishes}>
-                  {meal?.dishes?.map((dish, i) => (
-                    <View key={i} style={styles(width).dishCard}>
-                      <Text style={styles(width).dishPlaceholderImage}>🍽️</Text>
-                      <View style={styles(width).dishInfo}>
-                        <Text style={styles(width).dishName}>{dish.name}</Text>
-                        <Text style={styles(width).dishCalories}>{dish.calories} kcal</Text>
-                        <View style={styles(width).mealActions}>
-                          <TouchableOpacity
-                            style={styles(width).actionButton}
-                            onPress={() => navigation.navigate('ChangeDish', { dish })}
-                          >
-                            <Text style={styles(width).actionButtonText}>🔄 Change Dish</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles(width).actionButton}
-                            onPress={() => navigation.navigate('NutritionInfo', { dish })}
-                          >
-                            <Text style={styles(width).actionButtonText}>ℹ️ Nutrition Information</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ))}
+              </Text>
+            </Text>
+            <FlatList
+              data={generatedPlan}
+              renderItem={renderMealItem}
+              keyExtractor={(item, index) => `meal-${index}`}
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            />
           </View>
         )}
 
         {generatedPlan && mode === 'week' && (
           <View style={styles(width).mealplannerOutput}>
-            {weekViewMode === 'list' && <Text style={styles(width).outputTitle}>Weekly Suggested Meals</Text>}
+            {weekViewMode === 'list' && (
+              <Text style={styles(width).outputTitle}>Weekly Meal Plan</Text>
+            )}
             {weekViewMode === 'list' && generatedPlan?.map((day, idx) => (
               <View key={idx} style={styles(width).weekDayCard}>
                 <View style={styles(width).weekDayHeader}>
                   <Text style={styles(width).weekDayHeaderTitle}>{day.day}</Text>
-                  <TouchableOpacity
-                    style={styles(width).mealplannerBtn}
-                    onPress={() => handleViewDayDetail(day)}
-                  >
-                    <Text style={styles(width).mealplannerBtnText}>View Detail</Text>
-                  </TouchableOpacity>
+                  <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <TouchableOpacity
+                      style={styles(width).mealplannerBtn}
+                      onPress={() => handleViewDayDetail(day)}
+                      onPressIn={handlePressIn}
+                      onPressOut={handlePressOut}
+                      accessibilityLabel={`View details for ${day.day}`}
+                    >
+                      <Text style={styles(width).mealplannerBtnText}>View Day</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
                 </View>
                 <View style={styles(width).weekMealGrid}>
                   {day?.meals?.map((m, i) => (
                     <View key={i} style={styles(width).weekMealCard}>
-                      <Text style={styles(width).weekMealPlaceholderImage}>🍽️</Text>
+                      {m.dishes?.[0]?.image ? (
+                        <Image
+                          source={{ uri: m.dishes[0].image }}
+                          style={styles(width).weekMealImage}
+                          resizeMode="cover"
+                          accessibilityLabel={`Image for ${m.type}`}
+                        />
+                      ) : (
+                        <Text style={styles(width).weekMealPlaceholderImage}>🍽️</Text>
+                      )}
                       <View style={styles(width).mealplannerDetailWrapper}>
                         <Text style={styles(width).weekMealType}>{m.type}</Text>
                         <TouchableOpacity
                           style={styles(width).mealplannerDetailBtn}
                           onPress={() => handleViewMealDetail(day, m)}
+                          onPressIn={handlePressIn}
+                          onPressOut={handlePressOut}
+                          accessibilityLabel={`View details for ${m.type} on ${day.day}`}
                         >
-                          <Text style={styles(width).mealplannerDetailBtnText}>View Detail</Text>
+                          <Text style={styles(width).mealplannerDetailBtnText}>Details</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -486,111 +410,132 @@ const SystemMealPlanner = () => {
             ))}
             {weekViewMode === 'dayDetail' && selectedDayDetail && (
               <View style={styles(width).mealplannerOutput}>
-                {(() => {
-                  const totalCalories = selectedDayDetail?.meals?.reduce((mealSum, meal) => {
-                    const mealCalories = meal?.dishes?.reduce((dishSum, dish) => dishSum + (dish?.calories || 0), 0) || 0;
-                    return mealSum + mealCalories;
-                  }, 0) || 0;
-                  return (
-                    <Text style={styles(width).outputTitle}>
-                      Meals for {selectedDayDetail?.day || 'Unknown'}{'\n'}
-                      <Text style={styles(width).totalCalories}>
-                        Total Calories: <Text style={styles(width).bold}>{totalCalories} kcal</Text>
-                      </Text>
+                <Text style={styles(width).outputTitle}>
+                  Meals for {selectedDayDetail?.day || 'Unknown'}
+                  {'\n'}
+                  <Text style={styles(width).totalCalories}>
+                    Total Calories: <Text style={styles(width).bold}>
+                      {(selectedDayDetail?.meals?.reduce((mealSum, meal) => {
+                        const mealCalories = meal?.dishes?.reduce((dishSum, dish) => dishSum + (dish?.calories || 0), 0) || 0;
+                        return mealSum + mealCalories;
+                      }, 0) || 0).toFixed(1)} kcal
                     </Text>
-                  );
-                })()}
+                  </Text>
+                </Text>
                 <View style={styles(width).backBtnWrapper}>
-                  <TouchableOpacity style={styles(width).mealplannerBtn} onPress={handleBackToWeek}>
-                    <Text style={styles(width).mealplannerBtnText}>Back to Weekly Menu</Text>
-                  </TouchableOpacity>
+                  <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <TouchableOpacity
+                      style={styles(width).mealplannerBtn}
+                      onPress={handleBackToWeek}
+                      onPressIn={handlePressIn}
+                      onPressOut={handlePressOut}
+                      accessibilityLabel="Back to weekly menu"
+                    >
+                      <Text style={styles(width).mealplannerBtnText}>Back to Week</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
                 </View>
                 {selectedDayDetail?.meals?.map((meal, idx) => (
                   <View key={idx} style={styles(width).mealCard}>
                     <View style={styles(width).mealHeader}>
-                      <Text style={styles(width).mealHeaderText}>{meal.type}</Text>
+                      <Text style={styles(width).mealHeaderText}>{meal.type || 'Unknown Meal'}</Text>
                     </View>
                     <View style={styles(width).mealDishes}>
-                      {meal?.dishes?.map((dish, i) => (
-                        <View key={i} style={styles(width).dishCard}>
-                          <Text style={styles(width).dishPlaceholderImage}>🍽️</Text>
-                          <View style={styles(width).dishInfo}>
-                            <Text style={styles(width).dishName}>{dish.name}</Text>
-                            <Text style={styles(width).dishCalories}>{dish.calories} kcal</Text>
-                            <View style={styles(width).mealActions}>
-                              <TouchableOpacity
-                                style={styles(width).actionButton}
-                                onPress={() => navigation.navigate('ChangeDish', { dish })}
-                              >
-                                <Text style={styles(width).actionButtonText}>🔄 Change Dish</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles(width).actionButton}
-                                onPress={() => navigation.navigate('NutritionInfo', { dish })}
-                              >
-                                <Text style={styles(width).actionButtonText}>ℹ️ Nutrition Information</Text>
-                              </TouchableOpacity>
+                      {(meal?.dishes?.length > 0 ? meal.dishes : [{ name: 'No dishes available', calories: 0, image: null }]).map(
+                        (dish, i) => (
+                          <View key={i} style={styles(width).dishCard}>
+                            {dish.image ? (
+                              <Image
+                                source={{ uri: dish.image }}
+                                style={styles(width).dishImage}
+                                resizeMode="cover"
+                                accessibilityLabel={`Image of ${dish.name}`}
+                                onError={() => console.log(`Failed to load image for ${dish.name}`)}
+                              />
+                            ) : (
+                              <Text style={styles(width).dishPlaceholderImage}>🍽️</Text>
+                            )}
+                            <View style={styles(width).dishInfo}>
+                              <Text style={styles(width).dishName}>{dish.name}</Text>
+                              <Text style={styles(width).dishCalories}>{dish.calories.toFixed(1)} kcal</Text>
                             </View>
                           </View>
-                        </View>
-                      ))}
+                        )
+                      )}
                     </View>
                   </View>
                 ))}
               </View>
             )}
-            {weekViewMode === 'mealDetail' && selectedMealDetail && (
-              <View style={styles(width).mealplannerOutput}>
-                {(() => {
-                  const totalCalories = selectedMealDetail.meal.dishes.reduce((sum, dish) => sum + dish.calories, 0);
-                  return (
-                    <Text style={styles(width).outputTitle}>
-                      {selectedMealDetail.day.day} – {selectedMealDetail.meal.type}{'\n'}
-                      <Text style={styles(width).totalCalories}>
-                        Total Calories: <Text style={styles(width).bold}>{totalCalories} kcal</Text>
-                      </Text>
-                    </Text>
-                  );
-                })()}
-                <View style={styles(width).backBtnWrapper}>
-                  <TouchableOpacity style={styles(width).mealplannerBtn} onPress={handleBackToWeek}>
-                    <Text style={styles(width).mealplannerBtnText}>Back to Weekly Menu</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles(width).mealCard}>
-                  <View style={styles(width).mealHeader}>
-                    <Text style={styles(width).mealHeaderText}>{selectedMealDetail.meal.type}</Text>
-                  </View>
-                  <View style={styles(width).mealDishes}>
-                    {selectedMealDetail?.meal?.dishes?.map((dish, i) => (
-                      <View key={i} style={styles(width).dishCard}>
-                        <Text style={styles(width).dishPlaceholderImage}>🍽️</Text>
-                        <View style={styles(width).dishInfo}>
-                          <Text style={styles(width).dishName}>{dish.name}</Text>
-                          <Text style={styles(width).dishCalories}>{dish.calories} kcal</Text>
-                          <View style={styles(width).mealActions}>
-                            <TouchableOpacity
-                              style={styles(width).actionButton}
-                              onPress={() => navigation.navigate('ChangeDish', { dish })}
-                            >
-                              <Text style={styles(width).actionButtonText}>🔄 Change Dish</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles(width).actionButton}
-                              onPress={() => navigation.navigate('NutritionInfo', { dish })}
-                            >
-                              <Text style={styles(width).actionButtonText}>ℹ️ Nutrition Information</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
           </View>
         )}
+
+        {/* Modal for Meal Details */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={handleCloseModal}
+        >
+          <View style={styles(width).modalOverlay}>
+            <View style={styles(width).modalContent}>
+              {selectedMeal && (
+                <>
+                  <Text style={styles(width).modalTitle}>
+                    {selectedMeal.day.day} – {selectedMeal.meal.type}
+                    {'\n'}
+                    <Text style={styles(width).totalCalories}>
+                      Total Calories: <Text style={styles(width).bold}>
+                        {selectedMeal.meal.dishes.reduce((sum, dish) => sum + dish.calories, 0).toFixed(1)} kcal
+                      </Text>
+                    </Text>
+                  </Text>
+                  <View style={styles(width).mealCard}>
+                    <View style={styles(width).mealHeader}>
+                      <Text style={styles(width).mealHeaderText}>{selectedMeal.meal.type || 'Unknown Meal'}</Text>
+                    </View>
+                    <ScrollView style={styles(width).modalScroll}>
+                      <View style={styles(width).mealDishes}>
+                        {(selectedMeal?.meal?.dishes?.length > 0
+                          ? selectedMeal.meal.dishes
+                          : [{ name: 'No dishes available', calories: 0, image: null }]).map((dish, i) => (
+                            <View key={i} style={styles(width).dishCard}>
+                              {dish.image ? (
+                                <Image
+                                  source={{ uri: dish.image }}
+                                  style={styles(width).dishImage}
+                                  resizeMode="cover"
+                                  accessibilityLabel={`Image of ${dish.name}`}
+                                  onError={() => console.log(`Failed to load image for ${dish.name}`)}
+                                />
+                              ) : (
+                                <Text style={styles(width).dishPlaceholderImage}>🍽️</Text>
+                              )}
+                              <View style={styles(width).dishInfo}>
+                                <Text style={styles(width).dishName}>{dish.name}</Text>
+                                <Text style={styles(width).dishCalories}>{dish.calories.toFixed(1)} kcal</Text>
+                              </View>
+                            </View>
+                          ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                  <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <TouchableOpacity
+                      style={styles(width).modalCloseBtn}
+                      onPress={handleCloseModal}
+                      onPressIn={handlePressIn}
+                      onPressOut={handlePressOut}
+                      accessibilityLabel="Close meal details"
+                    >
+                      <Text style={styles(width).modalCloseBtnText}>Close</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </View>
   );
@@ -599,264 +544,244 @@ const SystemMealPlanner = () => {
 const styles = (width) => StyleSheet.create({
   mealplannerPageWrapper: {
     flex: 1,
-    backgroundColor: '#f7fbfc',
-    paddingBottom: 30,
+    backgroundColor: '#f4f7fa',
   },
   mainContent: {
-    paddingVertical: 20,
-    paddingTop: 20,
-    paddingHorizontal: 10,
+    paddingVertical: 24,
+    paddingHorizontal: width < 768 ? 16 : 24,
   },
   mealplannerHeading: {
     alignItems: 'center',
-    marginVertical: 30,
-    maxWidth: 900,
-    alignSelf: 'center',
+    marginVertical: 20,
+    paddingHorizontal: 16,
   },
   headingTitle: {
-    fontSize: width < 768 ? 24 : 32,
+    fontSize: width < 768 ? 28 : 34,
     fontWeight: '700',
-    color: '#04668d',
+    color: '#013f50',
     marginBottom: 8,
   },
   headingText: {
-    fontSize: width < 768 ? 14 : 16,
-    color: '#666',
-    lineHeight: 24,
+    fontSize: width < 768 ? 16 : 18,
+    fontWeight: '400',
+    color: '#4a606a',
     textAlign: 'center',
+    lineHeight: 24,
   },
   mealplannerForm: {
-    maxWidth: 800,
     backgroundColor: '#ffffff',
-    padding: width < 768 ? 16 : 20,
-    borderRadius: 12,
+    padding: width < 768 ? 20 : 28,
+    borderRadius: 16,
+    marginHorizontal: width < 768 ? 12 : 20,
+    marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 3,
-    marginHorizontal: 'auto',
-    marginBottom: 20,
+    elevation: 4,
   },
   label: {
-    marginVertical: 8,
+    marginBottom: 8,
     fontWeight: '600',
-    fontSize: 14,
-    color: '#04668d',
+    fontSize: width < 768 ? 16 : 18,
+    color: '#013f50',
   },
   mealplannerInput: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#dbdbdb',
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: '#f9fdff',
-    fontSize: 14,
+    borderColor: '#d1d9dd',
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: '#f9fafb',
+    fontSize: width < 768 ? 16 : 18,
+    fontWeight: '400',
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#dbdbdb',
-    borderRadius: 8,
-    backgroundColor: '#f9fdff',
+    borderColor: '#d1d9dd',
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+    overflow: 'hidden',
   },
   mealplannerSelect: {
     width: '100%',
-    padding: 10,
-    fontSize: 14,
-    color: '#333',
-  },
-  mealplannerAutocompleteWrapper: {
-    position: 'relative',
-  },
-  mealplannerAutocompleteList: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    position: 'absolute',
-    width: '100%',
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-    top: 50,
-  },
-  autocompleteItem: {
-    padding: 10,
-  },
-  autocompleteText: {
-    fontSize: 14,
-    color: '#333',
+    padding: 14,
+    fontSize: width < 768 ? 16 : 18,
+    color: '#1a2a33',
   },
   modeToggle: {
     flexDirection: 'row',
-    gap: 16,
-    marginVertical: 12,
-    alignItems: 'center',
+    gap: 12,
+    marginVertical: 16,
+    justifyContent: 'center',
   },
   modeOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f9fdff',
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#dbdbdb',
+    borderColor: '#d1d9dd',
+    alignItems: 'center',
   },
   modeOptionActive: {
-    backgroundColor: '#02808F',
-    borderColor: '#02808F',
+    backgroundColor: '#e6f0f5',
+    borderColor: '#02808f',
   },
   modeText: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
+    color: '#1a2a33',
   },
   modeTextActive: {
-    color: '#fff',
+    color: '#02808f',
   },
   dayPicker: {
     marginVertical: 12,
   },
   mealplannerBtnWrapper: {
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 20,
   },
   mealplannerBtn: {
-    width: 230,
-    backgroundColor: '#02808F',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 300,
+    backgroundColor: '#02808f',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   mealplannerBtnText: {
-    fontSize: 14,
+    fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
     color: '#fff',
   },
   mealplannerDetailBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#02808F',
-    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#02808f',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
   },
   mealplannerDetailBtnText: {
-    fontSize: 12,
+    fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
     color: '#fff',
   },
+  errorTextWrapper: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+  },
   errorText: {
-    color: '#e74c3c',
-    fontSize: 14,
-    marginTop: 8,
+    color: '#dc2626',
+    fontSize: width < 768 ? 14 : 16,
+    fontWeight: '500',
     textAlign: 'center',
   },
   mealplannerOutput: {
-    maxWidth: 1200,
-    marginHorizontal: 'auto',
-    padding: 10,
+    marginHorizontal: width < 768 ? 12 : 20,
+    paddingBottom: 20,
   },
   outputTitle: {
     textAlign: 'center',
-    color: '#013F50',
-    fontSize: width < 768 ? 20 : 24,
+    color: '#013f50',
+    fontSize: width < 768 ? 24 : 30,
+    fontWeight: '700',
     marginBottom: 16,
   },
   totalCalories: {
-    fontSize: width < 768 ? 14 : 16,
+    fontSize: width < 768 ? 16 : 18,
+    fontWeight: '500',
+    color: '#4a606a',
   },
   bold: {
     fontWeight: '700',
   },
   mealCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    borderRadius: 16,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   mealHeader: {
-    backgroundColor: '#02808F',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: '#e6f0f5',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   mealHeaderText: {
-    color: '#fff',
-    fontSize: 16,
+    fontSize: width < 768 ? 18 : 20,
     fontWeight: '700',
+    color: '#013f50',
   },
   mealDishes: {
-    flexDirection: 'column',
-    gap: 12,
+    padding: 16,
+    gap: 16,
   },
   dishCard: {
-    backgroundColor: '#f9fdff',
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: width < 768 ? 'column' : 'row',
     alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: '#e6ecef',
+  },
+  dishImage: {
+    width: width < 768 ? 120 : 140,
+    height: width < 768 ? 120 : 140,
+    borderRadius: 12,
+    alignSelf: 'center',
   },
   dishPlaceholderImage: {
-    fontSize: 40,
+    fontSize: width < 768 ? 48 : 56,
+    alignSelf: 'center',
   },
   dishInfo: {
     flex: 1,
     flexDirection: 'column',
-    gap: 4,
+    gap: 8,
+    alignItems: width < 768 ? 'center' : 'flex-start',
   },
   dishName: {
-    fontSize: 16,
-    color: '#04668d',
+    fontSize: width < 768 ? 18 : 20,
+    color: '#013f50',
     fontWeight: '600',
   },
   dishCalories: {
-    fontSize: 14,
-    color: '#555',
-  },
-  mealActions: {
-    flexDirection: width < 768 ? 'column' : 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#02808F',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: width < 768 ? 16 : 18,
+    color: '#4a606a',
+    fontWeight: '500',
   },
   weekDayCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   weekDayHeader: {
     flexDirection: 'row',
@@ -865,47 +790,114 @@ const styles = (width) => StyleSheet.create({
     marginBottom: 12,
   },
   weekDayHeaderTitle: {
-    fontSize: 18,
+    fontSize: width < 768 ? 20 : 22,
     fontWeight: '700',
-    color: '#04668d',
+    color: '#013f50',
   },
   weekMealGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 20,
   },
   weekMealCard: {
-    backgroundColor: '#fbfeff',
-    borderRadius: 8,
-    padding: 10,
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
     flex: 1,
-    minWidth: 150,
+    minWidth: width < 768 ? 200 : 240,
+    borderWidth: 1,
+    borderColor: '#e6ecef',
+  },
+  weekMealImage: {
+    width: width < 768 ? 120 : 140,
+    height: width < 768 ? 120 : 140,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   weekMealPlaceholderImage: {
-    fontSize: 40,
-    marginBottom: 8,
+    fontSize: width < 768 ? 56 : 64,
+    marginBottom: 12,
   },
   weekMealType: {
-    fontSize: 14,
+    fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
-    color: '#04668d',
-    marginBottom: 8,
+    color: '#013f50',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   mealplannerDetailWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     alignItems: 'center',
     width: '100%',
+    gap: 8,
   },
   backBtnWrapper: {
     alignItems: 'flex-end',
     marginVertical: 12,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: width < 768 ? 16 : 24,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: width < 768 ? 20 : 24,
+    width: '100%',
+    maxWidth: 600,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  modalTitle: {
+    textAlign: 'center',
+    color: '#013f50',
+    fontSize: width < 768 ? 22 : 28,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  modalScroll: {
+    maxHeight: width < 768 ? 300 : 400,
+  },
+  modalCloseBtn: {
+    width: '100%',
+    maxWidth: 300,
+    backgroundColor: '#dc2626',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    marginTop: 16,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalCloseBtnText: {
+    fontSize: width < 768 ? 16 : 18,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

@@ -9,10 +9,6 @@ export const getAllNutrientCategories = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all nutrient categories:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -29,10 +25,6 @@ export const getNutrientCategoryById = async (categoryId) => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching nutrient category by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -54,10 +46,6 @@ export const createNutrientCategory = async (categoryData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error creating nutrient category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -80,10 +68,6 @@ export const updateNutrientCategory = async (categoryData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating nutrient category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -100,10 +84,6 @@ export const deleteNutrientCategory = async (nutrientCategoryId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting nutrient category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -117,10 +97,6 @@ export const getAllNutrients = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all nutrients:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -137,10 +113,6 @@ export const getNutrientById = async (nutrientId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching nutrient by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -157,10 +129,6 @@ export const getNutrientWithDetailsById = async (nutrientId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching nutrient with details by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -175,11 +143,6 @@ export const createNutrient = async (nutrientData) => {
     }
     formData.append("CategoryId", nutrientData.categoryId);
 
-    console.log(
-      "Sending create nutrient request with FormData:",
-      Array.from(formData.entries())
-    );
-
     const response = await apiClient.post(
       `/api/nutrient/add-new-nutrient`,
       formData,
@@ -192,17 +155,12 @@ export const createNutrient = async (nutrientData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error creating nutrient:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
 export const updateNutrient = async (nutrientData) => {
   try {
-    console.log("Sending update nutrient request with data:", nutrientData);
     const response = await apiClient.put(
       `/api/nutrient/update-nutrient`,
       {
@@ -217,13 +175,8 @@ export const updateNutrient = async (nutrientData) => {
         },
       }
     );
-    console.log("UpdateNutrient response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating nutrient:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -233,11 +186,6 @@ export const updateNutrientImage = async (nutrientId, imageUrl) => {
     const formData = new FormData();
     formData.append("Id", nutrientId);
     formData.append("ImageUrl", imageUrl);
-
-    console.log(
-      "Sending update nutrient image request with FormData:",
-      Array.from(formData.entries())
-    );
 
     const response = await apiClient.put(
       `/api/nutrient/update-nutrient-image`,
@@ -249,13 +197,8 @@ export const updateNutrientImage = async (nutrientId, imageUrl) => {
         },
       }
     );
-    console.log("UpdateNutrientImage response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating nutrient image:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -275,10 +218,6 @@ export const deleteNutrient = async (nutrientId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting nutrient:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -295,10 +234,6 @@ export const getAllFoodCategories = async () => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all food categories:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -315,10 +250,6 @@ export const getFoodCategoryById = async (categoryId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching food category by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -338,17 +269,12 @@ export const getFoodCategoryWithFoodsById = async (categoryId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching food category with foods by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
 export const createFoodCategory = async (categoryData) => {
   try {
-    console.log("Creating food category with data:", categoryData);
     const response = await apiClient.post(
       `/api/food-category/add-food-category`,
       {
@@ -362,15 +288,8 @@ export const createFoodCategory = async (categoryData) => {
         },
       }
     );
-    console.log("Create food category response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating food category:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
@@ -396,10 +315,6 @@ export const updateFoodCategory = async (categoryData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating food category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -419,15 +334,10 @@ export const deleteFoodCategory = async (foodCategoryId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting food category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
-// Food Management APIs
 export const getAllFoods = async () => {
   try {
     const response = await apiClient.get(`/api/food/view-all-foods`, {
@@ -437,10 +347,6 @@ export const getAllFoods = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all foods:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -457,10 +363,6 @@ export const getFoodById = async (foodId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching food by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -490,10 +392,6 @@ export const createFood = async (foodData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error creating food:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -521,10 +419,6 @@ export const updateFood = async (foodData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating food:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -547,10 +441,6 @@ export const updateFoodImage = async (foodId, image) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating food image:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -567,10 +457,6 @@ export const deleteFood = async (foodId) => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting food:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -597,10 +483,6 @@ export const updateFoodNutrient = async (nutrientData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating food nutrient:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -622,10 +504,6 @@ export const addNutrientsToFood = async (data) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error adding nutrients to food:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -646,10 +524,6 @@ export const deleteFoodNutrient = async (foodId, nutrientId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting food nutrient:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -663,10 +537,6 @@ export const getAllAgeGroups = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all age groups:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -683,17 +553,12 @@ export const getAgeGroupById = async (ageGroupId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching age group by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
 export const createAgeGroup = async (ageGroupData) => {
   try {
-    console.log("Creating age group with data:", ageGroupData);
     const response = await apiClient.post(
       `/api/AgeGroup/add-age-group`,
       {
@@ -707,15 +572,8 @@ export const createAgeGroup = async (ageGroupData) => {
         },
       }
     );
-    console.log("Create age group response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating age group:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
@@ -741,10 +599,6 @@ export const updateAgeGroup = async (ageGroupData) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating age group:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -761,10 +615,6 @@ export const deleteAgeGroup = async (ageGroupId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting age group:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -776,13 +626,8 @@ export const getAllDishes = async () => {
         Accept: "application/json",
       },
     });
-    return response.data; // Returns { error: 0, message: null, data: [...] }
+    return response.data;
   } catch (error) {
-    console.error("Error fetching all dishes:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -802,11 +647,6 @@ export const getDishById = async (dishId) => {
     );
     return response.data;
   } catch (error) {
-    console.error("Error fetching dish by ID:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -835,8 +675,6 @@ export const createDish = async (dishData) => {
       })),
     };
 
-    console.log("Sending create dish request with payload:", payload);
-
     const response = await apiClient.post(`/api/Dish/add-dish`, payload, {
       headers: {
         "Content-Type": "application/json",
@@ -844,17 +682,12 @@ export const createDish = async (dishData) => {
       },
     });
 
-    console.log("Create dish response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating dish:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
+
 export const addDishImage = async (dishId, image) => {
   try {
     if (!dishId || dishId === "") {
@@ -868,11 +701,6 @@ export const addDishImage = async (dishId, image) => {
     formData.append("dishId", dishId);
     formData.append("Image", image);
 
-    console.log(
-      "Sending add dish image request with FormData:",
-      Array.from(formData.entries())
-    );
-
     const response = await apiClient.put(`/api/Dish/add-dish-image`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -880,14 +708,8 @@ export const addDishImage = async (dishId, image) => {
       },
     });
 
-    console.log("Add dish image response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error adding dish image:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -900,7 +722,6 @@ export const updateDish = async (dishData) => {
     if (!dishData.dishName || dishData.dishName.trim() === "") {
       throw new Error("Dish name is required");
     }
-  
     if (dishData.foodList.some((food) => !food.unit || food.amount <= 0)) {
       throw new Error(
         "All food items must have a valid unit and amount greater than 0"
@@ -918,8 +739,6 @@ export const updateDish = async (dishData) => {
       })),
     };
 
-    console.log("Sending update dish request with payload:", payload);
-
     const response = await apiClient.put("/api/dish/update-dish", payload, {
       headers: {
         "Content-Type": "application/json",
@@ -927,14 +746,8 @@ export const updateDish = async (dishData) => {
       },
     });
 
-    console.log("Update dish response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error updating dish:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -954,15 +767,9 @@ export const deleteDish = async (dishId) => {
     );
     return response.data;
   } catch (error) {
-    console.error("Error deleting dish:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
-// Add these to the existing nutriet-api.js file
 
 export const updateFoodInDish = async (foodData) => {
   try {
@@ -986,8 +793,6 @@ export const updateFoodInDish = async (foodData) => {
       amount: parseFloat(foodData.amount),
     };
 
-    console.log("Sending update food in dish request with payload:", payload);
-
     const response = await apiClient.put(`/api/Dish/update-food-in-dish`, payload, {
       headers: {
         "Content-Type": "application/json",
@@ -995,14 +800,8 @@ export const updateFoodInDish = async (foodData) => {
       },
     });
 
-    console.log("Update food in dish response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error updating food in dish:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1016,11 +815,9 @@ export const deleteFoodInDish = async (dishId, foodId) => {
       throw new Error("Food ID is null or empty");
     }
 
-    console.log("Sending delete food in dish request for dishId:", dishId, "foodId:", foodId);
-
     const response = await apiClient.put(
       `/api/Dish/delete-food-in-dish-by-food-id`,
-      null, // no request body
+      null,
       {
         params: { dishId, foodId },
         headers: {
@@ -1031,11 +828,9 @@ export const deleteFoodInDish = async (dishId, foodId) => {
 
     return response.data;
   } catch (error) {
-    console.error("Error deleting food in dish:", error);
     throw error;
   }
 };
-
 
 export const getAllAllergyCategories = async (token) => {
   try {
@@ -1050,10 +845,6 @@ export const getAllAllergyCategories = async (token) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all allergy categories:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -1063,7 +854,6 @@ export const getAllergyCategoryById = async (categoryId, token) => {
     if (!categoryId || categoryId === "") {
       throw new Error("Allergy Category ID is null or empty");
     }
-    console.log("Fetching allergy category with ID:", categoryId);
     const response = await apiClient.get(
       `/api/allergy-category/view-allergy-category-by-id?categoryId=${categoryId}`,
       {
@@ -1073,13 +863,8 @@ export const getAllergyCategoryById = async (categoryId, token) => {
         },
       }
     );
-    console.log("Get allergy category by ID response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching allergy category by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -1099,17 +884,12 @@ export const getAllergyCategoryWithAllergiesById = async (categoryId) => {
     );
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching allergy category with allergies by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
 export const createAllergyCategory = async (categoryData) => {
   try {
-    console.log("Creating allergy category with data:", categoryData);
     const response = await apiClient.post(
       `/api/allergy-category/add-allergy-category`,
       {
@@ -1123,15 +903,8 @@ export const createAllergyCategory = async (categoryData) => {
         },
       }
     );
-    console.log("Create allergy category response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating allergy category:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
@@ -1141,7 +914,6 @@ export const deleteAllergyCategory = async (categoryId) => {
     if (!categoryId || categoryId === "") {
       throw new Error("Allergy Category ID is null or empty");
     }
-    console.log("Sending delete request for allergy category ID:", categoryId);
     const response = await apiClient.delete(
       `/api/allergy-category/delete-allergy-category-by-id`,
       {
@@ -1153,13 +925,8 @@ export const deleteAllergyCategory = async (categoryId) => {
         },
       }
     );
-    console.log("Delete allergy category response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting allergy category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -1169,7 +936,6 @@ export const updateAllergyCategory = async (categoryData) => {
     if (!categoryData.id || categoryData.id === "") {
       throw new Error("Allergy Category ID is null or empty");
     }
-    console.log("Updating allergy category with data:", categoryData);
     const response = await apiClient.put(
       `/api/allergy-category/update-allergy-category`,
       {
@@ -1184,13 +950,8 @@ export const updateAllergyCategory = async (categoryData) => {
         },
       }
     );
-    console.log("Update allergy category response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating allergy category:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -1205,17 +966,12 @@ export const getAllAllergies = async (token) => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all allergies:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
 export const createAllergy = async (allergyData, token) => {
   try {
-    console.log("Creating allergy with data:", allergyData);
     const response = await apiClient.post(
       `/api/Allergy/add-allergy`,
       {
@@ -1233,15 +989,8 @@ export const createAllergy = async (allergyData, token) => {
         },
       }
     );
-    console.log("Create allergy response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating allergy:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
@@ -1251,7 +1000,6 @@ export const updateAllergy = async (allergyData, token) => {
     if (!allergyData.id || allergyData.id === "") {
       throw new Error("Allergy ID is null or empty");
     }
-    console.log("Updating allergy with data:", allergyData);
     const response = await apiClient.put(
       `/api/Allergy/update-allergy`,
       {
@@ -1270,13 +1018,8 @@ export const updateAllergy = async (allergyData, token) => {
         },
       }
     );
-    console.log("Update allergy response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error updating allergy:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -1286,7 +1029,6 @@ export const deleteAllergy = async (allergyId, token) => {
     if (!allergyId || allergyId === "") {
       throw new Error("Allergy ID is null or empty");
     }
-    console.log("Sending delete request for allergy ID:", allergyId);
     const response = await apiClient.delete(
       `/api/Allergy/delete-allergy-by-id`,
       {
@@ -1299,18 +1041,12 @@ export const deleteAllergy = async (allergyId, token) => {
         },
       }
     );
-    console.log("Delete allergy response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error deleting allergy:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
 
-// Disease Management APIs
 export const getAllDiseases = async (token) => {
   try {
     const response = await apiClient.get(`/api/Disease/view-all-diseases`, {
@@ -1321,10 +1057,6 @@ export const getAllDiseases = async (token) => {
     });
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all diseases:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
@@ -1334,7 +1066,6 @@ export const getDiseaseById = async (diseaseId, token) => {
     if (!diseaseId || diseaseId === "") {
       throw new Error("Disease ID is null or empty");
     }
-    console.log("Fetching disease with ID:", diseaseId);
     const response = await apiClient.get(
       `/api/Disease/view-disease-by-id?diseaseId=${diseaseId}`,
       {
@@ -1344,26 +1075,21 @@ export const getDiseaseById = async (diseaseId, token) => {
         },
       }
     );
-    console.log("Get disease by ID response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching disease by ID:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
+
 export const createDisease = async (diseaseData, token) => {
   try {
     if (!diseaseData.name || diseaseData.name.trim() === "") {
       throw new Error("Disease name is required");
     }
-    console.log("Creating disease with data:", diseaseData);
     const response = await apiClient.post(
       `/api/Disease/add-disease`,
       {
-        name: diseaseData.name, // Fix: Use diseaseData.name
+        name: diseaseData.name,
         description: diseaseData.description || "",
         symptoms: diseaseData.symptoms || "",
         treatmentOptions: diseaseData.treatmentOptions || "",
@@ -1379,18 +1105,12 @@ export const createDisease = async (diseaseData, token) => {
         },
       }
     );
-    console.log("Create disease response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating disease:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
+
 export const updateDisease = async (diseaseData, token) => {
   try {
     if (!diseaseData.diseaseId || diseaseData.diseaseId === "") {
@@ -1399,35 +1119,28 @@ export const updateDisease = async (diseaseData, token) => {
     if (!diseaseData.name || diseaseData.name.trim() === "") {
       throw new Error("Disease name is required");
     }
-    console.log("Updating disease with data:", diseaseData);
     const response = await apiClient.put(
       `/api/Disease/update-disease`,
       {
-        diseaseId: diseaseData.diseaseId, // Ensure field name matches API
+        diseaseId: diseaseData.diseaseId,
         name: diseaseData.name,
         description: diseaseData.description || "",
         symptoms: diseaseData.symptoms || "",
         treatmentOptions: diseaseData.treatmentOptions || "",
         pregnancyRelated: diseaseData.pregnancyRelated || false,
         riskLevel: diseaseData.riskLevel || "",
-        typeOfDesease: diseaseData.typeOfDesease || "", // Note: API expects "typeOfDesease" (check for typo in backend)
+        typeOfDesease: diseaseData.typeOfDesease || "",
       },
       {
         headers: {
-          Authorization: `Bearer ${token}`, // Ensure token is included
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           Accept: "application/json",
         },
       }
     );
-    console.log("Update disease response:", response.data);
-    return response.data; // Expected response: { error: 0, message: "Update disease success", data: null }
+    return response.data;
   } catch (error) {
-    console.error("Error updating disease:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1437,28 +1150,21 @@ export const deleteDisease = async (diseaseId, token) => {
     if (!diseaseId || diseaseId === "") {
       throw new Error("Disease ID is null or empty");
     }
-    console.log("Sending delete request for disease ID:", diseaseId);
     const response = await apiClient.delete(
       `/api/Disease/delete-disease-by-id?diseaseId=${diseaseId}`,
       {
         headers: {
-          Authorization: `Bearer ${token}`, // Ensure token is included
+          Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
       }
     );
-    console.log("Delete disease response:", response.data);
-    return response.data; // Expected response: { error: 0, message: null, data: null }
+    return response.data;
   } catch (error) {
-    console.error("Error deleting disease:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
-// Meal Management APIs
+
 export const createMeal = async (mealData) => {
   try {
     if (!mealData.mealType || mealData.mealType.trim() === "") {
@@ -1478,8 +1184,6 @@ export const createMeal = async (mealData) => {
       })),
     };
 
-    console.log("Sending create meal request with payload:", payload);
-
     const response = await apiClient.post(`/api/meal/add-meal`, payload, {
       headers: {
         "Content-Type": "application/json",
@@ -1487,14 +1191,8 @@ export const createMeal = async (mealData) => {
       },
     });
 
-    console.log("Create meal response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating meal:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1521,8 +1219,6 @@ export const updateMeal = async (mealId, mealData) => {
       })),
     };
 
-    console.log("Sending update meal request with payload:", payload);
-
     const response = await apiClient.put(`/api/meal/update-meal/${mealId}`, payload, {
       headers: {
         "Content-Type": "application/json",
@@ -1530,14 +1226,8 @@ export const updateMeal = async (mealId, mealData) => {
       },
     });
 
-    console.log("Update meal response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error updating meal:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1548,22 +1238,14 @@ export const deleteMeal = async (mealId) => {
       throw new Error("Meal ID is null or empty");
     }
 
-    console.log("Sending delete meal request for mealId:", mealId);
-
     const response = await apiClient.delete(`/api/meal/delete-meal/${mealId}`, {
       headers: {
         Accept: "application/json",
       },
     });
 
-    console.log("Delete meal response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error deleting meal:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1574,8 +1256,6 @@ export const getMealById = async (mealId) => {
       throw new Error("Meal ID is null or empty");
     }
 
-    console.log("Fetching meal with ID:", mealId);
-
     const response = await apiClient.get(`/api/meal/view-meal-by-id`, {
       params: {
         mealId: mealId,
@@ -1585,14 +1265,8 @@ export const getMealById = async (mealId) => {
       },
     });
 
-    console.log("Get meal by ID response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error fetching meal by ID:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1605,19 +1279,12 @@ export const getAllMeals = async () => {
       },
     });
 
-    console.log("Get all meals response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error fetching all meals:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
-// Warning Food Management APIs
-// Warning Food Management APIs
+
 export const createWarningFoodForDisease = async (warningData) => {
   try {
     if (!warningData.diseaseId || warningData.diseaseId === "") {
@@ -1636,21 +1303,14 @@ export const createWarningFoodForDisease = async (warningData) => {
         description: food.description || "",
       })),
     };
-    console.log("Sending create warning food for disease request with payload:", payload);
     const response = await apiClient.put(`/api/food/create-warning-food-for-disease`, payload, {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
-    console.log("Create warning food for disease response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating warning food for disease:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1667,21 +1327,14 @@ export const removeRecommendOrWarningFoodForDisease = async (foodDiseaseData) =>
       foodId: foodDiseaseData.foodId,
       diseaseId: foodDiseaseData.diseaseId,
     };
-    console.log("Sending remove recommend or warning food for disease request with payload:", payload);
     const response = await apiClient.put(`/api/food/remove-recommend-or-warning-food-for-disease`, payload, {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
-    console.log("Remove recommend or warning food for disease response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error removing recommend or warning food for disease:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1698,21 +1351,14 @@ export const removeRecommendOrWarningFoodForAllergy = async (foodAllergyData) =>
       foodId: foodAllergyData.foodId,
       allergyId: foodAllergyData.allergyId,
     };
-    console.log("Sending remove recommend or warning food for allergy request with payload:", payload);
     const response = await apiClient.put(`/api/food/remove-recommend-or-warning-food-for-allergy`, payload, {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
-    console.log("Remove recommend or warning food for allergy response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error removing recommend or warning food for allergy:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1735,50 +1381,37 @@ export const createWarningFoodForAllergy = async (warningData) => {
         description: food.description || "",
       })),
     };
-    console.log("Sending create warning food for allergy request with payload:", payload);
     const response = await apiClient.put(`/api/food/create-warning-food-for-allergy`, payload, {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
-    console.log("Create warning food for allergy response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating warning food for allergy:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
 
-export const viewWarningFoods = async (filterData) => {
+export const viewWarningFoods = async (filterData, token) => {
   try {
     const payload = {
       allergyIds: filterData.allergyIds || [],
       diseaseIds: filterData.diseaseIds || [],
     };
-    console.log("Sending view warning foods request with payload:", payload);
     const response = await apiClient.post(`/api/food/view-warning-foods`, payload, {
       headers: {
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
-    console.log("View warning foods response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error fetching warning foods:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
-// EnergySuggestion Management APIs
+
 export const getAllEnergySuggestions = async () => {
   try {
     const response = await apiClient.get(`/api/EnergySuggestion/GetAll`, {
@@ -1786,22 +1419,17 @@ export const getAllEnergySuggestions = async () => {
         Accept: "application/json",
       },
     });
-    console.log("Get all energy suggestions response:", response.data);
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching all energy suggestions:",
-      error.response?.data || error.message
-    );
     throw error;
   }
 };
+
 export const getEnergySuggestionById = async (energySuggestionId, token) => {
   try {
     if (!energySuggestionId || energySuggestionId === "") {
       throw new Error("Energy Suggestion ID is null or empty");
     }
-    console.log("Fetching energy suggestion with ID:", energySuggestionId);
     const headers = {
       Accept: "application/json",
     };
@@ -1810,27 +1438,20 @@ export const getEnergySuggestionById = async (energySuggestionId, token) => {
     }
     const response = await apiClient.get(`/api/EnergySuggestion/GetById`, {
       params: {
-        enegrySuggestionId: energySuggestionId, // Use the correct parameter name as per Swagger
+        enegrySuggestionId: energySuggestionId,
       },
       headers,
-      timeout: 60000, // Keep timeout
+      timeout: 60000,
     });
-    console.log("Get energy suggestion by ID response:", response.data);
     if (!response.data) {
-      console.warn("No data found for the given ID");
-      return null; // Return null for graceful handling
+      return null;
     }
     return response.data;
   } catch (error) {
-    console.error("Error fetching energy suggestion by ID:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
+
 export const createEnergySuggestion = async (energySuggestionData, token) => {
   try {
     if (!energySuggestionData.ageGroupId || energySuggestionData.ageGroupId.trim() === "") {
@@ -1854,10 +1475,8 @@ export const createEnergySuggestion = async (energySuggestionData, token) => {
       baseCalories: Number(energySuggestionData.baseCalories),
       trimester: Number(energySuggestionData.trimester) || 0,
       additionalCalories: Number(energySuggestionData.additionalCalories) || 0,
-      ageGroupId: energySuggestionData.ageGroupId,  // Keep as string (UUID/GUID)
+      ageGroupId: energySuggestionData.ageGroupId,
     };
-
-    console.log("Creating energy suggestion with payload:", payload);
 
     const headers = {
       "Content-Type": "application/json",
@@ -1874,18 +1493,12 @@ export const createEnergySuggestion = async (energySuggestionData, token) => {
       { headers }
     );
 
-    console.log("Create energy suggestion response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating energy suggestion:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
+
 export const updateEnergySuggestion = async (energySuggestionData, token) => {
   try {
     if (!energySuggestionData.id || energySuggestionData.id === "") {
@@ -1906,7 +1519,6 @@ export const updateEnergySuggestion = async (energySuggestionData, token) => {
     if (!energySuggestionData.baseCalories || isNaN(energySuggestionData.baseCalories) || Number(energySuggestionData.baseCalories) <= 0) {
       throw new Error("Base Calories must be a positive number");
     }
-    console.log("Updating energy suggestion with data:", energySuggestionData);
     const headers = {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -1926,19 +1538,12 @@ export const updateEnergySuggestion = async (energySuggestionData, token) => {
       },
       { headers }
     );
-    console.log("Update energy suggestion response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error updating energy suggestion:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
-// Nutrient Suggestion Management APIs
+
 export const createNutrientSuggestion = async (nutrientSuggestionData, token) => {
   try {
     if (!nutrientSuggestionData.name || nutrientSuggestionData.name.trim() === "") {
@@ -1947,11 +1552,7 @@ export const createNutrientSuggestion = async (nutrientSuggestionData, token) =>
 
     const payload = {
       nutrientSuggetionName: nutrientSuggestionData.name,
-      // Note: The Swagger API doesn't include description or nutrientList in the create payload
-      // These will be handled by adding attributes after creation
     };
-
-    console.log("Sending create nutrient suggestion request with payload:", payload);
 
     const headers = {
       "Content-Type": "application/json",
@@ -1968,14 +1569,8 @@ export const createNutrientSuggestion = async (nutrientSuggestionData, token) =>
       { headers }
     );
 
-    console.log("Create nutrient suggestion response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error creating nutrient suggestion:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -1987,8 +1582,8 @@ export const addNutrientSuggestionAttribute = async (attributeData, token) => {
     }
 
     const payload = {
-      nutrientSuggestionId: attributeData.nutrientSuggestionId, // Fixed typo
-      ageGroupId: attributeData.ageGroupId || null, // Fixed typo from ageGroudId
+      nutrientSuggestionId: attributeData.nutrientSuggestionId,
+      ageGroupId: attributeData.ageGroupId || null,
       trimester: attributeData.trimester || 0,
       maxEnergyPercentage: attributeData.maxEnergyPercentage || 0,
       minEnergyPercentage: attributeData.minEnergyPercentage || 0,
@@ -2000,8 +1595,6 @@ export const addNutrientSuggestionAttribute = async (attributeData, token) => {
       nutrientId: attributeData.nutrientId,
       type: attributeData.type || 0,
     };
-
-    console.log("Sending add nutrient suggestion attribute request with payload:", payload);
 
     const headers = {
       "Content-Type": "application/json",
@@ -2018,14 +1611,8 @@ export const addNutrientSuggestionAttribute = async (attributeData, token) => {
       { headers }
     );
 
-    console.log("Add nutrient suggestion attribute response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error adding nutrient suggestion attribute:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -2044,14 +1631,8 @@ export const getAllNutrientSuggestions = async (token) => {
       headers,
     });
 
-    console.log("Get all nutrient suggestions response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error fetching all nutrient suggestions:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -2061,8 +1642,6 @@ export const getNutrientSuggestionById = async (id, token) => {
     if (!id || id === "") {
       throw new Error("Nutrient Suggestion ID is null or empty");
     }
-
-    console.log("Fetching nutrient suggestion with ID:", id);
 
     const headers = {
       Accept: "application/json",
@@ -2077,14 +1656,8 @@ export const getNutrientSuggestionById = async (id, token) => {
       headers,
     });
 
-    console.log("Get nutrient suggestion by ID response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error fetching nutrient suggestion by ID:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
@@ -2103,8 +1676,6 @@ export const updateNutrientSuggestion = async (nutrientSuggestionData, token) =>
       nutrientSuggetionName: nutrientSuggestionData.nutrientSuggetionName,
     };
 
-    console.log("Sending update nutrient suggestion request with payload:", payload);
-
     const headers = {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -2120,15 +1691,8 @@ export const updateNutrientSuggestion = async (nutrientSuggestionData, token) =>
       { headers }
     );
 
-    console.log("Update nutrient suggestion response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error updating nutrient suggestion:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config,
-    });
     throw error;
   }
 };
@@ -2138,8 +1702,6 @@ export const deleteNutrientSuggestion = async (id, token) => {
     if (!id || id === "") {
       throw new Error("Nutrient Suggestion ID is null or empty");
     }
-
-    console.log("Sending delete nutrient suggestion request for ID:", id);
 
     const headers = {
       Accept: "application/json",
@@ -2157,14 +1719,8 @@ export const deleteNutrientSuggestion = async (id, token) => {
       }
     );
 
-    console.log("Delete nutrient suggestion response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error deleting nutrient suggestion:", {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
     throw error;
   }
 };
