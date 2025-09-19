@@ -8,10 +8,14 @@ import {
   FlatList,
   Animated,
   useWindowDimensions,
+  Platform,
+  Linking,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import ChatBox from './ChatBox';
 import TrackingForm from './pregnacytracker/TrackingForm';
 import PregnancyOverview from './pregnacytracker/PregnancyOverview';
 import PregnancyProgressBar from './pregnacytracker/PregnancyProgressBar';
@@ -33,7 +37,7 @@ import { getCurrentUser, logout } from '../api/auth';
 import { viewAllOfflineConsultation } from '../api/offline-consultation-api';
 import { getJournalByGrowthDataId } from '../api/journal-api';
 
-// Header Component (unchanged)
+// Header Component
 const Header = ({ navigation, user, setUser, handleLogout }) => {
   const { width } = useWindowDimensions();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -115,6 +119,78 @@ const Header = ({ navigation, user, setUser, handleLogout }) => {
   );
 };
 
+// Footer Component
+const Footer = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const footerLinks = [
+    { name: 'About Us', route: 'About' },
+    { name: 'Privacy Policy', route: 'Privacy' },
+    { name: 'Terms of Service', route: 'Terms' },
+    { name: 'Contact Us', route: 'Contact' },
+  ];
+
+  const socialLinks = [
+    { name: 'Twitter', url: 'https://twitter.com', icon: 'logo-twitter' },
+    { name: 'Facebook', url: 'https://facebook.com', icon: 'logo-facebook' },
+    { name: 'LinkedIn', url: 'https://linkedin.com', icon: 'logo-linkedin' },
+  ];
+
+  const [email, setEmail] = useState('');
+
+  const handleNewsletterSubmit = () => {
+    console.log('Newsletter subscription:', email);
+    setEmail('');
+  };
+
+  return (
+    <View style={styles(width).footer}>
+      <View style={styles(width).footerContainer}>
+        <View style={styles(width).footerSection}>
+          <Text style={styles(width).footerSectionTitle}>Contact</Text>
+          <Text style={styles(width).footerText}>Email: support@genderhealthweb.com</Text>
+          <Text style={styles(width).footerText}>Phone: (123) 456-7890</Text>
+        </View>
+        <View style={styles(width).footerSection}>
+          <Text style={styles(width).footerSectionTitle}>Follow Us</Text>
+          <View style={styles(width).socialLinks}>
+            {socialLinks.map((social, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles(width).socialLink}
+                onPress={() => Linking.openURL(social.url)}
+              >
+                <Ionicons name={social.icon} size={20} color="#ffffff" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <View style={styles(width).footerSection}>
+          <Text style={styles(width).footerSectionTitle}>Stay Updated</Text>
+          <View style={styles(width).newsletterForm}>
+            <TextInput
+              style={styles(width).newsletterInput}
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={styles(width).newsletterButton}
+              onPress={handleNewsletterSubmit}
+            >
+              <Text style={styles(width).buttonText}>Subscribe</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+      <Text style={styles(width).footerCopyright}>
+        © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
+      </Text>
+    </View>
+  );
+};
+
 const PregnancyTrackingPage = () => {
   const { width } = useWindowDimensions();
   const [selectedWeek, setSelectedWeek] = useState(null);
@@ -132,6 +208,7 @@ const PregnancyTrackingPage = () => {
   const [userId, setUserId] = useState(null);
   const [token, setToken] = useState(null);
   const [journals, setJournals] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const navigation = useNavigation();
   const route = useRoute();
 
@@ -139,7 +216,6 @@ const PregnancyTrackingPage = () => {
   const getAbnormalStatus = (bio) => {
     const results = {};
 
-    // Blood Pressure
     if (bio?.systolicBP && bio?.diastolicBP) {
       const sys = bio.systolicBP;
       const dia = bio.diastolicBP;
@@ -161,7 +237,6 @@ const PregnancyTrackingPage = () => {
       }
     }
 
-    // Blood Sugar
     if (bio?.bloodSugarLevelMgDl) {
       const sugar = bio.bloodSugarLevelMgDl;
       if (sugar > 95) {
@@ -177,7 +252,6 @@ const PregnancyTrackingPage = () => {
       }
     }
 
-    // Heart Rate
     if (bio?.heartRateBPM) {
       const hr = bio.heartRateBPM;
       if (hr > 110) {
@@ -193,7 +267,6 @@ const PregnancyTrackingPage = () => {
       }
     }
 
-    // BMI
     if (bio?.weightKg && bio?.heightCm) {
       const bmi = bio.weightKg / Math.pow(bio.heightCm / 100, 2);
       if (bmi < 18.5) {
@@ -220,7 +293,6 @@ const PregnancyTrackingPage = () => {
     .filter((s) => s?.abnormal)
     .map((s) => s.message);
 
-  // Fetch journals
   useEffect(() => {
     const fetchJournals = async () => {
       try {
@@ -244,7 +316,6 @@ const PregnancyTrackingPage = () => {
     }
   }, [pregnancyData?.id]);
 
-  // Initialize app data
   useEffect(() => {
     let isMounted = true;
     const initializeApp = async () => {
@@ -252,7 +323,6 @@ const PregnancyTrackingPage = () => {
       setIsLoading(true);
       setError(null);
       try {
-        // Fetch token
         const storedToken = await AsyncStorage.getItem('authToken');
         if (!storedToken) {
           setError('Please sign in to access pregnancy tracking');
@@ -260,7 +330,6 @@ const PregnancyTrackingPage = () => {
           return;
         }
         setToken(storedToken);
-        // Fetch user data
         let userData;
         try {
           const res = await getCurrentUser(storedToken);
@@ -276,7 +345,6 @@ const PregnancyTrackingPage = () => {
           return;
         }
         if (isMounted) setUser(userData);
-        // Fetch stored userId and ensure consistency
         let storedUserId = await AsyncStorage.getItem('userId');
         if (!storedUserId) {
           storedUserId = userData.id;
@@ -285,7 +353,6 @@ const PregnancyTrackingPage = () => {
           await AsyncStorage.setItem('userId', userData.id);
         }
         if (isMounted) setUserId(storedUserId);
-        // Fetch pregnancy data
         const currentDate = new Date().toISOString().split('T')[0];
         let pregRes;
         try {
@@ -308,7 +375,6 @@ const PregnancyTrackingPage = () => {
             setError('No pregnancy data found. Please create a profile to start tracking.');
           }
         }
-        // Fetch appointments
         if (userData.id && storedToken) {
           try {
             setLoadingAppointments(true);
@@ -361,7 +427,6 @@ const PregnancyTrackingPage = () => {
 
   const appointmentDates = appointments.map((a) => a.start.toISOString());
 
-  // Handle journal modal
   useEffect(() => {
     if (activeTab === 'journal') {
       setOpenJournalModal(false);
@@ -480,7 +545,6 @@ const PregnancyTrackingPage = () => {
     !!pregnancyData.firstDayOfLastMenstrualPeriod &&
     !!pregnancyData.estimatedDueDate;
 
-  // Navigation tabs
   const tabs = [
     { key: 'weekly', label: 'Weekly Info', queryKey: 'weeklyinfo' },
     { key: 'reminderconsultation', label: 'Checkup Reminder', queryKey: 'reminderconsultationinfo' },
@@ -499,17 +563,14 @@ const PregnancyTrackingPage = () => {
     { key: 'custom', label: 'Custom Meal Planner' },
   ];
 
-  // Render item for FlatList
   const renderContent = () => {
     if (isLoading) {
       return (
-        <View style={styles(width).pregnancyTrackingPage}>
+        <View style={styles(width).mainContent}>
           <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-          <View style={styles(width).mainContent}>
-            <View style={styles(width).loadingContainer}>
-              <ActivityIndicator size="large" color="#067DAD" />
-              <Text style={styles(width).loadingText}>Loading your pregnancy data...</Text>
-            </View>
+          <View style={styles(width).loadingContainer}>
+            <ActivityIndicator size="large" color="#067DAD" />
+            <Text style={styles(width).loadingText}>Loading your pregnancy data...</Text>
           </View>
         </View>
       );
@@ -517,343 +578,345 @@ const PregnancyTrackingPage = () => {
 
     if (error && error === 'No pregnancy data found. Please create a profile to start tracking.') {
       return (
-        <View style={styles(width).pregnancyTrackingPage}>
+        <View style={styles(width).mainContent}>
           <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-          <View style={styles(width).mainContent}>
-            <View style={styles(width).pregnancyTrackingContainer}>
-              <View style={styles(width).trackingWelcomeSection}>
-                <View style={styles(width).trackingWelcomeHeader}>
-                  <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
-                  <Text style={styles(width).welcomeHeaderText}>
-                    Start your beautiful journey of motherhood with personalized tracking and insights
-                  </Text>
-                </View>
-                <TrackingForm
-                  onSubmit={handleCreateProfile}
-                  isLoading={isCreating}
-                />
+          <View style={styles(width).pregnancyTrackingContainer}>
+            <View style={styles(width).trackingWelcomeSection}>
+              <View style={styles(width).trackingWelcomeHeader}>
+                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
+                <Text style={styles(width).welcomeHeaderText}>
+                  Start your beautiful journey of motherhood with personalized tracking and insights
+                </Text>
               </View>
+              <TrackingForm
+                onSubmit={handleCreateProfile}
+                isLoading={isCreating}
+              />
             </View>
           </View>
+          <Footer navigation={navigation} />
         </View>
       );
     }
 
     if (error) {
       return (
-        <View style={styles(width).pregnancyTrackingPage}>
+        <View style={styles(width).mainContent}>
           <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-          <View style={styles(width).mainContent}>
-            <View style={styles(width).errorContainer}>
-              <Text style={styles(width).errorIcon}>⚠️</Text>
-              <Text style={styles(width).errorTitle}>Oops! Something went wrong</Text>
-              <Text style={styles(width).errorText}>{error}</Text>
-              <TouchableOpacity
-                onPress={() => error.includes('sign in') ? navigation.navigate('Login') : initializeApp()}
-                style={styles(width).retryBtn}
-              >
-                <Text style={styles(width).retryBtnText}>
-                  {error.includes('sign in') ? 'Go to Login' : 'Try Again'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles(width).errorContainer}>
+            <Text style={styles(width).errorIcon}>⚠️</Text>
+            <Text style={styles(width).errorTitle}>Oops! Something went wrong</Text>
+            <Text style={styles(width).errorText}>{error}</Text>
+            <TouchableOpacity
+              onPress={() => error.includes('sign in') ? navigation.navigate('Login') : initializeApp()}
+              style={styles(width).retryBtn}
+            >
+              <Text style={styles(width).retryBtnText}>
+                {error.includes('sign in') ? 'Go to Login' : 'Try Again'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       );
     }
 
     return (
-      <View style={styles(width).pregnancyTrackingPage}>
+      <View style={styles(width).mainContent}>
         <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-        <View style={styles(width).mainContent}>
-          <View style={styles(width).pregnancyTrackingContainer}>
-            {!hasValidPregnancyData ? (
-              <View style={styles(width).trackingWelcomeSection}>
-                <View style={styles(width).trackingWelcomeHeader}>
-                  <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
-                  <Text style={styles(width).welcomeHeaderText}>
-                    Start your beautiful journey of motherhood with personalized tracking and insights
-                  </Text>
-                </View>
-                <TrackingForm
-                  onSubmit={handleCreateProfile}
-                  isLoading={isCreating}
-                />
+        <View style={styles(width).pregnancyTrackingContainer}>
+          {!hasValidPregnancyData ? (
+            <View style={styles(width).trackingWelcomeSection}>
+              <View style={styles(width).trackingWelcomeHeader}>
+                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
+                <Text style={styles(width).welcomeHeaderText}>
+                  Start your beautiful journey of motherhood with personalized tracking and insights
+                </Text>
               </View>
-            ) : (
-              <View style={styles(width).trackingDashboard}>
-                {/* Main Navigation Tabs */}
-                <FlatList
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles(width).navTabs}
-                  contentContainerStyle={styles(width).navTabsContent}
-                  data={tabs}
-                  renderItem={({ item: tab }) => (
+              <TrackingForm
+                onSubmit={handleCreateProfile}
+                isLoading={isCreating}
+              />
+            </View>
+          ) : (
+            <View style={styles(width).trackingDashboard}>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles(width).navTabs}
+                contentContainerStyle={styles(width).navTabsContent}
+                data={tabs}
+                renderItem={({ item: tab }) => (
+                  <TouchableOpacity
+                    style={[styles(width).tab, activeTab === tab.key ? styles(width).tabActive : {}]}
+                    onPress={() => {
+                      setActiveTab(tab.key);
+                      navigation.setParams({ [tab.queryKey]: 'true', growthDataId: pregnancyData?.id });
+                    }}
+                    accessibilityLabel={`Switch to ${tab.label} tab`}
+                  >
+                    <Text style={[styles(width).tabText, activeTab === tab.key ? styles(width).tabTextActive : {}]}>
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                keyExtractor={(item) => item.key}
+              />
+              {activeTab === 'nutritional-guidance' && (
+                <View style={styles(width).subTabs}>
+                  {nutritionSubTabs.map((subTab) => (
                     <TouchableOpacity
-                      style={[styles(width).tab, activeTab === tab.key ? styles(width).tabActive : {}]}
+                      key={subTab.key}
+                      style={[styles(width).subTab, nutritionSubTab === subTab.key ? styles(width).subTabActive : {}]}
                       onPress={() => {
-                        setActiveTab(tab.key);
-                        navigation.setParams({ [tab.queryKey]: 'true', growthDataId: pregnancyData?.id });
+                        setNutritionSubTab(subTab.key);
+                        navigation.setParams({
+                          'nutritional-guidance': subTab.key,
+                          growthDataId: pregnancyData?.id,
+                        });
                       }}
-                      accessibilityLabel={`Switch to ${tab.label} tab`}
                     >
-                      <Text style={[styles(width).tabText, activeTab === tab.key ? styles(width).tabTextActive : {}]}>
-                        {tab.label}
+                      <Text style={[styles(width).subTabText, nutritionSubTab === subTab.key ? styles(width).subTabTextActive : {}]}>
+                        {subTab.label}
                       </Text>
                     </TouchableOpacity>
-                  )}
-                  keyExtractor={(item) => item.key}
-                />
-
-                {/* Sub-tabs for Nutritional Guidance */}
-                {activeTab === 'nutritional-guidance' && (
-                  <View style={styles(width).subTabs}>
-                    {nutritionSubTabs.map((subTab) => (
-                      <TouchableOpacity
-                        key={subTab.key}
-                        style={[styles(width).subTab, nutritionSubTab === subTab.key ? styles(width).subTabActive : {}]}
-                        onPress={() => {
-                          setNutritionSubTab(subTab.key);
-                          navigation.setParams({
-                            'nutritional-guidance': subTab.key,
-                            growthDataId: pregnancyData?.id,
-                          });
-                        }}
-                      >
-                        <Text style={[styles(width).subTabText, nutritionSubTab === subTab.key ? styles(width).subTabTextActive : {}]}>
-                          {subTab.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {/* Sub-tabs for Meal Planner */}
-                {activeTab === 'mealplanner' && (
-                  <View style={styles(width).subTabs}>
-                    {mealPlannerSubTabs.map((subTab) => (
-                      <TouchableOpacity
-                        key={subTab.key}
-                        style={[styles(width).subTab, mealPlannerSubTab === subTab.key ? styles(width).subTabActive : {}]}
-                        onPress={() => {
-                          setMealPlannerSubTab(subTab.key);
-                          navigation.setParams({
-                            mealplanner: subTab.key,
-                            growthDataId: pregnancyData?.id,
-                          });
-                        }}
-                      >
-                        <Text style={[styles(width).subTabText, mealPlannerSubTab === subTab.key ? styles(width).subTabTextActive : {}]}>
-                          {subTab.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {/* Tab Content */}
-                {activeTab === 'weekly' && (
-                  <View style={styles(width).tabContent}>
-                    <PregnancyOverview
-                      pregnancyData={pregnancyData}
-                      setPregnancyData={setPregnancyData}
-                      setError={setError}
-                    />
-                    <PregnancyProgressBar
-                      pregnancyData={pregnancyData}
-                      selectedWeek={selectedWeek}
-                      setSelectedWeek={setSelectedWeek}
-                    />
-                    <View style={styles(width).dashboardGrid}>
-                      <View style={styles(width).leftColumn}>
-                        <BabyDevelopment
-                          pregnancyData={pregnancyData}
-                          selectedWeek={selectedWeek}
-                        />
-                      </View>
-                      <View style={styles(width).rightColumn}>
-                        <UpcomingAppointments
-                          growthDataId={pregnancyData?.id}
-                          userId={userId}
-                          token={token}
-                          appointments={appointments}
-                          loadingAppointments={loadingAppointments}
-                        />
-                      </View>
+                  ))}
+                </View>
+              )}
+              {activeTab === 'mealplanner' && (
+                <View style={styles(width).subTabs}>
+                  {mealPlannerSubTabs.map((subTab) => (
+                    <TouchableOpacity
+                      key={subTab.key}
+                      style={[styles(width).subTab, mealPlannerSubTab === subTab.key ? styles(width).subTabActive : {}]}
+                      onPress={() => {
+                        setMealPlannerSubTab(subTab.key);
+                        navigation.setParams({
+                          mealplanner: subTab.key,
+                          growthDataId: pregnancyData?.id,
+                        });
+                      }}
+                    >
+                      <Text style={[styles(width).subTabText, mealPlannerSubTab === subTab.key ? styles(width).subTabTextActive : {}]}>
+                        {subTab.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {activeTab === 'weekly' && (
+                <View style={styles(width).tabContent}>
+                  <PregnancyOverview
+                    pregnancyData={pregnancyData}
+                    setPregnancyData={setPregnancyData}
+                    setError={setError}
+                  />
+                  <PregnancyProgressBar
+                    pregnancyData={pregnancyData}
+                    selectedWeek={selectedWeek}
+                    setSelectedWeek={setSelectedWeek}
+                  />
+                  <View style={styles(width).dashboardGrid}>
+                    <View style={styles(width).leftColumn}>
+                      <BabyDevelopment
+                        pregnancyData={pregnancyData}
+                        selectedWeek={selectedWeek}
+                      />
                     </View>
-                    {pregnancyData.basicBioMetric && (
-                      <View style={styles(width).biometricSection}>
-                        <View style={styles(width).sectionHeader}>
-                          <Text style={styles(width).sectionHeaderTitle}>Health Metrics</Text>
-                          <Text style={styles(width).sectionHeaderText}>Your current health measurements</Text>
+                    <View style={styles(width).rightColumn}>
+                      <UpcomingAppointments
+                        growthDataId={pregnancyData?.id}
+                        userId={userId}
+                        token={token}
+                        appointments={appointments}
+                        loadingAppointments={loadingAppointments}
+                      />
+                    </View>
+                  </View>
+                  {pregnancyData.basicBioMetric && (
+                    <View style={styles(width).biometricSection}>
+                      <View style={styles(width).sectionHeader}>
+                        <Text style={styles(width).sectionHeaderTitle}>Health Metrics</Text>
+                        <Text style={styles(width).sectionHeaderText}>Your current health measurements</Text>
+                      </View>
+                      {abnormalMessages.length > 0 && (
+                        <View style={styles(width).abnormalAlertBox}>
+                          <Text style={styles(width).abnormalAlertTitle}>Health Alert:</Text>
+                          {abnormalMessages.map((msg, idx) => (
+                            <Text key={idx} style={styles(width).abnormalAlertText}>{msg}</Text>
+                          ))}
+                          <Text style={styles(width).abnormalAlertText}>Please consult your healthcare provider.</Text>
                         </View>
-                        {abnormalMessages.length > 0 && (
-                          <View style={styles(width).abnormalAlertBox}>
-                            <Text style={styles(width).abnormalAlertTitle}>Health Alert:</Text>
-                            {abnormalMessages.map((msg, idx) => (
-                              <Text key={idx} style={styles(width).abnormalAlertText}>{msg}</Text>
-                            ))}
-                            <Text style={styles(width).abnormalAlertText}>Please consult your healthcare provider.</Text>
+                      )}
+                      <View style={styles(width).biometricCards}>
+                        {pregnancyData.preWeight > 0 && (
+                          <View style={styles(width).biometricCard}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>⚖️</Text>
+                            </View>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
+                                {pregnancyData.preWeight} Kg
+                              </Text>
+                              <Text style={styles(width).metricLabel}>Pre-Pregnancy Weight</Text>
+                            </View>
                           </View>
                         )}
-                        <View style={styles(width).biometricCards}>
-                          {pregnancyData.preWeight > 0 && (
-                            <View style={styles(width).biometricCard}>
-                              <View style={styles(width).metricIcon}>
-                                <Text style={styles(width).placeholderIcon}>⚖️</Text>
-                              </View>
-                              <View style={styles(width).metricInfo}>
-                                <Text style={styles(width).metricValue}>
-                                  {pregnancyData.preWeight} Kg
-                                </Text>
-                                <Text style={styles(width).metricLabel}>Pre-Pregnancy Weight</Text>
-                              </View>
+                        {pregnancyData.basicBioMetric.weightKg > 0 && (
+                          <View style={styles(width).biometricCard}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>⚖️</Text>
                             </View>
-                          )}
-                          {pregnancyData.basicBioMetric.weightKg > 0 && (
-                            <View style={styles(width).biometricCard}>
-                              <View style={styles(width).metricIcon}>
-                                <Text style={styles(width).placeholderIcon}>⚖️</Text>
-                              </View>
-                              <View style={styles(width).metricInfo}>
-                                <Text style={styles(width).metricValue}>
-                                  {pregnancyData.basicBioMetric.weightKg} Kg
-                                </Text>
-                                <Text style={styles(width).metricLabel}>Current Weight</Text>
-                              </View>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
+                                {pregnancyData.basicBioMetric.weightKg} Kg
+                              </Text>
+                              <Text style={styles(width).metricLabel}>Current Weight</Text>
                             </View>
-                          )}
-                          {pregnancyData.basicBioMetric.bmi > 0 && (
-                            <View style={[styles(width).biometricCard, abnormalStatus.bmi?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                              <View style={styles(width).metricIcon}>
-                                <Text style={styles(width).placeholderIcon}>🧮</Text>
-                              </View>
-                              <View style={styles(width).metricInfo}>
-                                <Text style={styles(width).metricValue}>
-                                  {pregnancyData.basicBioMetric.bmi.toFixed(1)}
-                                </Text>
-                                <Text style={styles(width).metricLabel}>
-                                  BMI {abnormalStatus.bmi?.abnormal ? `(${abnormalStatus.bmi.message})` : ''}
-                                </Text>
-                              </View>
+                          </View>
+                        )}
+                        {pregnancyData.basicBioMetric.bmi > 0 && (
+                          <View style={[styles(width).biometricCard, abnormalStatus.bmi?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>🧮</Text>
                             </View>
-                          )}
-                          {(pregnancyData.basicBioMetric.systolicBP > 0 || pregnancyData.basicBioMetric.diastolicBP > 0) && (
-                            <View style={[styles(width).biometricCard, abnormalStatus.bloodPressure?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                              <View style={styles(width).metricIcon}>
-                                <Text style={styles(width).placeholderIcon}>❤️</Text>
-                              </View>
-                              <View style={styles(width).metricInfo}>
-                                <Text style={styles(width).metricValue}>
-                                  {pregnancyData.basicBioMetric.systolicBP}/{pregnancyData.basicBioMetric.diastolicBP} mmHg
-                                </Text>
-                                <Text style={styles(width).metricLabel}>
-                                  Blood Pressure {abnormalStatus.bloodPressure?.abnormal ? `(${abnormalStatus.bloodPressure.message})` : ''}
-                                </Text>
-                              </View>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
+                                {pregnancyData.basicBioMetric.bmi.toFixed(1)}
+                              </Text>
+                              <Text style={styles(width).metricLabel}>
+                                BMI {abnormalStatus.bmi?.abnormal ? `(${abnormalStatus.bmi.message})` : ''}
+                              </Text>
                             </View>
-                          )}
-                          {pregnancyData.basicBioMetric.heartRateBPM > 0 && (
-                            <View style={[styles(width).biometricCard, abnormalStatus.heartRateBPM?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                              <View style={styles(width).metricIcon}>
-                                <Text style={styles(width).placeholderIcon}>💗</Text>
-                              </View>
-                              <View style={styles(width).metricInfo}>
-                                <Text style={styles(width).metricValue}>
-                                  {pregnancyData.basicBioMetric.heartRateBPM} bpm
-                                </Text>
-                                <Text style={styles(width).metricLabel}>
-                                  Heart Rate {abnormalStatus.heartRateBPM?.abnormal ? `(${abnormalStatus.heartRateBPM.message})` : ''}
-                                </Text>
-                              </View>
+                          </View>
+                        )}
+                        {(pregnancyData.basicBioMetric.systolicBP > 0 || pregnancyData.basicBioMetric.diastolicBP > 0) && (
+                          <View style={[styles(width).biometricCard, abnormalStatus.bloodPressure?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>❤️</Text>
                             </View>
-                          )}
-                          {pregnancyData.basicBioMetric.bloodSugarLevelMgDl > 0 && (
-                            <View style={[styles(width).biometricCard, abnormalStatus.bloodSugarLevelMgDl?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                              <View style={styles(width).metricIcon}>
-                                <Text style={styles(width).placeholderIcon}>🩺</Text>
-                              </View>
-                              <View style={styles(width).metricInfo}>
-                                <Text style={styles(width).metricValue}>
-                                  {pregnancyData.basicBioMetric.bloodSugarLevelMgDl} mg/dL
-                                </Text>
-                                <Text style={styles(width).metricLabel}>
-                                  Blood Sugar {abnormalStatus.bloodSugarLevelMgDl?.abnormal ? `(${abnormalStatus.bloodSugarLevelMgDl.message})` : ''}
-                                </Text>
-                              </View>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
+                                {pregnancyData.basicBioMetric.systolicBP}/{pregnancyData.basicBioMetric.diastolicBP} mmHg
+                              </Text>
+                              <Text style={styles(width).metricLabel}>
+                                Blood Pressure {abnormalStatus.bloodPressure?.abnormal ? `(${abnormalStatus.bloodPressure.message})` : ''}
+                              </Text>
                             </View>
-                          )}
-                        </View>
+                          </View>
+                        )}
+                        {pregnancyData.basicBioMetric.heartRateBPM > 0 && (
+                          <View style={[styles(width).biometricCard, abnormalStatus.heartRateBPM?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>💗</Text>
+                            </View>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
+                                {pregnancyData.basicBioMetric.heartRateBPM} bpm
+                              </Text>
+                              <Text style={styles(width).metricLabel}>
+                                Heart Rate {abnormalStatus.heartRateBPM?.abnormal ? `(${abnormalStatus.heartRateBPM.message})` : ''}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                        {pregnancyData.basicBioMetric.bloodSugarLevelMgDl > 0 && (
+                          <View style={[styles(width).biometricCard, abnormalStatus.bloodSugarLevelMgDl?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                            <View style={styles(width).metricIcon}>
+                              <Text style={styles(width).placeholderIcon}>🩺</Text>
+                            </View>
+                            <View style={styles(width).metricInfo}>
+                              <Text style={styles(width).metricValue}>
+                                {pregnancyData.basicBioMetric.bloodSugarLevelMgDl} mg/dL
+                              </Text>
+                              <Text style={styles(width).metricLabel}>
+                                Blood Sugar {abnormalStatus.bloodSugarLevelMgDl?.abnormal ? `(${abnormalStatus.bloodSugarLevelMgDl.message})` : ''}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
-                    )}
-                  </View>
-                )}
-                {activeTab === 'reminderconsultation' && (
-                  <View style={styles(width).tabContent}>
-                    <CheckupReminder
-                      token={token}
-                      userId={userId}
-                      reminders={[]}
-                      appointments={appointments}
-                      appointmentDates={appointmentDates}
-                      loadingAppointments={loadingAppointments}
-                    />
-                    <UpcomingAppointments
-                      userId={userId}
-                      token={token}
-                      expanded={true}
-                      appointments={appointments}
-                      loadingAppointments={loadingAppointments}
-                    />
-                  </View>
-                )}
-                {activeTab === 'journal' && (
-                  <View style={styles(width).tabContent}>
-                    <JournalSection
-                      journalEntries={journals}
-                      growthDataId={pregnancyData?.id}
-                      openModal={openJournalModal}
-                      setOpenModal={setOpenJournalModal}
-                    />
-                  </View>
-                )}
-                {activeTab === 'nutritional-guidance' && (
-                  <View style={styles(width).tabContent}>
-                    {nutritionSubTab === 'recommendations' && (
-                      <RecommendedNutritionalNeeds pregnancyData={pregnancyData} />
-                    )}
-                    {nutritionSubTab === 'foodwarnings' && (
-                      <FoodWarning />
-                    )}
-                  </View>
-                )}
-                {activeTab === 'mealplanner' && (
-                  <View style={styles(width).tabContent}>
-                    {mealPlannerSubTab === 'system' && (
-                      <SystemMealPlanner />
-                    )}
-                    {mealPlannerSubTab === 'custom' && (
-                      <CustomMealPlanner />
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
+                    </View>
+                  )}
+                </View>
+              )}
+              {activeTab === 'reminderconsultation' && (
+                <View style={styles(width).tabContent}>
+                  <CheckupReminder
+                    token={token}
+                    userId={userId}
+                    reminders={[]}
+                    appointments={appointments}
+                    appointmentDates={appointmentDates}
+                    loadingAppointments={loadingAppointments}
+                  />
+                  <UpcomingAppointments
+                    userId={userId}
+                    token={token}
+                    expanded={true}
+                    appointments={appointments}
+                    loadingAppointments={loadingAppointments}
+                  />
+                </View>
+              )}
+              {activeTab === 'journal' && (
+                <View style={styles(width).tabContent}>
+                  <JournalSection
+                    journalEntries={journals}
+                    growthDataId={pregnancyData?.id}
+                    openModal={openJournalModal}
+                    setOpenModal={setOpenJournalModal}
+                  />
+                </View>
+              )}
+              {activeTab === 'nutritional-guidance' && (
+                <View style={styles(width).tabContent}>
+                  {nutritionSubTab === 'recommendations' && (
+                    <RecommendedNutritionalNeeds pregnancyData={pregnancyData} />
+                  )}
+                  {nutritionSubTab === 'foodwarnings' && (
+                    <FoodWarning />
+                  )}
+                </View>
+              )}
+              {activeTab === 'mealplanner' && (
+                <View style={styles(width).tabContent}>
+                  {mealPlannerSubTab === 'system' && (
+                    <SystemMealPlanner />
+                  )}
+                  {mealPlannerSubTab === 'custom' && (
+                    <CustomMealPlanner />
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+          <Footer navigation={navigation} />
         </View>
       </View>
     );
   };
 
   return (
-    <FlatList
-      data={[{}]} // Single item to render the entire content
-      renderItem={renderContent}
-      keyExtractor={() => 'main-content'}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ flexGrow: 1 }}
-    />
+    <View style={styles(width).pregnancyTrackingPage}>
+      <FlatList
+        data={[{}]}
+        renderItem={renderContent}
+        keyExtractor={() => 'main-content'}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ flexGrow: 1 }}
+      />
+      <TouchableOpacity
+        style={styles(width).contactIcon}
+        onPress={() => setIsChatOpen(!isChatOpen)}
+      >
+        <Text style={styles(width).contactIconText}>💬</Text>
+      </TouchableOpacity>
+      <ChatBox
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        navigation={navigation}
+      />
+    </View>
   );
 };
 
@@ -865,6 +928,7 @@ const styles = (width) => StyleSheet.create({
   mainContent: {
     paddingVertical: 20,
     paddingTop: 90,
+    paddingBottom: 110,
   },
   pregnancyTrackingContainer: {
     maxWidth: 1500,
@@ -1177,6 +1241,109 @@ const styles = (width) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  footer: {
+    backgroundColor: '#f5f7fa',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 30,
+    marginBottom: 20,
+  },
+  footerSection: {
+    flex: 1,
+    minWidth: 250,
+    alignItems: 'center',
+  },
+  footerSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 15,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  socialLinks: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  socialLink: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#6b9fff',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newsletterForm: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: 300,
+  },
+  newsletterInput: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    width: '100%',
+  },
+  newsletterButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#6b9fff',
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  contactIcon: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    backgroundColor: '#2e6da4',
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 15,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+    zIndex: 2000,
+  },
+  contactIconText: {
+    fontSize: 24,
+    color: '#ffffff',
   },
 });
 
