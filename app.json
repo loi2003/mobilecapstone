@@ -3,6 +3,7 @@
     "name": "capstonemobile",
     "slug": "capstonemobile",
     "version": "1.0.0",
+    "scheme": "clinicapp",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

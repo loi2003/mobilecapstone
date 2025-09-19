@@ -136,7 +136,6 @@ const Footer = ({ navigation }) => {
   const [email, setEmail] = useState('');
 
   const handleNewsletterSubmit = () => {
-    console.log('Newsletter subscription:', email);
     setEmail('');
   };
 
@@ -210,7 +209,6 @@ const ConsultationScreen = ({ navigation }) => {
     const fetchUserAndToken = async () => {
       try {
         const storedToken = await AsyncStorage.getItem('authToken');
-        console.log('Stored Token:', storedToken);
         if (!storedToken || !navigation) {
           setError('Please log in to view clinics.');
           if (navigation) navigation.replace('Login');
@@ -218,7 +216,6 @@ const ConsultationScreen = ({ navigation }) => {
         }
         setToken(storedToken);
         const response = await getCurrentUser(storedToken);
-        console.log('User Response:', JSON.stringify(response, null, 2));
         if (!response?.data) {
           throw new Error('Invalid user data');
         }
@@ -274,15 +271,12 @@ const ConsultationScreen = ({ navigation }) => {
     }).start();
 
     // Debug logging
-    console.log('Current Page:', currentPage);
-    console.log('Visible Clinics:', clinics.slice(0, endIndex).length);
-    console.log('Card Anims Length:', cardAnims.length);
+
   }, [clinics, showFilters, currentPage]);
 
   const fetchClinics = async (authToken) => {
     try {
       const data = await getAllClinics(authToken);
-      console.log('Clinics Data:', JSON.stringify(data, null, 2));
       const clinicData = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
       setClinics(clinicData);
       // Reset animations
@@ -305,7 +299,6 @@ const ConsultationScreen = ({ navigation }) => {
       } else {
         data = await getClinicsByName({ nameOrAddress: search, specialization, insuranceOnly }, token);
       }
-      console.log('Search Results:', JSON.stringify(data, null, 2));
       const clinicData = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
       setClinics(clinicData);
       setCurrentPage(1);
@@ -585,8 +578,7 @@ const ConsultationScreen = ({ navigation }) => {
                 onPress={() => {
                   setCurrentPage((prev) => {
                     const newPage = prev + 1;
-                    console.log('New Page:', newPage);
-                    console.log('Clinics to Show:', clinics.slice(0, newPage * CLINICS_PER_PAGE).length);
+
                     return newPage;
                   });
                 }}
