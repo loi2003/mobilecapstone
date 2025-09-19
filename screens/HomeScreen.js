@@ -17,7 +17,7 @@ import { getCurrentUser, logout } from '../api/auth';
 import { homepageData } from '../data/homepageData';
 import { chartData } from '../data/chartData';
 import { Ionicons } from '@expo/vector-icons';
-import ChatBox from './ChatBox'; // Import the ChatBox component
+import ChatBox from './ChatBox';
 
 const { width } = Dimensions.get('window');
 
@@ -164,7 +164,7 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isChatBoxOpen, setIsChatBoxOpen] = useState(false); // Replaced isContactPopupOpen
+  const [isChatBoxOpen, setIsChatBoxOpen] = useState(false);
   const fadeAnim = new Animated.Value(0);
   const scrollRef = useRef(null);
   const prevIndexRef = useRef(-1);
@@ -256,6 +256,25 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  // Map homepageData links to React Navigation screen names
+  const navigateToScreen = (link) => {
+    const routeMap = {
+      '/pregnancy-tracking': 'PregnancyTracking',
+      '/blog': 'Blog',
+      '/consultation': 'Consultation',
+      '/journal-entry-form': 'JournalEntryForm',
+      '/nutritional-guidance': 'NutritionalGuidance',
+      '/recommended-nutritional-needs': 'RecommendedNutritionalNeeds',
+      '/food-warning': 'FoodWarning',
+      '/system-meal-planner': 'SystemMealPlanner',
+      '/custom-meal-planner': 'CustomMealPlanner',
+      '/health-tips': 'AIAdvice',
+      '/videos/intro-pregnancy': 'PregnancyTracking', // Assuming video links to tracker
+    };
+    const routeName = routeMap[link] || 'HomeMain';
+    navigation.navigate(routeName);
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -278,19 +297,19 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.heroButtons}>
               <TouchableOpacity
                 style={[styles.heroButton, styles.primaryButton]}
-                onPress={() => navigation.navigate('Explore')}
+                onPress={() => navigation.navigate('HomeMain')} // Assuming 'Explore' maps to HomeMain
               >
                 <Text style={styles.buttonText}>{homepageData.hero.cta}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.heroButton, styles.secondaryButton]}
-                onPress={() => navigation.navigate(homepageData.hero.secondaryCtaLink)}
+                onPress={() => navigateToScreen(homepageData.hero.secondaryCtaLink)}
               >
                 <Text style={styles.buttonText}>{homepageData.hero.secondaryCta}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.heroButton, styles.videoButton]}
-                onPress={() => navigation.navigate(homepageData.hero.videoLink)}
+                onPress={() => navigateToScreen(homepageData.hero.videoLink)}
               >
                 <Text style={styles.buttonText}>{homepageData.hero.videoText}</Text>
               </TouchableOpacity>
@@ -381,9 +400,9 @@ const HomeScreen = ({ navigation }) => {
               </Text>
               <TouchableOpacity
                 style={styles.weekPopupButton}
-                onPress={() => navigation.navigate('PregnancyTracking')}
+                onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
               >
-                <Text style={styles.buttonText}>Để biết thêm thông tin chi tiết, vui lòng chọn tại đây</Text>
+                <Text style={styles.buttonText}>for more detail. please press here</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.weekPopupClose}
@@ -392,13 +411,13 @@ const HomeScreen = ({ navigation }) => {
                   setSelectedIndex(-1);
                 }}
               >
-                <Text style={styles.buttonText}>Đóng</Text>
+                <Text style={styles.buttonText}>close</Text>
               </TouchableOpacity>
             </View>
           )}
           <TouchableOpacity
             style={styles.trackerButton}
-            onPress={() => navigation.navigate(homepageData.pregnancyTracker.ctaLink)}
+            onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
           >
             <Text style={styles.buttonText}>{homepageData.pregnancyTracker.cta}</Text>
           </TouchableOpacity>
@@ -426,31 +445,46 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.communityHighlight}>{homepageData.community.highlight}</Text>
           <TouchableOpacity
             style={styles.communityButton}
-            onPress={() => navigation.navigate(homepageData.community.ctaLink)}
+            onPress={() => navigateToScreen(homepageData.community.ctaLink)}
           >
             <Text style={styles.buttonText}>{homepageData.community.cta}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Resources Section */}
-        <View style={styles.resourcesSection}>
-          <Text style={styles.sectionTitle}>{homepageData.resources.title}</Text>
-          <Text style={styles.sectionDescription}>{homepageData.resources.description}</Text>
-          {homepageData.resources.items.map((resource, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.resourceItem}
-              onPress={() => navigation.navigate(resource.link)}
-            >
-              <Text style={styles.resourceTitle}>{resource.title}</Text>
-              <Text style={styles.resourceDescription}>{resource.description}</Text>
-            </TouchableOpacity>
+        {/* Pregnancy Tools Section */}
+        <View style={styles.pregnancyToolSection}>
+          <Text style={styles.sectionTitle}>{homepageData.pregnancyTool.title}</Text>
+          <Text style={styles.sectionDescription}>{homepageData.pregnancyTool.description}</Text>
+          {homepageData.pregnancyTool.items.map((tool, index) => (
+            <View key={index} style={styles.toolItem}>
+              <TouchableOpacity
+                style={styles.toolButton}
+                onPress={() => navigateToScreen(tool.link)}
+              >
+                <Text style={styles.toolTitle}>{tool.title}</Text>
+                <Text style={styles.toolDescription}>{tool.description}</Text>
+              </TouchableOpacity>
+              {tool.subItems && (
+                <View style={styles.subToolContainer}>
+                  {tool.subItems.map((subItem, subIndex) => (
+                    <TouchableOpacity
+                      key={subIndex}
+                      style={styles.subToolButton}
+                      onPress={() => navigateToScreen(subItem.link)}
+                    >
+                      <Text style={styles.subToolTitle}>{subItem.title}</Text>
+                      <Text style={styles.subToolDescription}>{subItem.description}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
           ))}
           <TouchableOpacity
-            style={styles.resourcesButton}
-            onPress={() => navigation.navigate(homepageData.resources.ctaLink)}
+            style={styles.toolsButton}
+            onPress={() => navigateToScreen(homepageData.pregnancyTool.ctaLink)}
           >
-            <Text style={styles.buttonText}>{homepageData.resources.cta}</Text>
+            <Text style={styles.buttonText}>{homepageData.pregnancyTool.cta}</Text>
           </TouchableOpacity>
         </View>
 
@@ -468,7 +502,7 @@ const HomeScreen = ({ navigation }) => {
           ))}
           <TouchableOpacity
             style={styles.healthTipsButton}
-            onPress={() => navigation.navigate(homepageData.healthTips.ctaLink)}
+            onPress={() => navigateToScreen(homepageData.healthTips.ctaLink)}
           >
             <Text style={styles.buttonText}>{homepageData.healthTips.cta}</Text>
           </TouchableOpacity>
@@ -505,12 +539,12 @@ const HomeScreen = ({ navigation }) => {
       </TouchableOpacity>
 
       {/* ChatBox Component */}
-      <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation}/>
+      <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
     </View>
   );
 };
 
-// Styles (Unchanged)
+// Updated Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -620,15 +654,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#222',
     marginBottom: 15,
-  },
-  footerLinks: {
-    flexDirection: 'column',
-    gap: 12,
-  },
-  footerLink: {
-    fontSize: 14,
-    color: '#555',
-    textDecorationLine: 'none',
   },
   footerText: {
     fontSize: 14,
@@ -1013,12 +1038,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 25,
   },
-  resourcesSection: {
+  pregnancyToolSection: {
     padding: 20,
     backgroundColor: '#ffffff',
     alignItems: 'center',
   },
-  resourceItem: {
+  toolItem: {
     width: '90%',
     padding: 15,
     backgroundColor: '#FFFFFFFF',
@@ -1036,17 +1061,37 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  resourceTitle: {
+  toolButton: {
+    padding: 10,
+  },
+  toolTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 5,
   },
-  resourceDescription: {
+  toolDescription: {
     fontSize: 14,
     color: '#555',
   },
-  resourcesButton: {
+  subToolContainer: {
+    paddingLeft: 20,
+    marginTop: 10,
+  },
+  subToolButton: {
+    padding: 10,
+  },
+  subToolTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 5,
+  },
+  subToolDescription: {
+    fontSize: 12,
+    color: '#555',
+  },
+  toolsButton: {
     backgroundColor: '#2e6da4',
     paddingVertical: 12,
     paddingHorizontal: 24,
