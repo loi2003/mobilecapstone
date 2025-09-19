@@ -262,13 +262,7 @@ const AccountScreen = ({ navigation }) => {
 
           <View style={styles.actionsSection}>
             <Text style={styles.sectionSubtitle}>Account Actions</Text>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => navigation.navigate('Settings')} // Placeholder route
-            >
-              <Ionicons name="settings-outline" size={20} color="#ffffff" style={styles.actionIcon} />
-              <Text style={styles.buttonText}>Settings</Text>
-            </TouchableOpacity>
+         
             <TouchableOpacity
               style={[styles.actionButton, styles.logoutButton]}
               onPress={handleLogout}

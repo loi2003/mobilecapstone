@@ -9,14 +9,19 @@ import {
   Image,
   Linking,
   ActivityIndicator,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllClinics, getClinicsByName } from '../api/clinic-api';
 import { getCurrentUser, logout } from '../api/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { Animated, Easing } from 'react-native'; // Corrected import
+import { Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ChatBox from './ChatBox';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 const CLINICS_PER_PAGE = 6;
 
@@ -33,6 +38,155 @@ const getStarRating = (feedbacks) => {
 const truncateText = (text, maxLength = 120) => {
   if (!text) return '';
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+};
+
+// Header Component
+const Header = ({ navigation, user, setUser, handleLogout }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-width)).current;
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isMenuOpen ? 0 : -width,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isMenuOpen]);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const navLinks = [
+    { name: 'About', route: 'About', title: 'About Us' },
+    { name: 'DueDate Calculator', route: 'DueDateCalculator', title: 'DueDate Calculator' },
+    { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
+    { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
+    { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
+    { name: 'Blog', route: 'Blog', title: 'Blog' },
+  ];
+
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.logo}>NestlyCare</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.menuToggle}
+          onPress={toggleMenu}
+          accessibilityLabel="Toggle navigation"
+        >
+          <Ionicons
+            name={isMenuOpen ? 'close' : 'menu'}
+            size={24}
+            color="#FFFFFFFF"
+          />
+        </TouchableOpacity>
+        <Animated.View
+          style={[
+            styles.navLinks,
+            { transform: [{ translateX: slideAnim }], display: isMenuOpen ? 'flex' : 'none' },
+          ]}
+        >
+          {navLinks.map((link, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.navLink}
+              onPress={() => {
+                navigation.navigate(link.route);
+                setIsMenuOpen(false);
+              }}
+            >
+              <Text style={styles.navLinkText}>{link.name}</Text>
+            </TouchableOpacity>
+          ))}
+          {user && (
+            <TouchableOpacity
+              style={styles.navLink}
+              onPress={() => {
+                handleLogout();
+                setIsMenuOpen(false);
+              }}
+            >
+              <Text style={styles.navLinkText}>Logout</Text>
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+      </View>
+    </View>
+  );
+};
+
+// Footer Component
+const Footer = ({ navigation }) => {
+  const footerLinks = [
+    { name: 'About Us', route: 'About' },
+    { name: 'Privacy Policy', route: 'Privacy' },
+    { name: 'Terms of Service', route: 'Terms' },
+    { name: 'Contact Us', route: 'Contact' },
+  ];
+
+  const socialLinks = [
+    { name: 'Twitter', url: 'https://twitter.com', icon: 'logo-twitter' },
+    { name: 'Facebook', url: 'https://facebook.com', icon: 'logo-facebook' },
+    { name: 'LinkedIn', url: 'https://linkedin.com', icon: 'logo-linkedin' },
+  ];
+
+  const [email, setEmail] = useState('');
+
+  const handleNewsletterSubmit = () => {
+    console.log('Newsletter subscription:', email);
+    setEmail('');
+  };
+
+  return (
+    <View style={styles.footer}>
+      <View style={styles.footerContainer}>
+        <View style={styles.footerSection}>
+          <Text style={styles.footerSectionTitle}>Contact</Text>
+          <Text style={styles.footerText}>Email: support@genderhealthweb.com</Text>
+          <Text style={styles.footerText}>Phone: (123) 456-7890</Text>
+        </View>
+        <View style={styles.footerSection}>
+          <Text style={styles.footerSectionTitle}>Follow Us</Text>
+          <View style={styles.socialLinks}>
+            {socialLinks.map((social, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.socialLink}
+                onPress={() => Linking.openURL(social.url)}
+              >
+                <Ionicons name={social.icon} size={20} color="#ffffff" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <View style={styles.footerSection}>
+          <Text style={styles.footerSectionTitle}>Stay Updated</Text>
+          <View style={styles.newsletterForm}>
+            <TextInput
+              style={styles.newsletterInput}
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={styles.newsletterButton}
+              onPress={handleNewsletterSubmit}
+            >
+              <Text style={styles.buttonText}>Subscribe</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+      <Text style={styles.footerCopyright}>
+        © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
+      </Text>
+    </View>
+  );
 };
 
 const ConsultationScreen = ({ navigation }) => {
@@ -89,22 +243,28 @@ const ConsultationScreen = ({ navigation }) => {
   }, [navigation]);
 
   useEffect(() => {
-    // Reset cardAnims to match clinics length
-    cardAnims.length = 0;
-    cardAnims.push(...clinics.map(() => new Animated.Value(0)));
+    // Initialize animations only for new clinics
+    const currentClinicCount = clinics.length;
+    const visibleClinicCount = currentPage * CLINICS_PER_PAGE;
+    // Add new animation values only for newly visible clinics
+    while (cardAnims.length < Math.min(currentClinicCount, visibleClinicCount)) {
+      cardAnims.push(new Animated.Value(0));
+    }
 
-    // Animate only visible clinics
-    clinics.slice(0, currentPage * CLINICS_PER_PAGE).forEach((_, index) => {
-      if (cardAnims[index]) {
-        Animated.timing(cardAnims[index], {
+    // Animate only the newly visible clinics
+    const startIndex = (currentPage - 1) * CLINICS_PER_PAGE;
+    const endIndex = Math.min(currentPage * CLINICS_PER_PAGE, currentClinicCount);
+    for (let i = startIndex; i < endIndex; i++) {
+      if (cardAnims[i]) {
+        Animated.timing(cardAnims[i], {
           toValue: 1,
           duration: 500,
-          delay: index * 100,
+          delay: (i % CLINICS_PER_PAGE) * 100,
           easing: Easing.out(Easing.ease),
           useNativeDriver: true,
         }).start();
       }
-    });
+    }
 
     Animated.timing(filterAnim, {
       toValue: showFilters ? 1 : 0,
@@ -112,16 +272,26 @@ const ConsultationScreen = ({ navigation }) => {
       easing: Easing.out(Easing.ease),
       useNativeDriver: true,
     }).start();
+
+    // Debug logging
+    console.log('Current Page:', currentPage);
+    console.log('Visible Clinics:', clinics.slice(0, endIndex).length);
+    console.log('Card Anims Length:', cardAnims.length);
   }, [clinics, showFilters, currentPage]);
 
   const fetchClinics = async (authToken) => {
     try {
       const data = await getAllClinics(authToken);
       console.log('Clinics Data:', JSON.stringify(data, null, 2));
-      setClinics(data.data || data);
+      const clinicData = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      setClinics(clinicData);
+      // Reset animations
+      cardAnims.length = 0;
+      clinicData.forEach(() => cardAnims.push(new Animated.Value(0)));
     } catch (err) {
       console.error('Fetch Clinics Error:', err);
       setError(`Failed to fetch clinics: ${err.message}`);
+      setClinics([]);
     }
   };
 
@@ -136,11 +306,16 @@ const ConsultationScreen = ({ navigation }) => {
         data = await getClinicsByName({ nameOrAddress: search, specialization, insuranceOnly }, token);
       }
       console.log('Search Results:', JSON.stringify(data, null, 2));
-      setClinics(data.data || data);
+      const clinicData = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      setClinics(clinicData);
       setCurrentPage(1);
+      // Reset animations
+      cardAnims.length = 0;
+      clinicData.forEach(() => cardAnims.push(new Animated.Value(0)));
     } catch (err) {
       console.error('Search Error:', err);
       setError(`Failed to search clinics: ${err.message}`);
+      setClinics([]);
     } finally {
       setLoading(false);
     }
@@ -195,7 +370,8 @@ const ConsultationScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: 70, minHeight: Dimensions.get('window').height }]}>
         <Animated.View
           style={[
             styles.heroSection,
@@ -293,22 +469,22 @@ const ConsultationScreen = ({ navigation }) => {
 
                 return (
                   <Animated.View
-                    key={clinic.id}
+                    key={`clinic-${clinic.id}-${index}`} // Unique key to ensure re-rendering
                     style={[
                       styles.clinicCard,
                       {
-                        opacity: cardAnims[index] || 0,
+                        opacity: cardAnims[index] || 1,
                         transform: [
                           {
-                            translateY: (cardAnims[index] || new Animated.Value(0)).interpolate({
+                            translateY: (cardAnims[index] || new Animated.Value(1)).interpolate({
                               inputRange: [0, 1],
                               outputRange: [20, 0],
                             }),
                           },
                         ],
                       },
-                    ]}
-                  >
+                      ]}
+                    >
                     <View style={styles.clinicCardHeader}>
                       <View style={styles.clinicImageContainer}>
                         <Image
@@ -406,13 +582,21 @@ const ConsultationScreen = ({ navigation }) => {
             <View style={styles.loadMoreContainer}>
               <TouchableOpacity
                 style={styles.loadMoreBtn}
-                onPress={() => setCurrentPage((prev) => prev + 1)}
+                onPress={() => {
+                  setCurrentPage((prev) => {
+                    const newPage = prev + 1;
+                    console.log('New Page:', newPage);
+                    console.log('Clinics to Show:', clinics.slice(0, newPage * CLINICS_PER_PAGE).length);
+                    return newPage;
+                  });
+                }}
               >
                 <Text style={styles.loadMoreBtnText}>Load More Clinics</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
+        <Footer navigation={navigation} />
       </ScrollView>
       <TouchableOpacity style={styles.chatFab} onPress={() => setIsChatOpen(true)}>
         <Icon name="comment" size={24} color="#fff" />
@@ -428,7 +612,154 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f7fa',
   },
   scrollContent: {
-    paddingBottom: 80,
+    paddingBottom: 120,
+  },
+  header: {
+    backgroundColor: '#04668D',
+    paddingHorizontal: 8,
+    paddingVertical: 15,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    height: 70,
+  },
+  headerContainer: {
+    maxWidth: 1280,
+    width: '100%',
+    marginHorizontal: 'auto',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    height: '100%',
+  },
+  logo: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFFFF',
+    textDecorationLine: 'none',
+  },
+  menuToggle: {
+    padding: 6,
+  },
+  navLinks: {
+    position: 'absolute',
+    top: 70,
+    left: 0,
+    right: 0,
+    backgroundColor: '#04668D',
+    flexDirection: 'column',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    zIndex: 1002,
+    height: Dimensions.get('window').height - 70,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  navLink: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginVertical: 5,
+  },
+  navLinkText: {
+    color: '#FFFFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  footer: {
+    backgroundColor: '#f5f7fa',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 30,
+    marginBottom: 20,
+  },
+  footerSection: {
+    flex: 1,
+    minWidth: 250,
+    alignItems: 'center',
+  },
+  footerSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 15,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  socialLinks: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  socialLink: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#6b9fff',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newsletterForm: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: 300,
+  },
+  newsletterInput: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    width: '100%',
+  },
+  newsletterButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#6b9fff',
+    borderRadius: 12,
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
   },
   heroSection: {
     backgroundColor: '#0D7AA5',
@@ -770,6 +1101,7 @@ const styles = StyleSheet.create({
   loadMoreContainer: {
     alignItems: 'center',
     marginTop: 16,
+    marginBottom: 16,
   },
   loadMoreBtn: {
     backgroundColor: '#fff',
@@ -811,6 +1143,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginTop: 8,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
 
