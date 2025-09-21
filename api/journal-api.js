@@ -1,4 +1,5 @@
 import apiClient from "./url-api";
+import { Platform } from 'react-native';
 
 export const getAllJournals = async (token) => {
   try {
@@ -38,6 +39,7 @@ export const getJournalById = async (journalId, token) => {
     throw error;
   }
 };
+
 export const getJournalDetail = async (journalId, token) => {
   try {
     const response = await apiClient.get("/api/journal/view-journal-detail", {
@@ -88,32 +90,38 @@ export const createJournalEntry = async (journalData, token) => {
     formData.append("GrowthDataId", journalData.GrowthDataId);
     formData.append("CurrentWeek", journalData.CurrentWeek);
     formData.append("Note", journalData.Note);
-    
-    // if (journalData.CurrentWeight != null)
-    // formData.append("CurrentWeight", journalData.CurrentWeight);
-    formData.append("CurrentWeight", journalData.CurrentWeight);
+    formData.append("CurrentWeight", journalData.CurrentWeight || "");
+
     // Optional fields — append only if they are not null or undefined
-    if (journalData.SystolicBP != null)
-      formData.append("SystolicBP", journalData.SystolicBP);
-    if (journalData.DiastolicBP != null)
-      formData.append("DiastolicBP", journalData.DiastolicBP);
-    if (journalData.HeartRateBPM != null)
-      formData.append("HeartRateBPM", journalData.HeartRateBPM);
-    if (journalData.BloodSugarLevelMgDl != null)
-      formData.append("BloodSugarLevelMgDl", journalData.BloodSugarLevelMgDl);
-    if (journalData.MoodNotes)
-      formData.append("MoodNotes", journalData.MoodNotes);
+    if (journalData.SystolicBP) formData.append("SystolicBP", journalData.SystolicBP);
+    if (journalData.DiastolicBP) formData.append("DiastolicBP", journalData.DiastolicBP);
+    if (journalData.HeartRateBPM) formData.append("HeartRateBPM", journalData.HeartRateBPM);
+    if (journalData.BloodSugarLevelMgDl) formData.append("BloodSugarLevelMgDl", journalData.BloodSugarLevelMgDl);
+    if (journalData.MoodNotes) formData.append("MoodNotes", journalData.MoodNotes);
 
-    journalData.SymptomNames?.forEach(name => {
-  if (name && name.trim()) formData.append("SymptomNames", name.trim());
-});
+    journalData.SymptomNames?.forEach((name) => {
+      if (name && name.trim()) formData.append("SymptomNames", name.trim());
+    });
 
-    journalData.RelatedImages?.forEach((img) =>
-      formData.append("RelatedImages", img)
-    );
-    journalData.UltraSoundImages?.forEach((img) =>
-      formData.append("UltraSoundImages", img)
-    );
+    journalData.RelatedImages?.forEach((img, index) => {
+      if (img.uri) {
+        formData.append("RelatedImages", {
+          uri: Platform.OS === 'android' ? img.uri : img.uri.replace('file://', ''),
+          type: img.type || 'image/jpeg',
+          name: img.name || `related_image_${index}.jpg`,
+        });
+      }
+    });
+
+    journalData.UltraSoundImages?.forEach((img, index) => {
+      if (img.uri) {
+        formData.append("UltraSoundImages", {
+          uri: Platform.OS === 'android' ? img.uri : img.uri.replace('file://', ''),
+          type: img.type || 'image/jpeg',
+          name: img.name || `ultrasound_image_${index}.jpg`,
+        });
+      }
+    });
 
     const response = await apiClient.post(
       "/api/journal/create-new-journal-entry",
@@ -142,30 +150,41 @@ export const editJournalEntry = async (journalData, token) => {
     const formData = new FormData();
     formData.append("Id", journalData.Id);
     formData.append("Note", journalData.Note);
-    // if (journalData.CurrentWeight != null)
-    // formData.append("CurrentWeight", journalData.CurrentWeight);
-    formData.append("CurrentWeight", journalData.CurrentWeight);
-    if (journalData.SystolicBP != null)
-      formData.append("SystolicBP", journalData.SystolicBP);
-    if (journalData.DiastolicBP != null)
-      formData.append("DiastolicBP", journalData.DiastolicBP);
-    if (journalData.HeartRateBPM != null)
-      formData.append("HeartRateBPM", journalData.HeartRateBPM);
-    if (journalData.BloodSugarLevelMgDl != null)
-      formData.append("BloodSugarLevelMgDl", journalData.BloodSugarLevelMgDl);
-    if (journalData.MoodNotes)
-      formData.append("MoodNotes", journalData.MoodNotes);
+    formData.append("CurrentWeight", journalData.CurrentWeight || "");
 
-    journalData.SymptomNames?.forEach(name => {
-  if (name && name.trim()) formData.append("SymptomNames", name.trim());
-});
+    if (journalData.SystolicBP) formData.append("SystolicBP", journalData.SystolicBP);
+    if (journalData.DiastolicBP) formData.append("DiastolicBP", journalData.DiastolicBP);
+    if (journalData.HeartRateBPM) formData.append("HeartRateBPM", journalData.HeartRateBPM);
+    if (journalData.BloodSugarLevelMgDl) formData.append("BloodSugarLevelMgDl", journalData.BloodSugarLevelMgDl);
+    if (journalData.MoodNotes) formData.append("MoodNotes", journalData.MoodNotes);
 
-    journalData.RelatedImages?.forEach((img) =>
-      formData.append("RelatedImages", img)
-    );
-    journalData.UltraSoundImages?.forEach((img) =>
-      formData.append("UltraSoundImages", img)
-    );
+    journalData.SymptomNames?.forEach((name) => {
+      if (name && name.trim()) formData.append("SymptomNames", name.trim());
+    });
+
+    journalData.RelatedImages?.forEach((img, index) => {
+      if (typeof img === 'string') {
+        formData.append("ExistingRelatedImages", img);
+      } else if (img.uri) {
+        formData.append("RelatedImages", {
+          uri: Platform.OS === 'android' ? img.uri : img.uri.replace('file://', ''),
+          type: img.type || 'image/jpeg',
+          name: img.name || `related_image_${index}.jpg`,
+        });
+      }
+    });
+
+    journalData.UltraSoundImages?.forEach((img, index) => {
+      if (typeof img === 'string') {
+        formData.append("ExistingUltraSoundImages", img);
+      } else if (img.uri) {
+        formData.append("UltraSoundImages", {
+          uri: Platform.OS === 'android' ? img.uri : img.uri.replace('file://', ''),
+          type: img.type || 'image/jpeg',
+          name: img.name || `ultrasound_image_${index}.jpg`,
+        });
+      }
+    });
 
     const response = await apiClient.put(
       "/api/journal/edit-journal-entry",

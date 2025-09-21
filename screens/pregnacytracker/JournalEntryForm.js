@@ -12,11 +12,12 @@ import {
   Alert,
   useWindowDimensions,
   Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import SymptomsAndMood from './SymptomsAndMood';
 import {
@@ -57,6 +58,7 @@ const JournalEntryForm = ({ onError }) => {
   const [modalImageType, setModalImageType] = useState(null);
   const [modalImageIndex, setModalImageIndex] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showImageSourceModal, setShowImageSourceModal] = useState(null);
 
   const token = AsyncStorage.getItem('authToken');
   const growthDataId = route.params?.growthDataId;
@@ -75,6 +77,34 @@ const JournalEntryForm = ({ onError }) => {
     fetchData();
   }, [entryId, growthDataId]);
 
+  const requestPermissions = async (source) => {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const permissions = [];
+      if (source === 'camera') {
+        permissions.push(PermissionsAndroid.PERMISSIONS.CAMERA);
+      } else {
+        permissions.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+      }
+
+      const results = await PermissionsAndroid.requestMultiple(permissions);
+      const allGranted = Object.values(results).every(
+        (result) => result === PermissionsAndroid.RESULTS.GRANTED
+      );
+      if (!allGranted) {
+        Alert.alert(
+          'Permission Denied',
+          `Please grant ${source === 'camera' ? 'camera' : 'storage'} permission to proceed.`
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn(`Permission request error (${source}):`, err);
+      return false;
+    }
+  };
+
   const fetchJournalEntry = async (token) => {
     setIsLoading(true);
     try {
@@ -83,7 +113,7 @@ const JournalEntryForm = ({ onError }) => {
         const entry = response.data.data;
         setFormData({
           Id: entry.id || '',
-          CurrentWeek: entry.currentWeek || '',
+          CurrentWeek: entry.currentWeek?.toString() || '',
           Note: entry.note || '',
           CurrentWeight: entry.currentWeight?.toString() || '',
           MoodNotes: entry.moodNotes || entry.mood || '',
@@ -147,30 +177,55 @@ const JournalEntryForm = ({ onError }) => {
     }
   };
 
-  const handleImagePick = async (type) => {
+  const handleImagePick = async (type, source) => {
     try {
-      const result = await launchImageLibrary({
+      const hasPermission = await requestPermissions(source);
+      if (!hasPermission) return;
+
+      const pickerFunction = source === 'camera' ? launchCamera : launchImageLibrary;
+      const result = await pickerFunction({
         mediaType: 'photo',
         maxWidth: 1024,
         maxHeight: 1024,
         quality: 0.7,
+        includeBase64: false,
       });
-      if (!result.didCancel && result.assets) {
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        throw new Error(result.errorMessage || `Failed to ${source === 'camera' ? 'capture' : 'pick'} image`);
+      }
+
+      if (result.assets && result.assets.length > 0) {
         const newImages = result.assets
           .filter((asset) => asset.fileSize <= 5 * 1024 * 1024)
           .slice(0, 2 - formData[type].length)
-          .map((asset) => ({ uri: asset.uri, type: asset.type, name: asset.fileName }));
+          .map((asset) => ({
+            uri: asset.uri,
+            type: asset.type || 'image/jpeg',
+            name: asset.fileName || `image_${Date.now()}.jpg`,
+          }));
+
         setFormData((prev) => ({
           ...prev,
           [type]: [...prev[type], ...newImages].slice(0, 2),
         }));
+
         setImagePreviews((prev) => ({
           ...prev,
           [type]: [...prev[type], ...newImages.map((img) => img.uri)].slice(0, 2),
         }));
+      } else {
+        throw new Error('No images selected');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      console.error(`Image ${source} error:`, error);
+      Alert.alert('Error', error.message || `Failed to ${source === 'camera' ? 'capture' : 'pick'} image. Please try again.`);
+    } finally {
+      setShowImageSourceModal(null);
     }
   };
 
@@ -190,34 +245,59 @@ const JournalEntryForm = ({ onError }) => {
     }
   };
 
-  const replaceImage = async (type, index) => {
+  const replaceImage = async (type, index, source) => {
     try {
-      const result = await launchImageLibrary({
+      const hasPermission = await requestPermissions(source);
+      if (!hasPermission) return;
+
+      const pickerFunction = source === 'camera' ? launchCamera : launchImageLibrary;
+      const result = await pickerFunction({
         mediaType: 'photo',
         maxWidth: 1024,
         maxHeight: 1024,
         quality: 0.7,
+        includeBase64: false,
       });
-      if (!result.didCancel && result.assets) {
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        throw new Error(result.errorMessage || `Failed to ${source === 'camera' ? 'capture' : 'pick'} image`);
+      }
+
+      if (result.assets && result.assets.length > 0) {
         const newImage = result.assets[0];
         if (newImage.fileSize <= 5 * 1024 * 1024) {
+          const imageObj = {
+            uri: newImage.uri,
+            type: newImage.type || 'image/jpeg',
+            name: newImage.fileName || `image_${Date.now()}.jpg`,
+          };
+
           setFormData((prev) => {
             const updated = [...prev[type]];
-            updated[index] = { uri: newImage.uri, type: newImage.type, name: newImage.fileName };
+            updated[index] = imageObj;
             return { ...prev, [type]: updated };
           });
+
           setImagePreviews((prev) => {
             const updated = [...prev[type]];
             updated[index] = newImage.uri;
             return { ...prev, [type]: updated };
           });
+
           setModalImage(newImage.uri);
         } else {
           Alert.alert('Error', 'Image size must be less than 5MB.');
         }
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to replace image. Please try again.');
+      console.error(`Replace image (${source}) error:`, error);
+      Alert.alert('Error', error.message || `Failed to ${source === 'camera' ? 'capture' : 'pick'} image. Please try again.`);
+    } finally {
+      setShowImageSourceModal(null);
     }
   };
 
@@ -298,7 +378,7 @@ const JournalEntryForm = ({ onError }) => {
       <Text style={styles(width).label}>{label} (Optional)</Text>
       <TouchableOpacity
         style={styles(width).fileUpload}
-        onPress={() => handleImagePick(type)}
+        onPress={() => setShowImageSourceModal(type)}
         accessibilityLabel={`Upload ${label}`}
       >
         <Ionicons name="image-outline" size={20} color="#fff" />
@@ -349,25 +429,34 @@ const JournalEntryForm = ({ onError }) => {
         <ScrollView contentContainerStyle={styles(width).content}>
           <View style={styles(width).section}>
             <Text style={styles(width).label}>
-              Select Week to Document <Text style={styles(width).required}>* (Required)</Text>
+              Week to Document <Text style={styles(width).required}>* (Required)</Text>
             </Text>
-            <View style={[styles(width).pickerContainer, errors.CurrentWeek ? styles(width).errorInput : {}]}>
-              <Picker
-                selectedValue={formData.CurrentWeek}
-                onValueChange={(value) => handleChange('CurrentWeek', value)}
-                style={styles(width).picker}
-              >
-                <Picker.Item label="-- Select Journalised Gestation Week --" value="" />
-                {availableWeeks.map((week) => (
-                  <Picker.Item
-                    key={week}
-                    label={`Week ${week}${currentWeek === week ? ' (Current Week)' : ''}`}
-                    value={week.toString()}
-                  />
-                ))}
-              </Picker>
-            </View>
-            {errors.CurrentWeek && <Text style={styles(width).errorText}>{errors.CurrentWeek}</Text>}
+            {entryId ? (
+              <Text style={[styles(width).input, styles(width).disabledInput]}>
+                Week {formData.CurrentWeek}
+              </Text>
+            ) : (
+              <>
+                <View style={[styles(width).pickerContainer, errors.CurrentWeek ? styles(width).errorInput : {}]}>
+                  <Picker
+                    selectedValue={formData.CurrentWeek}
+                    onValueChange={(value) => handleChange('CurrentWeek', value)}
+                    style={styles(width).picker}
+                    enabled={!entryId}
+                  >
+                    <Picker.Item label="-- Select Journalised Gestation Week --" value="" />
+                    {availableWeeks.map((week) => (
+                      <Picker.Item
+                        key={week}
+                        label={`Week ${week}${currentWeek === week ? ' (Current Week)' : ''}`}
+                        value={week.toString()}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+                {errors.CurrentWeek && <Text style={styles(width).errorText}>{errors.CurrentWeek}</Text>}
+              </>
+            )}
           </View>
 
           <View style={styles(width).section}>
@@ -507,7 +596,7 @@ const JournalEntryForm = ({ onError }) => {
 
           <View style={styles(width).actions}>
             <TouchableOpacity
-              style={[styles(width).submitBtn, !token ? styles(width).disabledBtn : {}]}
+              style={[styles(width).submitBtn, !token || isLoading ? styles(width).disabledBtn : {}]}
               onPress={handleSubmit}
               disabled={!token || isLoading}
               accessibilityLabel={entryId ? 'Update journal entry' : 'Add new journal entry'}
@@ -550,7 +639,7 @@ const JournalEntryForm = ({ onError }) => {
             <View style={styles(width).modalActions}>
               <TouchableOpacity
                 style={styles(width).modalReplaceBtn}
-                onPress={() => replaceImage(modalImageType, modalImageIndex)}
+                onPress={() => setShowImageSourceModal(`replace-${modalImageType}-${modalImageIndex}`)}
                 accessibilityLabel="Replace image"
               >
                 <Text style={styles(width).modalBtnText}>Replace Image</Text>
@@ -564,6 +653,57 @@ const JournalEntryForm = ({ onError }) => {
                 accessibilityLabel="Remove image"
               >
                 <Text style={styles(width).modalBtnText}>Remove Image</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!showImageSourceModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowImageSourceModal(null)}
+      >
+        <View style={styles(width).modalOverlay}>
+          <View style={styles(width).modalContent}>
+            <View style={styles(width).modalHeader}>
+              <Text style={styles(width).modalHeaderText}>Choose Image Source</Text>
+              <TouchableOpacity
+                style={styles(width).modalCloseBtn}
+                onPress={() => setShowImageSourceModal(null)}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles(width).modalActions}>
+              <TouchableOpacity
+                style={styles(width).modalReplaceBtn}
+                onPress={() => {
+                  if (showImageSourceModal.includes('replace')) {
+                    const [, type, index] = showImageSourceModal.split('-');
+                    replaceImage(type, parseInt(index), 'library');
+                  } else {
+                    handleImagePick(showImageSourceModal, 'library');
+                  }
+                }}
+                accessibilityLabel="Choose from gallery"
+              >
+                <Text style={styles(width).modalBtnText}>Choose from Gallery</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles(width).modalReplaceBtn}
+                onPress={() => {
+                  if (showImageSourceModal.includes('replace')) {
+                    const [, type, index] = showImageSourceModal.split('-');
+                    replaceImage(type, parseInt(index), 'camera');
+                  } else {
+                    handleImagePick(showImageSourceModal, 'camera');
+                  }
+                }}
+                accessibilityLabel="Take photo"
+              >
+                <Text style={styles(width).modalBtnText}>Take Photo</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -662,6 +802,10 @@ const styles = (width) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f9fdff',
     fontSize: 16,
+  },
+  disabledInput: {
+    backgroundColor: '#f0f0f0',
+    color: '#666',
   },
   textarea: {
     width: '100%',
