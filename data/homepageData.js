@@ -9,8 +9,6 @@ export const homepageData = {
     cta: "Explore Now",
     secondaryCta: "Sign Up for Free Consultation",
     secondaryCtaLink: "/consultation",
-    videoLink: "/videos/intro-pregnancy",
-    videoText: "Watch our introductory video about the pregnancy journey",
   },
   features: [
     {

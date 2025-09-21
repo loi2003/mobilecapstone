@@ -269,7 +269,6 @@ const HomeScreen = ({ navigation }) => {
       '/system-meal-planner': 'SystemMealPlanner',
       '/custom-meal-planner': 'CustomMealPlanner',
       '/health-tips': 'AIAdvice',
-      '/videos/intro-pregnancy': 'PregnancyTracking', // Assuming video links to tracker
     };
     const routeName = routeMap[link] || 'HomeMain';
     navigation.navigate(routeName);
@@ -307,12 +306,7 @@ const HomeScreen = ({ navigation }) => {
               >
                 <Text style={styles.buttonText}>{homepageData.hero.secondaryCta}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.heroButton, styles.videoButton]}
-                onPress={() => navigateToScreen(homepageData.hero.videoLink)}
-              >
-                <Text style={styles.buttonText}>{homepageData.hero.videoText}</Text>
-              </TouchableOpacity>
+             
             </View>
           </View>
         </View>
