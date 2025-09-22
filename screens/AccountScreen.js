@@ -172,7 +172,7 @@ const AccountScreen = ({ navigation }) => {
               <TouchableOpacity onPress={handleImagePick}>
                 {user?.data?.avatar ? (
                   <Image
-                    source={{ uri: user.data.avatar }}
+                    source={{ uri: user.data.avatar.fileUrl }}
                     style={styles.profileAvatar}
                   />
                 ) : (
