@@ -14,17 +14,39 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Ứng dụng cần truy cập camera để chụp ảnh hồ sơ bệnh nhân và tài liệu y tế.",
+        "NSPhotoLibraryUsageDescription": "Ứng dụng cần truy cập thư viện ảnh để tải lên hình ảnh hồ sơ bệnh án.",
+        "NSPhotoLibraryAddUsageDescription": "Ứng dụng cần lưu ảnh vào thư viện để lưu trữ tài liệu y tế.",
+        "NSMicrophoneUsageDescription": "Ứng dụng cần truy cập microphone để ghi âm ghi chú y tế (nếu cần)."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép ứng dụng truy cập thư viện ảnh để tải lên tài liệu y tế.",
+          "cameraPermission": "Cho phép ứng dụng sử dụng camera để chụp ảnh hồ sơ bệnh án.",
+          "microphonePermission": "Cho phép ứng dụng ghi âm ghi chú y tế (nếu cần)."
+        }
+      ]
+    ]
   }
 }
