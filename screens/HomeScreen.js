@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   TextInput,
   Platform,
   Linking,
+  SafeAreaView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser, logout } from '../api/auth';
@@ -21,22 +23,23 @@ import ChatBox from './ChatBox';
 
 const { width } = Dimensions.get('window');
 
-// Header Component (Unchanged)
+// Header Component
 export const Header = ({ navigation, user, setUser, handleLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const slideAnim = new Animated.Value(-width);
+  const slideAnim = useRef(new Animated.Value(-width)).current;
 
   useEffect(() => {
-    Animated.timing(slideAnim, {
+    Animated.spring(slideAnim, {
       toValue: isMenuOpen ? 0 : -width,
-      duration: 300,
+      tension: 80,
+      friction: 10,
       useNativeDriver: true,
     }).start();
   }, [isMenuOpen]);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
+  const toggleMenu = useCallback(() => {
+    setIsMenuOpen((prev) => !prev);
+  }, []);
 
   const navLinks = [
     { name: 'About', route: 'About', title: 'About Us' },
@@ -48,22 +51,37 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
   ];
 
   return (
-    <View style={styles.header}>
-      <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.logo}>NestlyCare</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuToggle}
-          onPress={toggleMenu}
-          accessibilityLabel="Toggle navigation"
-        >
-          <Ionicons
-            name={isMenuOpen ? 'close' : 'menu'}
-            size={24}
-            color="#FFFFFFFF"
+    <SafeAreaView style={styles.headerSafeArea}>
+      <View style={styles.header}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Home')}
+            accessibilityLabel="Go to Home"
+            accessibilityHint="Navigates to the home screen"
+          >
+            <Text style={styles.logo}>NestlyCare</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuToggle}
+            onPress={toggleMenu}
+            accessibilityLabel="Toggle navigation menu"
+            accessibilityHint="Opens or closes the navigation menu"
+          >
+            <Ionicons
+              name={isMenuOpen ? 'close' : 'menu'}
+              size={24}
+              color="#fff"
+            />
+          </TouchableOpacity>
+        </View>
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles.menuBackdrop}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
           />
-        </TouchableOpacity>
+        )}
         <Animated.View
           style={[
             styles.navLinks,
@@ -78,17 +96,29 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
                 navigation.navigate(link.route);
                 setIsMenuOpen(false);
               }}
+              accessibilityLabel={link.title}
+              accessibilityHint={`Navigates to ${link.name} screen`}
             >
               <Text style={styles.navLinkText}>{link.name}</Text>
             </TouchableOpacity>
           ))}
+          {user && (
+            <TouchableOpacity
+              style={styles.navLink}
+              onPress={handleLogout}
+              accessibilityLabel="Log out"
+              accessibilityHint="Logs out of the application"
+            >
+              <Text style={styles.navLinkText}>Log Out</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
-// Footer Component (Unchanged)
+// Footer Component
 export const Footer = ({ navigation }) => {
   const footerLinks = [
     { name: 'About Us', route: 'About' },
@@ -105,57 +135,71 @@ export const Footer = ({ navigation }) => {
 
   const [email, setEmail] = useState('');
 
-  const handleNewsletterSubmit = () => {
+  const handleNewsletterSubmit = useCallback(() => {
     console.log('Newsletter subscription:', email);
     setEmail('');
-  };
+  }, [email]);
 
   return (
-    <View style={styles.footer}>
-      <View style={styles.footerContainer}>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Contact</Text>
-          <Text style={styles.footerText}>Email: support@genderhealthweb.com</Text>
-          <Text style={styles.footerText}>Phone: (123) 456-7890</Text>
-        </View>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Follow Us</Text>
-          <View style={styles.socialLinks}>
-            {socialLinks.map((social, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.socialLink}
-                onPress={() => Linking.openURL(social.url)}
-              >
-                <Ionicons name={social.icon} size={20} color="#ffffff" />
-              </TouchableOpacity>
-            ))}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.footerKeyboardAvoiding}
+    >
+      <SafeAreaView edges={['bottom']}>
+        <View style={styles.footer}>
+          <View style={styles.footerContainer}>
+            <View style={styles.footerSection}>
+              <Text style={styles.footerSectionTitle}>Contact</Text>
+              <Text style={styles.footerText}>Email: support@genderhealthweb.com</Text>
+              <Text style={styles.footerText}>Phone: (123) 456-7890</Text>
+            </View>
+            <View style={styles.footerSection}>
+              <Text style={styles.footerSectionTitle}>Follow Us</Text>
+              <View style={styles.socialLinks}>
+                {socialLinks.map((social, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.socialLink}
+                    onPress={() => Linking.openURL(social.url)}
+                    accessibilityLabel={`Visit our ${social.name}`}
+                    accessibilityHint={`Opens ${social.name} in browser`}
+                  >
+                    <Ionicons name={social.icon} size={20} color="#ffffff" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.footerSection}>
+              <Text style={styles.footerSectionTitle}>Stay Updated</Text>
+              <View style={styles.newsletterForm}>
+                <TextInput
+                  style={styles.newsletterInput}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#666"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  accessibilityLabel="Newsletter email input"
+                  accessibilityHint="Enter your email to subscribe to the newsletter"
+                />
+                <TouchableOpacity
+                  style={styles.newsletterButton}
+                  onPress={handleNewsletterSubmit}
+                  accessibilityLabel="Subscribe to newsletter"
+                  accessibilityHint="Submits your email for newsletter updates"
+                >
+                  <Text style={styles.buttonText}>Subscribe</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
+          <Text style={styles.footerCopyright}>
+            © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
+          </Text>
         </View>
-        <View style={styles.footerSection}>
-          <Text style={styles.footerSectionTitle}>Stay Updated</Text>
-          <View style={styles.newsletterForm}>
-            <TextInput
-              style={styles.newsletterInput}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={styles.newsletterButton}
-              onPress={handleNewsletterSubmit}
-            >
-              <Text style={styles.buttonText}>Subscribe</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      <Text style={styles.footerCopyright}>
-        © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
-      </Text>
-    </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -165,7 +209,8 @@ const HomeScreen = ({ navigation }) => {
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isChatBoxOpen, setIsChatBoxOpen] = useState(false);
-  const fadeAnim = new Animated.Value(0);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const contactIconScale = useRef(new Animated.Value(1)).current;
   const scrollRef = useRef(null);
   const prevIndexRef = useRef(-1);
 
@@ -206,34 +251,35 @@ const HomeScreen = ({ navigation }) => {
       }).start();
     }
     if (selectedIndex !== -1) {
-      Animated.timing(scaleAnims[selectedIndex], {
+      Animated.spring(scaleAnims[selectedIndex], {
         toValue: 1.5,
-        duration: 200,
+        tension: 80,
+        friction: 10,
         useNativeDriver: true,
       }).start();
     }
     prevIndexRef.current = selectedIndex;
   }, [selectedIndex]);
 
-  const handlePrevWeek = () => {
+  const handlePrevWeek = useCallback(() => {
     if (selectedIndex > 0) {
       const newIndex = selectedIndex - 1;
       setSelectedIndex(newIndex);
       setSelectedWeek(pregnancyData[newIndex]);
       scrollRef.current.scrollTo({ x: newIndex * itemWidth, animated: true });
     }
-  };
+  }, [selectedIndex, pregnancyData]);
 
-  const handleNextWeek = () => {
+  const handleNextWeek = useCallback(() => {
     if (selectedIndex < pregnancyData.length - 1) {
       const newIndex = selectedIndex + 1;
       setSelectedIndex(newIndex);
       setSelectedWeek(pregnancyData[newIndex]);
       scrollRef.current.scrollTo({ x: newIndex * itemWidth, animated: true });
     }
-  };
+  }, [selectedIndex, pregnancyData]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       const userId = user?.data?.id;
       const token = await AsyncStorage.getItem('authToken');
@@ -248,16 +294,15 @@ const HomeScreen = ({ navigation }) => {
       await logout(userId, token);
       await AsyncStorage.removeItem('authToken');
       navigation.replace('Login');
-      console.log('✅ Logout thành công cho userId:', userId);
+      console.log('✅ Logout successful for userId:', userId);
     } catch (error) {
       console.error('❌ Logout failed:', error.response?.data || error);
       await AsyncStorage.removeItem('authToken');
       navigation.replace('Login');
     }
-  };
+  }, [user, navigation]);
 
-  // Map homepageData links to React Navigation screen names
-  const navigateToScreen = (link) => {
+  const navigateToScreen = useCallback((link) => {
     const routeMap = {
       '/pregnancy-tracking': 'PregnancyTracking',
       '/blog': 'Blog',
@@ -272,20 +317,42 @@ const HomeScreen = ({ navigation }) => {
     };
     const routeName = routeMap[link] || 'HomeMain';
     navigation.navigate(routeName);
-  };
+  }, [navigation]);
+
+  const handleContactIconPress = useCallback(() => {
+    Animated.sequence([
+      Animated.spring(contactIconScale, {
+        toValue: 1.2,
+        tension: 100,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+      Animated.spring(contactIconScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setIsChatBoxOpen((prev) => !prev);
+  }, []);
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         {/* Hero Section */}
         <View style={styles.heroSection}>
           <View style={styles.heroContent}>
@@ -296,17 +363,20 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.heroButtons}>
               <TouchableOpacity
                 style={[styles.heroButton, styles.primaryButton]}
-                onPress={() => navigation.navigate('HomeMain')} // Assuming 'Explore' maps to HomeMain
+                onPress={() => navigation.navigate('HomeMain')}
+                accessibilityLabel="Explore NestlyCare"
+                accessibilityHint="Navigates to the main exploration screen"
               >
                 <Text style={styles.buttonText}>{homepageData.hero.cta}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.heroButton, styles.secondaryButton]}
                 onPress={() => navigateToScreen(homepageData.hero.secondaryCtaLink)}
+                accessibilityLabel={homepageData.hero.secondaryCta}
+                accessibilityHint="Navigates to the secondary call-to-action screen"
               >
                 <Text style={styles.buttonText}>{homepageData.hero.secondaryCta}</Text>
               </TouchableOpacity>
-             
             </View>
           </View>
         </View>
@@ -335,6 +405,8 @@ const HomeScreen = ({ navigation }) => {
               style={[styles.navButton, styles.leftButton, selectedIndex === 0 && styles.disabledButton]}
               onPress={handlePrevWeek}
               disabled={selectedIndex === 0}
+              accessibilityLabel="Previous week"
+              accessibilityHint="Navigates to the previous week in the pregnancy tracker"
             >
               <Text style={styles.navButtonText}>←</Text>
             </TouchableOpacity>
@@ -359,6 +431,8 @@ const HomeScreen = ({ navigation }) => {
                       setSelectedWeek(data);
                       setSelectedIndex(index);
                     }}
+                    accessibilityLabel={`Select week ${data.week}`}
+                    accessibilityHint="Shows details for the selected pregnancy week"
                   >
                     <Animated.View
                       style={[
@@ -380,6 +454,8 @@ const HomeScreen = ({ navigation }) => {
               ]}
               onPress={handleNextWeek}
               disabled={selectedIndex === pregnancyData.length - 1}
+              accessibilityLabel="Next week"
+              accessibilityHint="Navigates to the next week in the pregnancy tracker"
             >
               <Text style={styles.navButtonText}>→</Text>
             </TouchableOpacity>
@@ -390,13 +466,15 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.weekPopupSubtitle}>{selectedWeek.title}</Text>
               <Text style={styles.weekPopupDescription}>{selectedWeek.description}</Text>
               <Text style={styles.weekPopupTip}>
-                <Text style={styles.bold}>Mẹo:</Text> {selectedWeek.tip}
+                <Text style={styles.bold}>Tip:</Text> {selectedWeek.tip}
               </Text>
               <TouchableOpacity
                 style={styles.weekPopupButton}
                 onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
+                accessibilityLabel="View more details"
+                accessibilityHint="Navigates to detailed pregnancy tracking information"
               >
-                <Text style={styles.buttonText}>for more detail. please press here</Text>
+                <Text style={styles.buttonText}>More Details</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.weekPopupClose}
@@ -404,14 +482,18 @@ const HomeScreen = ({ navigation }) => {
                   setSelectedWeek(null);
                   setSelectedIndex(-1);
                 }}
+                accessibilityLabel="Close week details"
+                accessibilityHint="Closes the pregnancy week details popup"
               >
-                <Text style={styles.buttonText}>close</Text>
+                <Text style={styles.buttonText}>Close</Text>
               </TouchableOpacity>
             </View>
           )}
           <TouchableOpacity
             style={styles.trackerButton}
             onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
+            accessibilityLabel={homepageData.pregnancyTracker.cta}
+            accessibilityHint="Navigates to the pregnancy tracking screen"
           >
             <Text style={styles.buttonText}>{homepageData.pregnancyTracker.cta}</Text>
           </TouchableOpacity>
@@ -421,7 +503,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.testimonialsSection}>
           <Text style={styles.sectionTitle}>What Our Community Says</Text>
           <Text style={styles.sectionDescription}>Hear from other moms about their experiences.</Text>
-          <ScrollView horizontal style={styles.testimonialsContainer}>
+          <ScrollView horizontal style={styles.testimonialsContainer} showsHorizontalScrollIndicator={false}>
             {homepageData.testimonials.map((testimonial, index) => (
               <View key={index} style={styles.testimonialItem}>
                 <Image source={{ uri: testimonial.avatar }} style={styles.testimonialAvatar} />
@@ -440,6 +522,8 @@ const HomeScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.communityButton}
             onPress={() => navigateToScreen(homepageData.community.ctaLink)}
+            accessibilityLabel={homepageData.community.cta}
+            accessibilityHint="Navigates to the community screen"
           >
             <Text style={styles.buttonText}>{homepageData.community.cta}</Text>
           </TouchableOpacity>
@@ -454,6 +538,8 @@ const HomeScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.toolButton}
                 onPress={() => navigateToScreen(tool.link)}
+                accessibilityLabel={tool.title}
+                accessibilityHint={`Navigates to ${tool.title} tool`}
               >
                 <Text style={styles.toolTitle}>{tool.title}</Text>
                 <Text style={styles.toolDescription}>{tool.description}</Text>
@@ -465,6 +551,8 @@ const HomeScreen = ({ navigation }) => {
                       key={subIndex}
                       style={styles.subToolButton}
                       onPress={() => navigateToScreen(subItem.link)}
+                      accessibilityLabel={subItem.title}
+                      accessibilityHint={`Navigates to ${subItem.title} tool`}
                     >
                       <Text style={styles.subToolTitle}>{subItem.title}</Text>
                       <Text style={styles.subToolDescription}>{subItem.description}</Text>
@@ -477,6 +565,8 @@ const HomeScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.toolsButton}
             onPress={() => navigateToScreen(homepageData.pregnancyTool.ctaLink)}
+            accessibilityLabel={homepageData.pregnancyTool.cta}
+            accessibilityHint="Navigates to the pregnancy tools screen"
           >
             <Text style={styles.buttonText}>{homepageData.pregnancyTool.cta}</Text>
           </TouchableOpacity>
@@ -497,6 +587,8 @@ const HomeScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.healthTipsButton}
             onPress={() => navigateToScreen(homepageData.healthTips.ctaLink)}
+            accessibilityLabel={homepageData.healthTips.cta}
+            accessibilityHint="Navigates to the health tips screen"
           >
             <Text style={styles.buttonText}>{homepageData.healthTips.cta}</Text>
           </TouchableOpacity>
@@ -512,8 +604,10 @@ const HomeScreen = ({ navigation }) => {
                 key={index}
                 style={styles.partnerItem}
                 onPress={() => Linking.openURL(partner.link)}
+                accessibilityLabel={`Visit ${partner.name}`}
+                accessibilityHint={`Opens ${partner.name} website in browser`}
               >
-                <Image source={{ uri: partner.logo }} style={styles.partnerLogo} />
+                <Image source={{ uri: partner.link }} style={styles.partnerLogo} />
                 <Text style={styles.partnerName}>{partner.name}</Text>
               </TouchableOpacity>
             ))}
@@ -525,27 +619,30 @@ const HomeScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Contact Icon */}
-      <TouchableOpacity
-        style={styles.contactIcon}
-        onPress={() => setIsChatBoxOpen(!isChatBoxOpen)}
-      >
-        <Text style={styles.contactIconText}>💬</Text>
-      </TouchableOpacity>
+      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }] }]}>
+        <TouchableOpacity
+          onPress={handleContactIconPress}
+          accessibilityLabel="Open chat"
+          accessibilityHint="Opens the chat support window"
+        >
+          <Text style={styles.contactIconText}>💬</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* ChatBox Component */}
       <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
-    </View>
+    </SafeAreaView>
   );
 };
 
-// Updated Styles
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',
   },
-  scrollContent: {
-    paddingBottom: 20,
+  headerSafeArea: {
+    backgroundColor: '#04668D',
   },
   header: {
     backgroundColor: '#04668D',
@@ -562,12 +659,7 @@ const styles = StyleSheet.create({
         elevation: 5,
       },
     }),
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     zIndex: 1000,
-    height: 70,
   },
   headerContainer: {
     maxWidth: 1280,
@@ -577,20 +669,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 8,
-    height: '100%',
+    height: 44,
   },
   logo: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FFFFFFFF',
+    color: '#fff',
     textDecorationLine: 'none',
   },
   menuToggle: {
-    padding: 6,
+    padding: 10,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 1001,
   },
   navLinks: {
     position: 'absolute',
-    top: 70,
+    top: 0,
     left: 0,
     right: 0,
     backgroundColor: '#04668D',
@@ -599,7 +704,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     zIndex: 1002,
-    height: Dimensions.get('window').height - 70,
+    height: Dimensions.get('window').height,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -613,16 +718,21 @@ const styles = StyleSheet.create({
     }),
   },
   navLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
     marginVertical: 5,
+    width: '90%',
+    alignItems: 'center',
   },
   navLinkText: {
-    color: '#FFFFFFFF',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  footerKeyboardAvoiding: {
+    backgroundColor: '#f5f7fa',
   },
   footer: {
     backgroundColor: '#f5f7fa',
@@ -660,10 +770,10 @@ const styles = StyleSheet.create({
     gap: 15,
   },
   socialLink: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     backgroundColor: '#6b9fff',
-    borderRadius: 20,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -672,6 +782,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     maxWidth: 300,
+    width: '100%',
   },
   newsletterInput: {
     paddingVertical: 10,
@@ -683,16 +794,21 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   newsletterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     backgroundColor: '#6b9fff',
     borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
   },
   footerCopyright: {
     fontSize: 12,
     color: '#666',
     textAlign: 'center',
     marginTop: 20,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   heroSection: {
     padding: 20,
@@ -742,6 +858,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 25,
     margin: 5,
+    minWidth: 120,
   },
   primaryButton: {
     backgroundColor: '#04668D',
@@ -749,11 +866,6 @@ const styles = StyleSheet.create({
     borderColor: '#2e6da4',
   },
   secondaryButton: {
-    backgroundColor: '#04668D',
-    borderWidth: 2,
-    borderColor: '#2e6da4',
-  },
-  videoButton: {
     backgroundColor: '#04668D',
     borderWidth: 2,
     borderColor: '#2e6da4',
@@ -778,7 +890,7 @@ const styles = StyleSheet.create({
   featureItem: {
     width: width * 0.4,
     padding: 15,
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     borderRadius: 12,
     alignItems: 'center',
     margin: 5,
@@ -812,7 +924,7 @@ const styles = StyleSheet.create({
   },
   pregnancyTrackerSection: {
     padding: 20,
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     alignItems: 'center',
   },
   sectionTitle: {
@@ -834,7 +946,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     maxWidth: 600,
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     ...Platform.select({
@@ -882,8 +994,8 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   navButton: {
-    width: 30,
-    height: 30,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -902,7 +1014,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   weekPopup: {
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
     marginTop: 20,
@@ -948,8 +1060,8 @@ const styles = StyleSheet.create({
   },
   weekPopupButton: {
     backgroundColor: '#6b9fff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 10,
     marginBottom: 10,
     minWidth: 250,
@@ -957,8 +1069,8 @@ const styles = StyleSheet.create({
   },
   weekPopupClose: {
     backgroundColor: '#f5f5f5',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 10,
     minWidth: 250,
     alignItems: 'center',
@@ -1016,7 +1128,7 @@ const styles = StyleSheet.create({
   },
   communitySection: {
     padding: 20,
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     alignItems: 'center',
   },
   communityHighlight: {
@@ -1040,7 +1152,7 @@ const styles = StyleSheet.create({
   toolItem: {
     width: '90%',
     padding: 15,
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     borderRadius: 12,
     marginBottom: 10,
     ...Platform.select({
@@ -1135,7 +1247,7 @@ const styles = StyleSheet.create({
   },
   partnersSection: {
     padding: 20,
-    backgroundColor: '#FFFFFFFF',
+    backgroundColor: '#fff',
     alignItems: 'center',
   },
   partnersContainer: {
@@ -1177,7 +1289,7 @@ const styles = StyleSheet.create({
   contactIcon: {
     position: 'absolute',
     bottom: 30,
-    right: 30,
+    right: 20,
     width: 60,
     height: 60,
     backgroundColor: '#2e6da4',
