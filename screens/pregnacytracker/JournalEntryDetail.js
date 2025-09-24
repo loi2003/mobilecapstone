@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Dimensions, Animated, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,11 +13,15 @@ const JournalEntryDetail = () => {
   const entryId = route.params?.entryId;
   const journalinfo = route.params?.journalinfo;
 
-  console.log('Journal State Received:', journal); // Debug log for full state
+  const fadeAnim = useRef(new Animated.Value(0)).current; // Animation for content load
+  const scaleAnim = useRef(new Animated.Value(1)).current; // Animation for button press
+
+  // Debug logs
+  console.log('Journal State Received:', journal);
 
   // Handle case where journal is not provided (e.g., adding a new entry)
   if (!journal && !journalinfo) {
-    navigation.navigate('PregnancyTracking', { growthDataId, journalinfo: true });
+    navigation.navigate('PregnancyTracking', { growthDataId, journalinfo: 'true' });
     return null;
   }
 
@@ -33,29 +37,62 @@ const JournalEntryDetail = () => {
     ultraSoundImages: [],
   };
 
-  console.log('Related Images:', journalData.relatedImages); // Debug log for images
-  console.log('Ultrasound Images:', journalData.ultraSoundImages); // Debug log for ultrasound images
+  // Debug logs for images
+  console.log('Related Images:', journalData.relatedImages);
+  console.log('Ultrasound Images:', journalData.ultraSoundImages);
 
   // Function to get image source (handles URLs directly from API)
   const getImageSrc = (image) => {
     return image || null; // API provides full URLs
   };
 
+  // Animate content fade-in on mount
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // Handle button press animation
+  const animatePress = (callback) => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(callback);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.headerContainer}>
+        <TouchableOpacity
+          style={[styles.backButton, { transform: [{ scale: scaleAnim }] }]}
+          onPress={() => animatePress(() => navigation.navigate('PregnancyTracking', { 
+            growthDataId, 
+            journalinfo: 'true' 
+          }))}
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to Pregnancy Tracking screen"
+          accessibilityRole="button"
+        >
+          <Text style={styles.backButtonText}>‹</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerText}>
+          {journal ? 'Journal Entry Details' : 'Add New Journal Entry'}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.detailHeader}>
-          <Text style={styles.headerText}>
-            {journal ? 'Journal Entry Details' : 'Add New Journal Entry'}
-          </Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.navigate('PregnancyTracking', { growthDataId, journalinfo: true })}
-          >
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.detailContent}>
+        <Animated.View style={[styles.detailContent, { opacity: fadeAnim }]}>
           <View style={styles.detailSection}>
             <Text style={styles.sectionTitle}>Summary</Text>
             <Text style={styles.detailText}>Week: {journalData.currentWeek}</Text>
@@ -130,7 +167,7 @@ const JournalEntryDetail = () => {
               </View>
             </View>
           )}
-        </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -139,91 +176,125 @@ const JournalEntryDetail = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    padding: 16,
+    backgroundColor: '#f0f4f8',
+    padding: width < 768 ? 16 : 20,
   },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  detailHeader: {
+  headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: width < 768 ? 0 : 8,
   },
   headerText: {
-    fontSize: 20,
+    fontSize: width < 768 ? 22 : 24,
     fontWeight: '700',
-    color: '#046694',
+    color: '#04668d',
+    textAlign: 'center',
+    flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    width: 150,
-    backgroundColor: '#f9f9f9',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#04668d',
-    borderRadius: 8,
+    backgroundColor: '#02808f',
+    borderRadius: 12,
+    width: 48,
+    height: 48,
     alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   backButtonText: {
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: '600',
-    color: '#333333',
+    color: '#ffffff',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  headerSpacer: {
+    width: 48, // Balances the layout with the back button
+  },
+  scrollContent: {
+    paddingBottom: 24,
   },
   detailContent: {
     flexDirection: 'column',
-    gap: 16,
+    gap: 20,
   },
   detailSection: {
     backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(6, 125, 173, 0.1)',
-    borderRadius: 8,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: '#dfe4ea',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#046694',
-    marginBottom: 8,
+    fontSize: width < 768 ? 18 : 20,
+    fontWeight: '700',
+    color: '#04668d',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dfe4ea',
+    paddingBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   detailText: {
-    fontSize: 16,
-    color: '#555555',
-    lineHeight: 24,
+    fontSize: width < 768 ? 15 : 16,
+    color: '#333333',
+    lineHeight: 26,
     marginVertical: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   listItem: {
-    fontSize: 16,
-    color: '#555555',
-    lineHeight: 24,
+    fontSize: width < 768 ? 15 : 16,
+    color: '#333333',
+    lineHeight: 26,
     marginLeft: 16,
     marginVertical: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   imageGallery: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+    gap: 12,
+    marginTop: 12,
   },
   detailImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 4,
+    width: width < 768 ? 120 : 140,
+    height: width < 768 ? 120 : 140,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#dfe4ea',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 });
 

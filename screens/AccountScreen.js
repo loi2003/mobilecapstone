@@ -1,20 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   ScrollView,
   Image,
   TextInput,
   Alert,
+  SafeAreaView,
+  Animated,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { getCurrentUser, logout, uploadAvatar, editUserProfile } from '../api/auth';
-import { Header, Footer } from './HomeScreen'; // Assuming these are exported from HomeScreen
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Animatable from 'react-native-animatable';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { format, parse } from 'date-fns';
+import { getCurrentUser, logout, uploadAvatar, editUserProfile } from '../api/auth';
+import { Dimensions } from 'react-native';
+
+const { width } = Dimensions.get('window');
 
 const AccountScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -25,13 +33,18 @@ const AccountScreen = ({ navigation }) => {
     PhoneNumber: '',
     DateOfBirth: '',
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const profileCardAnim = useRef(new Animated.Value(100)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const token = await AsyncStorage.getItem('authToken');
         if (!token) {
-          throw new Error('No auth token found');
+          navigation.replace('Login');
+          return;
         }
         const response = await getCurrentUser(token);
         console.log('User data:', response.data);
@@ -39,8 +52,17 @@ const AccountScreen = ({ navigation }) => {
         setEditedProfile({
           UserName: response.data.userName || '',
           PhoneNumber: response.data.phoneNumber || '',
-          DateOfBirth: response.data.dateOfBirth || '',
+          DateOfBirth: response.data.dateOfBirth
+            ? format(new Date(response.data.dateOfBirth), 'yyyy-MM-dd')
+            : '',
         });
+        if (response.data.dateOfBirth) {
+          try {
+            setSelectedDate(new Date(response.data.dateOfBirth));
+          } catch (error) {
+            console.error('Invalid date format:', error);
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch user:', error);
         navigation.replace('Login');
@@ -51,12 +73,28 @@ const AccountScreen = ({ navigation }) => {
     fetchUser();
   }, [navigation]);
 
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(profileCardAnim, {
+        toValue: 0,
+        stiffness: 120,
+        damping: 15,
+        mass: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   const handleLogout = async () => {
     try {
       const userId = user?.data?.id;
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        console.error('No auth token found');
         await AsyncStorage.removeItem('authToken');
         navigation.replace('Login');
         return;
@@ -84,7 +122,7 @@ const AccountScreen = ({ navigation }) => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.8,
     });
 
     if (!result.canceled && result.assets[0].uri) {
@@ -134,6 +172,19 @@ const AccountScreen = ({ navigation }) => {
     }
   };
 
+  const handleDateChange = (event, date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+      setEditedProfile({
+        ...editedProfile,
+        DateOfBirth: format(date, 'yyyy-MM-dd'),
+      });
+    }
+  };
+
   const getRoleName = (roleId) => {
     switch (roleId) {
       case 1:
@@ -153,128 +204,312 @@ const AccountScreen = ({ navigation }) => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <SafeAreaView style={styles.loadingContainer}>
+        <Animatable.Text
+          animation="fadeIn"
+          style={styles.loadingText}
+          accessibilityLabel="Loading"
+        >
+          Loading...
+        </Animatable.Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.accountSection}>
-          <Text style={styles.sectionTitle}>Your Account</Text>
-          <Text style={styles.sectionDescription}>Manage your profile and preferences</Text>
+    <SafeAreaView style={styles.container}>
+      <LinearGradient
+        colors={['#E5E7EB', '#F3F4F6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.accountContainer}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          bounces={true}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={[styles.accountSection, { opacity: fadeAnim }]}>
+            <Animatable.Text
+              animation="fadeInDown"
+              style={styles.sectionTitle}
+              accessibilityLabel="Your Account"
+            >
+              Your Account
+            </Animatable.Text>
+            <Text style={styles.sectionDescription}>Manage your profile and preferences</Text>
 
-          <View style={styles.profileCard}>
-            <View style={styles.profileHeader}>
-              <TouchableOpacity onPress={handleImagePick}>
-                {user?.data?.avatar ? (
-                  <Image
-                    source={{ uri: user.data.avatar.fileUrl }}
-                    style={styles.profileAvatar}
-                  />
+            <Animated.View
+              style={[styles.profileCard, { transform: [{ translateY: profileCardAnim }] }]}
+            >
+              <View style={styles.profileHeader}>
+                <TouchableOpacity
+                  onPress={handleImagePick}
+                  accessibilityLabel="Change profile picture"
+                  accessibilityHint="Select a new profile picture from your photo library"
+                  activeOpacity={0.7}
+                >
+                  <Animatable.View
+                    animation="pulse"
+                    iterationCount="infinite"
+                    duration={2000}
+                    useNativeDriver={true}
+                  >
+                    {user?.data?.avatar ? (
+                      <Image
+                        source={{ uri: user.data.avatar.fileUrl }}
+                        style={styles.profileAvatar}
+                        accessibilityLabel="Profile avatar"
+                      />
+                    ) : (
+                      <Ionicons name="person-circle-outline" size={80} color="#3B82F6" />
+                    )}
+                  </Animatable.View>
+                </TouchableOpacity>
+                <Text style={styles.profileName}>{user?.data?.userName || 'User'}</Text>
+                <Text style={styles.profileRole}>{getRoleName(user?.data?.roleId)}</Text>
+              </View>
+
+              <View style={styles.profileDetails}>
+                {isEditing ? (
+                  <>
+                    <Animatable.View animation="fadeIn" style={styles.detailRow}>
+                      <Ionicons
+                        name="person-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={editedProfile.UserName}
+                        onChangeText={(text) =>
+                          setEditedProfile({ ...editedProfile, UserName: text })
+                        }
+                        placeholder="Username"
+                        placeholderTextColor="#9CA3AF"
+                        autoCapitalize="none"
+                        accessibilityLabel="Username input"
+                        accessibilityHint="Enter your username"
+                        returnKeyType="next"
+                        autoCorrect={false}
+                      />
+                    </Animatable.View>
+                    <Animatable.View animation="fadeIn" delay={100} style={styles.detailRow}>
+                      <Ionicons
+                        name="call-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={editedProfile.PhoneNumber}
+                        onChangeText={(text) =>
+                          setEditedProfile({ ...editedProfile, PhoneNumber: text })
+                        }
+                        placeholder="Phone Number"
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="phone-pad"
+                        accessibilityLabel="Phone number input"
+                        accessibilityHint="Enter your phone number"
+                        returnKeyType="next"
+                        autoCorrect={false}
+                      />
+                    </Animatable.View>
+                    <Animatable.View animation="fadeIn" delay={200} style={styles.detailRow}>
+                      <Ionicons
+                        name="mail-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={user?.data?.email || ''}
+                        editable={false}
+                        placeholder="Email"
+                        placeholderTextColor="#9CA3AF"
+                        accessibilityLabel="Email display"
+                        accessibilityHint="Email cannot be edited"
+                      />
+                    </Animatable.View>
+                    <Animatable.View animation="fadeIn" delay={300} style={styles.detailRow}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <TouchableOpacity
+                        style={styles.input}
+                        onPress={() => setShowDatePicker(true)}
+                        accessibilityLabel="Date of birth input"
+                        accessibilityHint="Tap to select your date of birth"
+                      >
+                        <Text style={styles.dateText}>
+                          {editedProfile.DateOfBirth || 'Select Date'}
+                        </Text>
+                      </TouchableOpacity>
+                    </Animatable.View>
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={selectedDate}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                        maximumDate={new Date()}
+                        onChange={handleDateChange}
+                        accessibilityLabel="Select date of birth"
+                        accessibilityHint="Choose your date of birth from the calendar"
+                      />
+                    )}
+                  </>
                 ) : (
-                  <Ionicons name="person-circle-outline" size={60} color="#6b9fff" />
+                  <>
+                    <Animatable.View animation="fadeIn" style={styles.detailRow}>
+                      <Ionicons
+                        name="person-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <Text
+                        style={styles.detailText}
+                        accessibilityLabel={`Username: ${user?.data?.userName || 'Not provided'}`}
+                      >
+                        Username: {user?.data?.userName || 'Not provided'}
+                      </Text>
+                    </Animatable.View>
+                    <Animatable.View animation="fadeIn" delay={100} style={styles.detailRow}>
+                      <Ionicons
+                        name="call-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <Text
+                        style={styles.detailText}
+                        accessibilityLabel={`Phone: ${user?.data?.phoneNumber || 'Not provided'}`}
+                      >
+                        Phone: {user?.data?.phoneNumber || 'Not provided'}
+                      </Text>
+                    </Animatable.View>
+                    <Animatable.View animation="fadeIn" delay={200} style={styles.detailRow}>
+                      <Ionicons
+                        name="mail-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <Text
+                        style={styles.detailText}
+                        accessibilityLabel={`Email: ${user?.data?.email}`}
+                      >
+                        Email: {user?.data?.email}
+                      </Text>
+                    </Animatable.View>
+                    <Animatable.View animation="fadeIn" delay={300} style={styles.detailRow}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={20}
+                        color="#4B5563"
+                        style={styles.detailIcon}
+                      />
+                      <Text
+                        style={styles.detailText}
+                        accessibilityLabel={`Date of Birth: ${
+                          user?.data?.dateOfBirth
+                            ? format(new Date(user.data.dateOfBirth), 'yyyy-MM-dd')
+                            : 'Not provided'
+                        }`}
+                      >
+                        Date of Birth:{' '}
+                        {user?.data?.dateOfBirth
+                          ? format(new Date(user.data.dateOfBirth), 'yyyy-MM-dd')
+                          : 'Not provided'}
+                      </Text>
+                    </Animatable.View>
+                  </>
                 )}
-              </TouchableOpacity>
-              <Text style={styles.profileName}>{user?.data?.userName || 'User'}</Text>
-              <Text style={styles.profileRole}>{getRoleName(user?.data?.roleId)}</Text>
-            </View>
+              </View>
 
-            <View style={styles.profileDetails}>
-              {isEditing ? (
-                <>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="person-outline" size={20} color="#555" style={styles.detailIcon} />
-                    <TextInput
-                      style={styles.input}
-                      value={editedProfile.UserName}
-                      onChangeText={(text) => setEditedProfile({ ...editedProfile, UserName: text })}
-                      placeholder="Username"
-                    />
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="call-outline" size={20} color="#555" style={styles.detailIcon} />
-                    <TextInput
-                      style={styles.input}
-                      value={editedProfile.PhoneNumber}
-                      onChangeText={(text) => setEditedProfile({ ...editedProfile, PhoneNumber: text })}
-                      placeholder="Phone Number"
-                      keyboardType="phone-pad"
-                    />
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="calendar-outline" size={20} color="#555" style={styles.detailIcon} />
-                    <TextInput
-                      style={styles.input}
-                      value={editedProfile.DateOfBirth}
-                      onChangeText={(text) => setEditedProfile({ ...editedProfile, DateOfBirth: text })}
-                      placeholder="Date of Birth (YYYY-MM-DD)"
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="mail-outline" size={20} color="#555" style={styles.detailIcon} />
-                    <Text style={styles.detailText}>Email: {user?.data?.email}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="call-outline" size={20} color="#555" style={styles.detailIcon} />
-                    <Text style={styles.detailText}>
-                      Phone: {user?.data?.phoneNumber || 'Not provided'}
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="calendar-outline" size={20} color="#555" style={styles.detailIcon} />
-                    <Text style={styles.detailText}>
-                      Date of Birth: {user?.data?.dateOfBirth || 'Not provided'}
-                    </Text>
-                  </View>
-                </>
+              <Animatable.View animation="fadeInUp" delay={400}>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => (isEditing ? handleSaveProfile() : setIsEditing(true))}
+                  accessibilityLabel={isEditing ? 'Save profile' : 'Edit profile'}
+                  accessibilityHint={
+                    isEditing ? 'Saves changes to your profile' : 'Enters edit mode to modify your profile'
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.buttonText}>{isEditing ? 'Save Profile' : 'Edit Profile'}</Text>
+                </TouchableOpacity>
+              </Animatable.View>
+              {isEditing && (
+                <Animatable.View animation="fadeInUp" delay={500}>
+                  <TouchableOpacity
+                    style={[styles.editButton, styles.cancelButton]}
+                    onPress={() => {
+                      setIsEditing(false);
+                      setEditedProfile({
+                        UserName: user?.data?.userName || '',
+                        PhoneNumber: user?.data?.phoneNumber || '',
+                        DateOfBirth: user?.data?.dateOfBirth
+                          ? format(new Date(user.data.dateOfBirth), 'yyyy-MM-dd')
+                          : '',
+                      });
+                      if (user?.data?.dateOfBirth) {
+                        try {
+                          setSelectedDate(new Date(user.data.dateOfBirth));
+                        } catch (error) {
+                          console.error('Invalid date format on cancel:', error);
+                        }
+                      }
+                    }}
+                    accessibilityLabel="Cancel editing"
+                    accessibilityHint="Discards changes and exits edit mode"
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </Animatable.View>
               )}
+            </Animated.View>
+
+            <View style={styles.actionsSection}>
+              <Text style={styles.sectionSubtitle}>Account Actions</Text>
+              <Animatable.View animation="fadeInUp" delay={600}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.logoutButton]}
+                  onPress={handleLogout}
+                  accessibilityLabel="Logout"
+                  accessibilityHint="Logs out of your account"
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#EF4444', '#F87171']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.logoutButtonGradient}
+                  >
+                    <Ionicons
+                      name="log-out-outline"
+                      size={20}
+                      color="#FFFFFF"
+                      style={styles.actionIcon}
+                    />
+                    <Text style={styles.buttonText}>Logout</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animatable.View>
             </View>
-
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => (isEditing ? handleSaveProfile() : setIsEditing(true))}
-            >
-              <Text style={styles.buttonText}>{isEditing ? 'Save Profile' : 'Edit Profile'}</Text>
-            </TouchableOpacity>
-            {isEditing && (
-              <TouchableOpacity
-                style={[styles.editButton, styles.cancelButton]}
-                onPress={() => {
-                  setIsEditing(false);
-                  setEditedProfile({
-                    UserName: user?.data?.userName || '',
-                    PhoneNumber: user?.data?.phoneNumber || '',
-                    DateOfBirth: user?.data?.dateOfBirth || '',
-                  });
-                }}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.actionsSection}>
-            <Text style={styles.sectionSubtitle}>Account Actions</Text>
-         
-            <TouchableOpacity
-              style={[styles.actionButton, styles.logoutButton]}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={20} color="#ffffff" style={styles.actionIcon} />
-              <Text style={styles.buttonText}>Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <Footer navigation={navigation} />
-      </ScrollView>
-    </View>
+          </Animated.View>
+        </ScrollView>
+      </LinearGradient>
+    </SafeAreaView>
   );
 };
 
@@ -283,143 +518,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f7fa',
   },
-  scrollContent: {
-    paddingBottom: 20,
-    paddingTop: 90, // Account for header height
-  },
-  accountSection: {
-    padding: 20,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#222',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  sectionDescription: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 20,
-    textAlign: 'center',
-    maxWidth: '90%',
-  },
-  sectionSubtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#222',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  profileCard: {
-    width: '90%',
-    padding: 20,
-    backgroundColor: '#feffe9',
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginBottom: 10,
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 10,
-  },
-  profileRole: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b9fff',
-    marginTop: 5,
-  },
-  profileDetails: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  detailIcon: {
-    marginRight: 10,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#555',
-  },
-  input: {
+  accountContainer: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    color: '#333',
   },
-  editButton: {
-    backgroundColor: '#6b9fff',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  cancelButton: {
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  actionsSection: {
-    width: '90%',
-    alignItems: 'center',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2e6da4',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-    marginBottom: 10,
-    width: '100%',
-    justifyContent: 'center',
-  },
-  logoutButton: {
-    backgroundColor: '#ff6b6b',
-  },
-  actionIcon: {
-    marginRight: 10,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -428,8 +532,187 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f7fa',
   },
   loadingText: {
+    fontSize: 18,
+    color: '#1F2937',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  accountSection: {
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  sectionDescription: {
     fontSize: 16,
-    color: '#333',
+    color: '#6B7280',
+    marginBottom: 20,
+    textAlign: 'center',
+    maxWidth: '85%',
+    lineHeight: 24,
+  },
+  sectionSubtitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 16,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  profileCard: {
+    width: Math.min(width * 0.9, 400),
+    padding: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profileAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: '#3B82F6',
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 8,
+    letterSpacing: 0.5,
+  },
+  profileRole: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#3B82F6',
+    marginTop: 6,
+    opacity: 0.9,
+  },
+  profileDetails: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingVertical: 10,
+  },
+  detailIcon: {
+    marginRight: 12,
+  },
+  detailText: {
+    fontSize: 16,
+    color: '#4B5563',
+    flex: 1,
+    lineHeight: 24,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    color: '#1F2937',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#1F2937',
+    paddingVertical: 12,
+  },
+  editButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cancelButton: {
+    backgroundColor: '#6B7280',
+    borderWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cancelButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  actionsSection: {
+    width: Math.min(width * 0.9, 400),
+    alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  logoutButton: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  logoutButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    marginRight: 10,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
 
