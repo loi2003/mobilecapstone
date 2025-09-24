@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,7 @@ import {
   Animated,
   useWindowDimensions,
   Platform,
-  Linking,
-  TextInput,
+  SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -36,160 +35,7 @@ import { createBasicBioMetric } from '../api/basic-bio-metric-api';
 import { getCurrentUser, logout } from '../api/auth';
 import { viewAllOfflineConsultation } from '../api/offline-consultation-api';
 import { getJournalByGrowthDataId } from '../api/journal-api';
-
-// Header Component
-const Header = ({ navigation, user, setUser, handleLogout }) => {
-  const { width } = useWindowDimensions();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const slideAnim = React.useRef(new Animated.Value(-width)).current;
-
-  useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: isMenuOpen ? 0 : -width,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [isMenuOpen, width]);
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const navLinks = [
-    { name: 'About', route: 'About', title: 'About Us' },
-    { name: 'Due Date Calculator', route: 'DueDateCalculator', title: 'Due Date Calculator' },
-    { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
-    { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
-    { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
-    { name: 'Blog', route: 'Blog', title: 'Blog' },
-  ];
-
-  return (
-    <View style={styles(width).header}>
-      <View style={styles(width).headerContainer}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles(width).logo}>NestlyCare</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles(width).menuToggle}
-          onPress={toggleMenu}
-          accessibilityLabel="Toggle navigation"
-        >
-          <Ionicons
-            name={isMenuOpen ? 'close' : 'menu'}
-            size={24}
-            color="#feffe9"
-          />
-        </TouchableOpacity>
-      </View>
-      <Animated.View
-        style={[
-          styles(width).navLinks,
-          {
-            transform: [{ translateX: slideAnim }],
-            display: isMenuOpen ? 'flex' : 'none',
-          },
-        ]}
-      >
-        {navLinks.map((link, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles(width).navLink}
-            onPress={() => {
-              navigation.navigate(link.route);
-              setIsMenuOpen(false);
-            }}
-          >
-            <Text style={styles(width).navLinkText}>{link.name}</Text>
-          </TouchableOpacity>
-        ))}
-        {user && (
-          <TouchableOpacity
-            style={styles(width).navLink}
-            onPress={() => {
-              handleLogout();
-              setIsMenuOpen(false);
-            }}
-          >
-            <Text style={styles(width).navLinkText}>Logout</Text>
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-    </View>
-  );
-};
-
-// Footer Component
-const Footer = ({ navigation }) => {
-  const { width } = useWindowDimensions();
-  const footerLinks = [
-    { name: 'About Us', route: 'About' },
-    { name: 'Privacy Policy', route: 'Privacy' },
-    { name: 'Terms of Service', route: 'Terms' },
-    { name: 'Contact Us', route: 'Contact' },
-  ];
-
-  const socialLinks = [
-    { name: 'Twitter', url: 'https://twitter.com', icon: 'logo-twitter' },
-    { name: 'Facebook', url: 'https://facebook.com', icon: 'logo-facebook' },
-    { name: 'LinkedIn', url: 'https://linkedin.com', icon: 'logo-linkedin' },
-  ];
-
-  const [email, setEmail] = useState('');
-
-  const handleNewsletterSubmit = () => {
-    console.log('Newsletter subscription:', email);
-    setEmail('');
-  };
-
-  return (
-    <View style={styles(width).footer}>
-      <View style={styles(width).footerContainer}>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Contact</Text>
-          <Text style={styles(width).footerText}>Email: support@genderhealthweb.com</Text>
-          <Text style={styles(width).footerText}>Phone: (123) 456-7890</Text>
-        </View>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Follow Us</Text>
-          <View style={styles(width).socialLinks}>
-            {socialLinks.map((social, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles(width).socialLink}
-                onPress={() => Linking.openURL(social.url)}
-              >
-                <Ionicons name={social.icon} size={20} color="#ffffff" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        <View style={styles(width).footerSection}>
-          <Text style={styles(width).footerSectionTitle}>Stay Updated</Text>
-          <View style={styles(width).newsletterForm}>
-            <TextInput
-              style={styles(width).newsletterInput}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={styles(width).newsletterButton}
-              onPress={handleNewsletterSubmit}
-            >
-              <Text style={styles(width).buttonText}>Subscribe</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      <Text style={styles(width).footerCopyright}>
-        © {new Date().getFullYear()} GenderHealthWeb. All rights reserved.
-      </Text>
-    </View>
-  );
-};
+import { Header } from './HomeScreen'; // Import the Header from HomeScreen
 
 const PregnancyTrackingPage = () => {
   const { width } = useWindowDimensions();
@@ -211,6 +57,24 @@ const PregnancyTrackingPage = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const navigation = useNavigation();
   const route = useRoute();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Handle route params to set active tab
+  useEffect(() => {
+    const { journalinfo } = route.params || {};
+    if (journalinfo === 'true') {
+      setActiveTab('journal');
+    }
+  }, [route.params]);
+
+  // Fade animation for content transitions
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, nutritionSubTab, mealPlannerSubTab]);
 
   // Check abnormal biometric status
   const getAbnormalStatus = (bio) => {
@@ -536,31 +400,27 @@ const PregnancyTrackingPage = () => {
     }
   };
 
-  const handleAddJournal = () => {
-    setOpenJournalModal(true);
-  };
-
   const hasValidPregnancyData =
     pregnancyData &&
     !!pregnancyData.firstDayOfLastMenstrualPeriod &&
     !!pregnancyData.estimatedDueDate;
 
   const tabs = [
-    { key: 'weekly', label: 'Weekly Info', queryKey: 'weeklyinfo' },
-    { key: 'reminderconsultation', label: 'Checkup Reminder', queryKey: 'reminderconsultationinfo' },
-    { key: 'journal', label: 'Journal Entries', queryKey: 'journalinfo' },
-    { key: 'nutritional-guidance', label: 'Nutritional Guidance', queryKey: 'nutritional-guidance' },
-    { key: 'mealplanner', label: 'Meal Planner', queryKey: 'mealplanner' },
+    { key: 'weekly', label: 'Weekly', queryKey: 'weeklyinfo' },
+    { key: 'reminderconsultation', label: 'Reminders', queryKey: 'reminderconsultationinfo' },
+    { key: 'journal', label: 'Journal', queryKey: 'journalinfo' },
+    { key: 'nutritional-guidance', label: 'Nutrition', queryKey: 'nutritional-guidance' },
+    { key: 'mealplanner', label: 'Meals', queryKey: 'mealplanner' },
   ];
 
   const nutritionSubTabs = [
-    { key: 'recommendations', label: 'Recommended Needs' },
-    { key: 'foodwarnings', label: 'Food Warning' },
+    { key: 'recommendations', label: 'Nutritional Needs' },
+    { key: 'foodwarnings', label: 'Food Warnings' },
   ];
 
   const mealPlannerSubTabs = [
-    { key: 'system', label: 'System Meal Planner' },
-    { key: 'custom', label: 'Custom Meal Planner' },
+    { key: 'system', label: 'System Planner' },
+    { key: 'custom', label: 'Custom Planner' },
   ];
 
   const renderContent = () => {
@@ -570,7 +430,7 @@ const PregnancyTrackingPage = () => {
           <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
           <View style={styles(width).loadingContainer}>
             <ActivityIndicator size="large" color="#067DAD" />
-            <Text style={styles(width).loadingText}>Loading your pregnancy data...</Text>
+            <Text style={styles(width).loadingText}>Loading your journey...</Text>
           </View>
         </View>
       );
@@ -583,9 +443,9 @@ const PregnancyTrackingPage = () => {
           <View style={styles(width).pregnancyTrackingContainer}>
             <View style={styles(width).trackingWelcomeSection}>
               <View style={styles(width).trackingWelcomeHeader}>
-                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
+                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Your Pregnancy Journey</Text>
                 <Text style={styles(width).welcomeHeaderText}>
-                  Start your beautiful journey of motherhood with personalized tracking and insights
+                  Begin tracking your pregnancy with personalized insights and support
                 </Text>
               </View>
               <TrackingForm
@@ -594,7 +454,6 @@ const PregnancyTrackingPage = () => {
               />
             </View>
           </View>
-          <Footer navigation={navigation} />
         </View>
       );
     }
@@ -605,7 +464,7 @@ const PregnancyTrackingPage = () => {
           <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
           <View style={styles(width).errorContainer}>
             <Text style={styles(width).errorIcon}>⚠️</Text>
-            <Text style={styles(width).errorTitle}>Oops! Something went wrong</Text>
+            <Text style={styles(width).errorTitle}>Something Went Wrong</Text>
             <Text style={styles(width).errorText}>{error}</Text>
             <TouchableOpacity
               onPress={() => error.includes('sign in') ? navigation.navigate('Login') : initializeApp()}
@@ -621,15 +480,15 @@ const PregnancyTrackingPage = () => {
     }
 
     return (
-      <View style={styles(width).mainContent}>
+      <Animated.View style={[styles(width).mainContent, { opacity: fadeAnim }]}>
         <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
         <View style={styles(width).pregnancyTrackingContainer}>
           {!hasValidPregnancyData ? (
             <View style={styles(width).trackingWelcomeSection}>
               <View style={styles(width).trackingWelcomeHeader}>
-                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Pregnancy Tracking</Text>
+                <Text style={styles(width).welcomeHeaderTitle}>Welcome to Your Pregnancy Journey</Text>
                 <Text style={styles(width).welcomeHeaderText}>
-                  Start your beautiful journey of motherhood with personalized tracking and insights
+                  Begin tracking your pregnancy with personalized insights and support
                 </Text>
               </View>
               <TrackingForm
@@ -703,201 +562,200 @@ const PregnancyTrackingPage = () => {
                   ))}
                 </View>
               )}
-              {activeTab === 'weekly' && (
-                <View style={styles(width).tabContent}>
-                  <PregnancyOverview
-                    pregnancyData={pregnancyData}
-                    setPregnancyData={setPregnancyData}
-                    setError={setError}
-                  />
-                  <PregnancyProgressBar
-                    pregnancyData={pregnancyData}
-                    selectedWeek={selectedWeek}
-                    setSelectedWeek={setSelectedWeek}
-                  />
-                  <View style={styles(width).dashboardGrid}>
-                    <View style={styles(width).leftColumn}>
-                      <BabyDevelopment
-                        pregnancyData={pregnancyData}
-                        selectedWeek={selectedWeek}
-                      />
-                    </View>
-                    <View style={styles(width).rightColumn}>
-                      <UpcomingAppointments
-                        growthDataId={pregnancyData?.id}
-                        userId={userId}
-                        token={token}
-                        appointments={appointments}
-                        loadingAppointments={loadingAppointments}
-                      />
-                    </View>
-                  </View>
-                  {pregnancyData.basicBioMetric && (
-                    <View style={styles(width).biometricSection}>
-                      <View style={styles(width).sectionHeader}>
-                        <Text style={styles(width).sectionHeaderTitle}>Health Metrics</Text>
-                        <Text style={styles(width).sectionHeaderText}>Your current health measurements</Text>
+              <Animated.View style={[styles(width).tabContent, { opacity: fadeAnim }]}>
+                {activeTab === 'weekly' && (
+                  <>
+                    <PregnancyOverview
+                      pregnancyData={pregnancyData}
+                      setPregnancyData={setPregnancyData}
+                      setError={setError}
+                    />
+                    <PregnancyProgressBar
+                      pregnancyData={pregnancyData}
+                      selectedWeek={selectedWeek}
+                      setSelectedWeek={setSelectedWeek}
+                    />
+                    <View style={styles(width).dashboardGrid}>
+                      <View style={styles(width).leftColumn}>
+                        <BabyDevelopment
+                          pregnancyData={pregnancyData}
+                          selectedWeek={selectedWeek}
+                        />
                       </View>
-                      {abnormalMessages.length > 0 && (
-                        <View style={styles(width).abnormalAlertBox}>
-                          <Text style={styles(width).abnormalAlertTitle}>Health Alert:</Text>
-                          {abnormalMessages.map((msg, idx) => (
-                            <Text key={idx} style={styles(width).abnormalAlertText}>{msg}</Text>
-                          ))}
-                          <Text style={styles(width).abnormalAlertText}>Please consult your healthcare provider.</Text>
+                      <View style={styles(width).rightColumn}>
+                        <UpcomingAppointments
+                          growthDataId={pregnancyData?.id}
+                          userId={userId}
+                          token={token}
+                          appointments={appointments}
+                          loadingAppointments={loadingAppointments}
+                        />
+                      </View>
+                    </View>
+                    {pregnancyData.basicBioMetric && (
+                      <View style={styles(width).biometricSection}>
+                        <View style={styles(width).sectionHeader}>
+                          <Text style={styles(width).sectionHeaderTitle}>Your Health Metrics</Text>
+                          <Text style={styles(width).sectionHeaderText}>Track your vital signs</Text>
                         </View>
-                      )}
-                      <View style={styles(width).biometricCards}>
-                        {pregnancyData.preWeight > 0 && (
-                          <View style={styles(width).biometricCard}>
-                            <View style={styles(width).metricIcon}>
-                              <Text style={styles(width).placeholderIcon}>⚖️</Text>
-                            </View>
-                            <View style={styles(width).metricInfo}>
-                              <Text style={styles(width).metricValue}>
-                                {pregnancyData.preWeight} Kg
-                              </Text>
-                              <Text style={styles(width).metricLabel}>Pre-Pregnancy Weight</Text>
-                            </View>
+                        {abnormalMessages.length > 0 && (
+                          <View style={styles(width).abnormalAlertBox}>
+                            <Text style={styles(width).abnormalAlertTitle}>Health Alert</Text>
+                            {abnormalMessages.map((msg, idx) => (
+                              <Text key={idx} style={styles(width).abnormalAlertText}>{msg}</Text>
+                            ))}
+                            <Text style={styles(width).abnormalAlertText}>Please consult your healthcare provider.</Text>
                           </View>
                         )}
-                        {pregnancyData.basicBioMetric.weightKg > 0 && (
-                          <View style={styles(width).biometricCard}>
-                            <View style={styles(width).metricIcon}>
-                              <Text style={styles(width).placeholderIcon}>⚖️</Text>
+                        <View style={styles(width).biometricCards}>
+                          {pregnancyData.preWeight > 0 && (
+                            <View style={styles(width).biometricCard}>
+                              <View style={styles(width).metricIcon}>
+                                <Text style={styles(width).placeholderIcon}>⚖️</Text>
+                              </View>
+                              <View style={styles(width).metricInfo}>
+                                <Text style={styles(width).metricValue}>
+                                  {pregnancyData.preWeight} Kg
+                                </Text>
+                                <Text style={styles(width).metricLabel}>Pre-Pregnancy Weight</Text>
+                              </View>
                             </View>
-                            <View style={styles(width).metricInfo}>
-                              <Text style={styles(width).metricValue}>
-                                {pregnancyData.basicBioMetric.weightKg} Kg
-                              </Text>
-                              <Text style={styles(width).metricLabel}>Current Weight</Text>
+                          )}
+                          {pregnancyData.basicBioMetric.weightKg > 0 && (
+                            <View style={styles(width).biometricCard}>
+                              <View style={styles(width).metricIcon}>
+                                <Text style={styles(width).placeholderIcon}>⚖️</Text>
+                              </View>
+                              <View style={styles(width).metricInfo}>
+                                <Text style={styles(width).metricValue}>
+                                  {pregnancyData.basicBioMetric.weightKg} Kg
+                                </Text>
+                                <Text style={styles(width).metricLabel}>Current Weight</Text>
+                              </View>
                             </View>
-                          </View>
-                        )}
-                        {pregnancyData.basicBioMetric.bmi > 0 && (
-                          <View style={[styles(width).biometricCard, abnormalStatus.bmi?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                            <View style={styles(width).metricIcon}>
-                              <Text style={styles(width).placeholderIcon}>🧮</Text>
+                          )}
+                          {pregnancyData.basicBioMetric.bmi > 0 && (
+                            <View style={[styles(width).biometricCard, abnormalStatus.bmi?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                              <View style={styles(width).metricIcon}>
+                                <Text style={styles(width).placeholderIcon}>🧮</Text>
+                              </View>
+                              <View style={styles(width).metricInfo}>
+                                <Text style={styles(width).metricValue}>
+                                  {pregnancyData.basicBioMetric.bmi.toFixed(1)}
+                                </Text>
+                                <Text style={styles(width).metricLabel}>
+                                  BMI {abnormalStatus.bmi?.abnormal ? `(${abnormalStatus.bmi.message})` : ''}
+                                </Text>
+                              </View>
                             </View>
-                            <View style={styles(width).metricInfo}>
-                              <Text style={styles(width).metricValue}>
-                                {pregnancyData.basicBioMetric.bmi.toFixed(1)}
-                              </Text>
-                              <Text style={styles(width).metricLabel}>
-                                BMI {abnormalStatus.bmi?.abnormal ? `(${abnormalStatus.bmi.message})` : ''}
-                              </Text>
+                          )}
+                          {(pregnancyData.basicBioMetric.systolicBP > 0 || pregnancyData.basicBioMetric.diastolicBP > 0) && (
+                            <View style={[styles(width).biometricCard, abnormalStatus.bloodPressure?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                              <View style={styles(width).metricIcon}>
+                                <Text style={styles(width).placeholderIcon}>❤️</Text>
+                              </View>
+                              <View style={styles(width).metricInfo}>
+                                <Text style={styles(width).metricValue}>
+                                  {pregnancyData.basicBioMetric.systolicBP}/{pregnancyData.basicBioMetric.diastolicBP} mmHg
+                                </Text>
+                                <Text style={styles(width).metricLabel}>
+                                  Blood Pressure {abnormalStatus.bloodPressure?.abnormal ? `(${abnormalStatus.bloodPressure.message})` : ''}
+                                </Text>
+                              </View>
                             </View>
-                          </View>
-                        )}
-                        {(pregnancyData.basicBioMetric.systolicBP > 0 || pregnancyData.basicBioMetric.diastolicBP > 0) && (
-                          <View style={[styles(width).biometricCard, abnormalStatus.bloodPressure?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                            <View style={styles(width).metricIcon}>
-                              <Text style={styles(width).placeholderIcon}>❤️</Text>
+                          )}
+                          {pregnancyData.basicBioMetric.heartRateBPM > 0 && (
+                            <View style={[styles(width).biometricCard, abnormalStatus.heartRateBPM?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                              <View style={styles(width).metricIcon}>
+                                <Text style={styles(width).placeholderIcon}>💗</Text>
+                              </View>
+                              <View style={styles(width).metricInfo}>
+                                <Text style={styles(width).metricValue}>
+                                  {pregnancyData.basicBioMetric.heartRateBPM} bpm
+                                </Text>
+                                <Text style={styles(width).metricLabel}>
+                                  Heart Rate {abnormalStatus.heartRateBPM?.abnormal ? `(${abnormalStatus.heartRateBPM.message})` : ''}
+                                </Text>
+                              </View>
                             </View>
-                            <View style={styles(width).metricInfo}>
-                              <Text style={styles(width).metricValue}>
-                                {pregnancyData.basicBioMetric.systolicBP}/{pregnancyData.basicBioMetric.diastolicBP} mmHg
-                              </Text>
-                              <Text style={styles(width).metricLabel}>
-                                Blood Pressure {abnormalStatus.bloodPressure?.abnormal ? `(${abnormalStatus.bloodPressure.message})` : ''}
-                              </Text>
+                          )}
+                          {pregnancyData.basicBioMetric.bloodSugarLevelMgDl > 0 && (
+                            <View style={[styles(width).biometricCard, abnormalStatus.bloodSugarLevelMgDl?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
+                              <View style={styles(width).metricIcon}>
+                                <Text style={styles(width).placeholderIcon}>🩺</Text>
+                              </View>
+                              <View style={styles(width).metricInfo}>
+                                <Text style={styles(width).metricValue}>
+                                  {pregnancyData.basicBioMetric.bloodSugarLevelMgDl} mg/dL
+                                </Text>
+                                <Text style={styles(width).metricLabel}>
+                                  Blood Sugar {abnormalStatus.bloodSugarLevelMgDl?.abnormal ? `(${abnormalStatus.bloodSugarLevelMgDl.message})` : ''}
+                                </Text>
+                              </View>
                             </View>
-                          </View>
-                        )}
-                        {pregnancyData.basicBioMetric.heartRateBPM > 0 && (
-                          <View style={[styles(width).biometricCard, abnormalStatus.heartRateBPM?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                            <View style={styles(width).metricIcon}>
-                              <Text style={styles(width).placeholderIcon}>💗</Text>
-                            </View>
-                            <View style={styles(width).metricInfo}>
-                              <Text style={styles(width).metricValue}>
-                                {pregnancyData.basicBioMetric.heartRateBPM} bpm
-                              </Text>
-                              <Text style={styles(width).metricLabel}>
-                                Heart Rate {abnormalStatus.heartRateBPM?.abnormal ? `(${abnormalStatus.heartRateBPM.message})` : ''}
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-                        {pregnancyData.basicBioMetric.bloodSugarLevelMgDl > 0 && (
-                          <View style={[styles(width).biometricCard, abnormalStatus.bloodSugarLevelMgDl?.abnormal ? styles(width).biometricCardAbnormal : {}]}>
-                            <View style={styles(width).metricIcon}>
-                              <Text style={styles(width).placeholderIcon}>🩺</Text>
-                            </View>
-                            <View style={styles(width).metricInfo}>
-                              <Text style={styles(width).metricValue}>
-                                {pregnancyData.basicBioMetric.bloodSugarLevelMgDl} mg/dL
-                              </Text>
-                              <Text style={styles(width).metricLabel}>
-                                Blood Sugar {abnormalStatus.bloodSugarLevelMgDl?.abnormal ? `(${abnormalStatus.bloodSugarLevelMgDl.message})` : ''}
-                              </Text>
-                            </View>
-                          </View>
-                        )}
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  )}
-                </View>
-              )}
-              {activeTab === 'reminderconsultation' && (
-                <View style={styles(width).tabContent}>
-                  <CheckupReminder
-                    token={token}
-                    userId={userId}
-                    reminders={[]}
-                    appointments={appointments}
-                    appointmentDates={appointmentDates}
-                    loadingAppointments={loadingAppointments}
-                  />
-                  <UpcomingAppointments
-                    userId={userId}
-                    token={token}
-                    expanded={true}
-                    appointments={appointments}
-                    loadingAppointments={loadingAppointments}
-                  />
-                </View>
-              )}
-              {activeTab === 'journal' && (
-                <View style={styles(width).tabContent}>
+                    )}
+                  </>
+                )}
+                {activeTab === 'reminderconsultation' && (
+                  <>
+                    <CheckupReminder
+                      token={token}
+                      userId={userId}
+                      reminders={[]}
+                      appointments={appointments}
+                      appointmentDates={appointmentDates}
+                      loadingAppointments={loadingAppointments}
+                    />
+                    <UpcomingAppointments
+                      userId={userId}
+                      token={token}
+                      expanded={true}
+                      appointments={appointments}
+                      loadingAppointments={loadingAppointments}
+                    />
+                  </>
+                )}
+                {activeTab === 'journal' && (
                   <JournalSection
                     journalEntries={journals}
                     growthDataId={pregnancyData?.id}
                     openModal={openJournalModal}
                     setOpenModal={setOpenJournalModal}
                   />
-                </View>
-              )}
-              {activeTab === 'nutritional-guidance' && (
-                <View style={styles(width).tabContent}>
-                  {nutritionSubTab === 'recommendations' && (
-                    <RecommendedNutritionalNeeds pregnancyData={pregnancyData} />
-                  )}
-                  {nutritionSubTab === 'foodwarnings' && (
-                    <FoodWarning />
-                  )}
-                </View>
-              )}
-              {activeTab === 'mealplanner' && (
-                <View style={styles(width).tabContent}>
-                  {mealPlannerSubTab === 'system' && (
-                    <SystemMealPlanner />
-                  )}
-                  {mealPlannerSubTab === 'custom' && (
-                    <CustomMealPlanner />
-                  )}
-                </View>
-              )}
+                )}
+                {activeTab === 'nutritional-guidance' && (
+                  <>
+                    {nutritionSubTab === 'recommendations' && (
+                      <RecommendedNutritionalNeeds pregnancyData={pregnancyData} />
+                    )}
+                    {nutritionSubTab === 'foodwarnings' && (
+                      <FoodWarning />
+                    )}
+                  </>
+                )}
+                {activeTab === 'mealplanner' && (
+                  <>
+                    {mealPlannerSubTab === 'system' && (
+                      <SystemMealPlanner />
+                    )}
+                    {mealPlannerSubTab === 'custom' && (
+                      <CustomMealPlanner />
+                    )}
+                  </>
+                )}
+              </Animated.View>
             </View>
           )}
-          <Footer navigation={navigation} />
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
   return (
-    <View style={styles(width).pregnancyTrackingPage}>
+    <SafeAreaView style={styles(width).pregnancyTrackingPage}>
       <FlatList
         data={[{}]}
         renderItem={renderContent}
@@ -906,17 +764,18 @@ const PregnancyTrackingPage = () => {
         contentContainerStyle={{ flexGrow: 1 }}
       />
       <TouchableOpacity
-        style={styles(width).contactIcon}
+        style={[styles(width).contactIcon, isChatOpen && { display: 'none' }]}
         onPress={() => setIsChatOpen(!isChatOpen)}
+        activeOpacity={0.7}
       >
-        <Text style={styles(width).contactIconText}>💬</Text>
+        <Ionicons name="chatbubble-ellipses" size={30} color="#fff" />
       </TouchableOpacity>
       <ChatBox
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         navigation={navigation}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -926,15 +785,13 @@ const styles = (width) => StyleSheet.create({
     backgroundColor: '#f5f7fa',
   },
   mainContent: {
-    paddingVertical: 20,
-    paddingTop: 90,
-    paddingBottom: 110,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
   },
   pregnancyTrackingContainer: {
-    maxWidth: 1500,
-    marginTop: 20,
-    marginBottom: 20,
-    paddingHorizontal: 10,
+    maxWidth: 1200,
+    marginVertical: 20,
+    paddingHorizontal: width < 768 ? 15 : 20,
     alignSelf: 'center',
     width: '100%',
   },
@@ -942,119 +799,149 @@ const styles = (width) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 300,
+    minHeight: 400,
   },
   loadingText: {
     color: '#FE6B6A',
     fontSize: 16,
-    marginTop: 10,
+    fontWeight: '500',
+    marginTop: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 300,
-    textAlign: 'center',
+    minHeight: 400,
+    paddingHorizontal: 20,
   },
   errorIcon: {
     fontSize: 48,
     color: '#E74C3C',
-    marginBottom: 10,
+    marginBottom: 16,
   },
   errorTitle: {
     color: '#04668D',
     fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 10,
+    fontWeight: '600',
+    marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   errorText: {
     color: '#FE6B6A',
     fontSize: 16,
     marginBottom: 20,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   retryBtn: {
     backgroundColor: '#04668D',
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 120,
   },
   retryBtnText: {
-    color: '#feffe9',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   trackingWelcomeSection: {
     justifyContent: 'center',
     alignItems: 'center',
-    maxWidth: 800,
+    maxWidth: 600,
     padding: 20,
     alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   trackingWelcomeHeader: {
-    marginBottom: 30,
+    marginBottom: 24,
     alignItems: 'center',
   },
   welcomeHeaderTitle: {
     color: '#04668D',
     fontSize: 28,
     fontWeight: '700',
-    marginBottom: 10,
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   welcomeHeaderText: {
     color: '#FE6B6A',
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   trackingDashboard: {
     flexDirection: 'column',
     rowGap: 20,
   },
   navTabs: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   navTabsContent: {
     flexDirection: 'row',
     padding: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f7fa',
     borderRadius: 12,
     justifyContent: 'flex-start',
   },
   tab: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
     marginHorizontal: 4,
-    minWidth: width < 768 ? 100 : 120,
-    minHeight: 48,
-    backgroundColor: '#f5f7fa',
+    minWidth: width < 768 ? 90 : 110,
+    minHeight: 44,
+    backgroundColor: '#FFFFFF',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   tabActive: {
     backgroundColor: '#04668D',
-    transform: [{ scale: 1.05 }],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    transform: [{ scale: 1.02 }],
   },
   tabText: {
     color: '#555555',
-    fontSize: width < 768 ? 14 : 16,
+    fontSize: width < 768 ? 14 : 15,
     fontWeight: '600',
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   tabTextActive: {
-    color: '#feffe9',
+    color: '#fff',
     fontWeight: '700',
   },
   subTabs: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
-    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    backgroundColor: '#f5f7fa',
     borderRadius: 12,
     padding: 8,
   },
@@ -1063,9 +950,20 @@ const styles = (width) => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 10,
     marginHorizontal: 4,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#FFFFFF',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   subTabActive: {
     backgroundColor: '#04668D',
@@ -1074,9 +972,10 @@ const styles = (width) => StyleSheet.create({
     color: '#555555',
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   subTabTextActive: {
-    color: '#feffe9',
+    color: '#fff',
     fontWeight: '700',
   },
   tabContent: {
@@ -1090,65 +989,86 @@ const styles = (width) => StyleSheet.create({
   },
   leftColumn: {
     flex: 1,
-    minWidth: 300,
+    minWidth: width < 768 ? 280 : 300,
   },
   rightColumn: {
     flex: 1,
-    minWidth: 300,
+    minWidth: width < 768 ? 280 : 300,
   },
   biometricSection: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: 16,
     padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   sectionHeader: {
-    marginBottom: 10,
+    marginBottom: 16,
   },
   sectionHeaderTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#04668D',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   sectionHeaderText: {
     fontSize: 14,
     color: '#FE6B6A',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   abnormalAlertBox: {
     backgroundColor: '#ffe6e6',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
   },
   abnormalAlertTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#E74C3C',
-    marginBottom: 5,
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   abnormalAlertText: {
     fontSize: 14,
     color: '#E74C3C',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   biometricCards: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: 15,
-    marginTop: 15,
+    columnGap: 16,
+    rowGap: 16,
   },
   biometricCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    columnGap: 10,
-    padding: 15,
-    backgroundColor: '#feffe9',
-    borderRadius: 8,
+    columnGap: 12,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     flex: 1,
-    minWidth: 200,
+    minWidth: width < 768 ? 160 : 200,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   biometricCardAbnormal: {
     borderColor: '#E74C3C',
@@ -1157,193 +1077,128 @@ const styles = (width) => StyleSheet.create({
   metricIcon: {
     justifyContent: 'center',
     alignItems: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f7fa',
   },
   placeholderIcon: {
     fontSize: 24,
   },
   metricInfo: {
     flexDirection: 'column',
+    flex: 1,
   },
   metricValue: {
     fontSize: 18,
     fontWeight: '700',
     color: '#04668D',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   metricLabel: {
     fontSize: 12,
     color: '#FE6B6A',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  headerSafeArea: {
+    backgroundColor: '#04668D',
+    zIndex: 1000,
   },
   header: {
     backgroundColor: '#04668D',
-    paddingHorizontal: 8,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#034f70',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 5,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    maxWidth: 1280,
+    width: '100%',
+    marginHorizontal: 'auto',
+  },
+  logo: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  menuToggle: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  menuBackdrop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
-    height: 70,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 999,
   },
-  headerContainer: {
-    maxWidth: 1280,
-    width: '100%',
-    marginHorizontal: 'auto',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
+  navMenu: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: width * 0.75,
     height: '100%',
+    backgroundColor: '#04668D',
     zIndex: 1001,
-  },
-  logo: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#feffe9',
-    textDecorationLine: 'none',
-  },
-  menuToggle: {
-    padding: 6,
-    zIndex: 1002,
+    paddingTop: 80,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10,
   },
   navLinks: {
-    position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
-    backgroundColor: '#04668D',
     flexDirection: 'column',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    zIndex: 1000,
-    minHeight: width < 768 ? 'auto' : 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
   navLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    marginVertical: 5,
-    width: '100%',
-    alignItems: 'center',
+    marginVertical: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'flex-start',
   },
   navLinkText: {
-    color: '#feffe9',
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  footer: {
-    backgroundColor: '#f5f7fa',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 30,
-    marginBottom: 20,
-  },
-  footerSection: {
-    flex: 1,
-    minWidth: 250,
-    alignItems: 'center',
-  },
-  footerSectionTitle: {
+    color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
-    color: '#222',
-    marginBottom: 15,
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  socialLinks: {
-    flexDirection: 'row',
-    gap: 15,
-  },
-  socialLink: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#6b9fff',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  newsletterForm: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 10,
-    maxWidth: 300,
-  },
-  newsletterInput: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    width: '100%',
-  },
-  newsletterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#6b9fff',
-    borderRadius: 12,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  footerCopyright: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
+    fontWeight: '500',
   },
   contactIcon: {
     position: 'absolute',
     bottom: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    backgroundColor: '#2e6da4',
-    borderRadius: 30,
+    right: 20,
+    width: 56,
+    height: 56,
+    backgroundColor: '#04668D',
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 15,
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 5,
+        elevation: 6,
       },
     }),
     zIndex: 2000,
-  },
-  contactIconText: {
-    fontSize: 24,
-    color: '#ffffff',
   },
 });
 

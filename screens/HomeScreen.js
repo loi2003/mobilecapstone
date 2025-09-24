@@ -21,7 +21,7 @@ import { chartData } from '../data/chartData';
 import { Ionicons } from '@expo/vector-icons';
 import ChatBox from './ChatBox';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Header Component
 export const Header = ({ navigation, user, setUser, handleLogout }) => {
@@ -69,25 +69,19 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
           >
             <Ionicons
               name={isMenuOpen ? 'close' : 'menu'}
-              size={24}
+              size={28}
               color="#fff"
             />
           </TouchableOpacity>
         </View>
-        {isMenuOpen && (
-          <TouchableOpacity
-            style={styles.menuBackdrop}
-            onPress={toggleMenu}
-            accessibilityLabel="Close menu"
-            accessibilityHint="Closes the navigation menu"
-          />
-        )}
-        <Animated.View
-          style={[
-            styles.navLinks,
-            { transform: [{ translateX: slideAnim }], display: isMenuOpen ? 'flex' : 'none' },
-          ]}
-        >
+      </View>
+      <Animated.View
+        style={[
+          styles.navMenu,
+          { transform: [{ translateX: slideAnim }] },
+        ]}
+      >
+        <View style={styles.navLinks}>
           {navLinks.map((link, index) => (
             <TouchableOpacity
               key={index}
@@ -112,8 +106,16 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
               <Text style={styles.navLinkText}>Log Out</Text>
             </TouchableOpacity>
           )}
-        </Animated.View>
-      </View>
+        </View>
+      </Animated.View>
+      {isMenuOpen && (
+        <TouchableOpacity
+          style={styles.menuBackdrop}
+          onPress={toggleMenu}
+          accessibilityLabel="Close menu"
+          accessibilityHint="Closes the navigation menu"
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -203,6 +205,7 @@ export const Footer = ({ navigation }) => {
   );
 };
 
+// HomeScreen Component
 const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -435,7 +438,7 @@ const HomeScreen = ({ navigation }) => {
                     accessibilityHint="Shows details for the selected pregnancy week"
                   >
                     <Animated.View
-                      style={[
+                       style={[
                         styles.timelineNode,
                         selectedWeek?.week === data.week && styles.selectedNode,
                         { transform: [{ scale: scaleAnims[index] }] },
@@ -643,46 +646,38 @@ const styles = StyleSheet.create({
   },
   headerSafeArea: {
     backgroundColor: '#04668D',
+    zIndex: 1000,
   },
   header: {
     backgroundColor: '#04668D',
-    paddingHorizontal: 8,
-    paddingVertical: 15,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-    zIndex: 1000,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#034f70',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   headerContainer: {
-    maxWidth: 1280,
-    width: '100%',
-    marginHorizontal: 'auto',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    height: 44,
+    maxWidth: 1280,
+    width: '100%',
+    marginHorizontal: 'auto',
   },
   logo: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
     color: '#fff',
-    textDecorationLine: 'none',
+    letterSpacing: 0.5,
   },
   menuToggle: {
-    padding: 10,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   menuBackdrop: {
     position: 'absolute',
@@ -690,46 +685,41 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    zIndex: 1001,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 999,
   },
-  navLinks: {
+  navMenu: {
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 0,
+    width: width * 0.75,
+    height: height,
     backgroundColor: '#04668D',
+    zIndex: 1001,
+    paddingTop: 80,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  navLinks: {
     flexDirection: 'column',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    zIndex: 1002,
-    height: Dimensions.get('window').height,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
   navLink: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    marginVertical: 5,
-    width: '90%',
-    alignItems: 'center',
+    marginVertical: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'flex-start',
   },
   navLinkText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
-    textAlign: 'center',
   },
   footerKeyboardAvoiding: {
     backgroundColor: '#f5f7fa',
@@ -812,7 +802,6 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     padding: 20,
-    paddingTop: 90,
     backgroundColor: '#e0f2f7',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',

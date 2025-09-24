@@ -11,82 +11,17 @@ import {
   ActivityIndicator,
   Animated,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { getAllBlogs, getAllLikedBlogs, getAllBookmarkedBlogs, deleteLike, deleteBookmark } from '../api/blog-api';
 import apiClient from '../api/url-api';
+import { Header } from './HomeScreen';
 
 const { width, height } = Dimensions.get('window');
-
-// Header Component (Copied from HomeScreen)
-const Header = ({ navigation, user, setUser, handleLogout }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-width)).current;
-
-  useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: isMenuOpen ? 0 : -width,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [isMenuOpen]);
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const navLinks = [
-    { name: 'About', route: 'About', title: 'About Us' },
-    { name: 'DueDate Calculator', route: 'DueDateCalculator', title: 'DueDate Calculator' },
-    { name: 'Pregnancy', route: 'PregnancyTracking', title: 'Pregnancy Tracking' },
-    { name: 'Nutrition', route: 'NutritionalGuidance', title: 'Nutritional Guidance' },
-    { name: 'Consultation', route: 'Consultation', title: 'Consultation' },
-    { name: 'Blog', route: 'Blog', title: 'Blog' },
-  ];
-
-  return (
-    <View style={styles.header}>
-      <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.logo}>NestlyCare</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuToggle}
-          onPress={toggleMenu}
-          accessibilityLabel="Toggle navigation"
-        >
-          <Ionicons
-            name={isMenuOpen ? 'close' : 'menu'}
-            size={24}
-            color="#feffe9"
-          />
-        </TouchableOpacity>
-        <Animated.View
-          style={[
-            styles.navLinks,
-            { transform: [{ translateX: slideAnim }], display: isMenuOpen ? 'flex' : 'none' },
-          ]}
-        >
-          {navLinks.map((link, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.navLink}
-              onPress={() => {
-                navigation.navigate(link.route);
-                setIsMenuOpen(false);
-              }}
-            >
-              <Text style={styles.navLinkText}>{link.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
-      </View>
-    </View>
-  );
-};
 
 const BlogScreen = ({ navigation }) => {
   const [blogs, setBlogs] = useState([]);
@@ -107,20 +42,17 @@ const BlogScreen = ({ navigation }) => {
   const postsPerPage = 10;
   const bottomSheetAnim = useRef(new Animated.Value(height)).current;
 
-  // Define placeholder images for blogs with no valid image
   const placeholderImages = [
     require('../assets/adaptive-icon.png'),
     require('../assets/due-date-calculator.svg'),
     require('../assets/find-a-health-service.svg'),
   ];
 
-  // Select a random placeholder image
   const getRandomPlaceholder = () => {
     const randomIndex = Math.floor(Math.random() * placeholderImages.length);
     return placeholderImages[randomIndex];
   };
 
-  // Validate and handle image URIs, returning placeholder if invalid
   const getValidImageSource = (uri) => {
     if (!uri || typeof uri !== 'string' || !uri.startsWith('http')) {
       return getRandomPlaceholder();
@@ -128,12 +60,10 @@ const BlogScreen = ({ navigation }) => {
     return { uri };
   };
 
-  // Generate author avatar URL
   const getAuthorImage = (authorName) => {
     return { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&size=100&background=2563EB&color=fff` };
   };
 
-  // Fetch blogs, likes, and bookmarks
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -191,11 +121,12 @@ const BlogScreen = ({ navigation }) => {
     fetchData();
   }, []);
 
-  // Animate bookmarks popup
   useEffect(() => {
-    Animated.timing(bottomSheetAnim, {
+    Animated.spring(bottomSheetAnim, {
       toValue: showBookmarkPopup ? 0 : height,
-      duration: 300,
+      stiffness: 100,
+      damping: 20,
+      mass: 1,
       useNativeDriver: true,
     }).start();
   }, [showBookmarkPopup]);
@@ -340,25 +271,47 @@ const BlogScreen = ({ navigation }) => {
     }
   };
 
-  const handleLogout = () => {};
+  const handleLogout = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        await AsyncStorage.removeItem('authToken');
+        navigation.replace('Login');
+        return;
+      }
+      await AsyncStorage.removeItem('authToken');
+      navigation.replace('Login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      await AsyncStorage.removeItem('authToken');
+      navigation.replace('Login');
+    }
+  };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
         <Text style={styles.loadingText}>Loading Blogs...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={fetchData}
+          accessibilityLabel="Retry loading blogs"
+          accessibilityHint="Attempts to reload the blog list"
+        >
+          <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Animatable.View>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -368,7 +321,6 @@ const BlogScreen = ({ navigation }) => {
   const currentPosts = filteredBlogs.slice(indexOfFirstPost, indexOfLastPost);
   const totalPages = Math.ceil(filteredBlogs.length / postsPerPage);
 
-  // Initialize uniqueBlogIds to prevent ReferenceError
   const uniqueBlogIds = new Set();
   const featuredPosts = [
     ...blogs
@@ -420,11 +372,16 @@ const BlogScreen = ({ navigation }) => {
   const bookmarkedBlogs = blogs.filter(blog => bookmarks.includes(String(blog.id)));
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
       <LinearGradient colors={['#F3F4F6', '#E5E7EB']} style={styles.blogContainer}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Search Bar */}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          bounces={true}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.searchContainer}>
             <Feather name="search" size={20} color="#6B7280" style={styles.searchIcon} />
             <TextInput
@@ -433,19 +390,31 @@ const BlogScreen = ({ navigation }) => {
               value={searchTerm}
               onChangeText={handleSearch}
               placeholderTextColor="#6B7280"
+              accessibilityLabel="Search blogs"
+              accessibilityHint="Enter text to search for blog posts"
+              returnKeyType="search"
+              autoCorrect={false}
             />
             {searchTerm ? (
-              <TouchableOpacity style={styles.clearButton} onPress={clearSearch}>
-                <Feather name="x" size={20} color="#6B7280" />
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={clearSearch}
+                accessibilityLabel="Clear search"
+                accessibilityHint="Clears the search input field"
+              >
+                <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+                  <Feather name="x" size={20} color="#6B7280" />
+                </Animatable.View>
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {/* Category Filters */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.categoryContainer}
+            contentInset={{ left: 8, right: 8 }}
+            bounces={true}
           >
             {categories.map((cat, index) => (
               <TouchableOpacity
@@ -455,20 +424,28 @@ const BlogScreen = ({ navigation }) => {
                   selectedCategory === cat && styles.categoryButtonActive,
                 ]}
                 onPress={() => handleCategoryFilter(cat)}
+                accessibilityLabel={`Filter by ${cat}`}
+                accessibilityHint={`Filters blog posts by ${cat} category`}
+                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.categoryButtonText,
-                    selectedCategory === cat && styles.categoryButtonTextActive,
-                  ]}
+                <Animatable.View
+                  animation={selectedCategory === cat ? 'pulse' : undefined}
+                  duration={100}
+                  useNativeDriver={true}
                 >
-                  {cat}
-                </Text>
+                  <Text
+                    style={[
+                      styles.categoryButtonText,
+                      selectedCategory === cat && styles.categoryButtonTextActive,
+                    ]}
+                  >
+                    {cat}
+                  </Text>
+                </Animatable.View>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* Sort Options */}
           <View style={styles.sortContainer}>
             {['newest', 'oldest', 'title', 'most-liked'].map(sort => (
               <TouchableOpacity
@@ -478,30 +455,47 @@ const BlogScreen = ({ navigation }) => {
                   sortOption === sort && styles.sortButtonActive,
                 ]}
                 onPress={() => handleSortChange(sort)}
+                accessibilityLabel={`Sort by ${sort}`}
+                accessibilityHint={`Sorts blog posts by ${sort.replace('-', ' ')}`}
+                activeOpacity={0.7}
               >
-                <Text
-                  style={[styles.sortButtonText, sortOption === sort ? styles.sortButtonTextActive : null].filter(Boolean)}
+                <Animatable.View
+                  animation={sortOption === sort ? 'pulse' : undefined}
+                  duration={100}
+                  useNativeDriver={true}
                 >
-                  {sort.charAt(0).toUpperCase() + sort.slice(1).replace('-', ' ')}
-                </Text>
+                  <Text
+                    style={[styles.sortButtonText, sortOption === sort && styles.sortButtonTextActive]}
+                  >
+                    {sort.charAt(0).toUpperCase() + sort.slice(1).replace('-', ' ')}
+                  </Text>
+                </Animatable.View>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Featured Posts */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Featured Posts</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentInset={{ left: 8, right: 8 }}
+              bounces={true}
+            >
               {featuredPosts.map((post, index) => (
                 <TouchableOpacity
                   key={`${post.id}-${post.type}`}
                   style={styles.featuredCard}
                   onPress={() => navigation.navigate('BlogPost', { blogId: post.id })}
+                  accessibilityLabel={`View ${post.title}`}
+                  accessibilityHint="Navigates to the selected blog post"
+                  activeOpacity={0.7}
                 >
                   <Animatable.View
                     animation="fadeInUp"
                     duration={500}
                     delay={index * 100}
+                    useNativeDriver={true}
                   >
                     <Image
                       source={getValidImageSource(post.image)}
@@ -522,7 +516,6 @@ const BlogScreen = ({ navigation }) => {
             </ScrollView>
           </View>
 
-          {/* Blog List */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>All Blogs</Text>
             {currentPosts.map(blog => (
@@ -530,8 +523,15 @@ const BlogScreen = ({ navigation }) => {
                 key={String(blog.id)}
                 style={styles.blogCard}
                 onPress={() => navigation.navigate('BlogPost', { blogId: blog.id })}
+                accessibilityLabel={`View ${blog.title || 'Untitled'} blog post`}
+                accessibilityHint="Navigates to the selected blog post"
+                activeOpacity={0.7}
               >
-                <Animatable.View animation="fadeInUp" duration={300}>
+                <Animatable.View
+                  animation="fadeInUp"
+                  duration={300}
+                  useNativeDriver={true}
+                >
                   <Image
                     source={getValidImageSource(blog.images?.[0]?.fileUrl)}
                     style={styles.blogImage}
@@ -558,23 +558,41 @@ const BlogScreen = ({ navigation }) => {
                       <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() => toggleLike(blog.id)}
+                        accessibilityLabel={likes.includes(String(blog.id)) ? 'Unlike post' : 'Like post'}
+                        accessibilityHint={likes.includes(String(blog.id)) ? 'Removes like from the post' : 'Likes the post'}
+                        activeOpacity={0.7}
                       >
-                        <Feather
-                          name="heart"
-                          size={20}
-                          color={likes.includes(String(blog.id)) ? '#EF4444' : '#6B7280'}
-                        />
-                        <Text style={styles.actionText}>{blog.likeCount || 0}</Text>
+                        <Animatable.View
+                          animation={likes.includes(String(blog.id)) ? 'pulse' : undefined}
+                          duration={100}
+                          useNativeDriver={true}
+                        >
+                          <Feather
+                            name="heart"
+                            size={20}
+                            color={likes.includes(String(blog.id)) ? '#EF4444' : '#6B7280'}
+                          />
+                          <Text style={styles.actionText}>{blog.likeCount || 0}</Text>
+                        </Animatable.View>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() => toggleBookmark(blog.id)}
+                        accessibilityLabel={bookmarks.includes(String(blog.id)) ? 'Remove bookmark' : 'Bookmark post'}
+                        accessibilityHint={bookmarks.includes(String(blog.id)) ? 'Removes the post from bookmarks' : 'Adds the post to bookmarks'}
+                        activeOpacity={0.7}
                       >
-                        <Feather
-                          name="bookmark"
-                          size={20}
-                          color={bookmarks.includes(String(blog.id)) ? '#2563EB' : '#6B7280'}
-                        />
+                        <Animatable.View
+                          animation={bookmarks.includes(String(blog.id)) ? 'pulse' : undefined}
+                          duration={100}
+                          useNativeDriver={true}
+                        >
+                          <Feather
+                            name="bookmark"
+                            size={20}
+                            color={bookmarks.includes(String(blog.id)) ? '#2563EB' : '#6B7280'}
+                          />
+                        </Animatable.View>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -583,36 +601,58 @@ const BlogScreen = ({ navigation }) => {
             ))}
           </View>
 
-          {/* Pagination */}
           <View style={styles.pagination}>
             <TouchableOpacity
               style={[styles.pageButton, currentPage === 1 && styles.pageButtonDisabled]}
               onPress={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
+              accessibilityLabel="Previous page"
+              accessibilityHint="Navigates to the previous page of blog posts"
+              activeOpacity={0.7}
             >
-              <Text style={[styles.pageButtonText, currentPage === 1 && styles.pageButtonTextDisabled]}>
-                Prev
-              </Text>
+              <Animatable.View animation={currentPage > 1 ? 'pulse' : undefined} duration={100} useNativeDriver={true}>
+                <Text style={[styles.pageButtonText, currentPage === 1 && styles.pageButtonTextDisabled]}>
+                  Prev
+                </Text>
+              </Animatable.View>
             </TouchableOpacity>
             <Text style={styles.pageInfo}>{currentPage} / {totalPages}</Text>
             <TouchableOpacity
               style={[styles.pageButton, currentPage === totalPages && styles.pageButtonDisabled]}
               onPress={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
               disabled={currentPage === totalPages}
+              accessibilityLabel="Next page"
+              accessibilityHint="Navigates to the next page of blog posts"
+              activeOpacity={0.7}
             >
-              <Text style={[styles.pageButtonText, currentPage === totalPages && styles.pageButtonTextDisabled]}>
-                Next
-              </Text>
+              <Animatable.View
+                animation={currentPage < totalPages ? 'pulse' : undefined}
+                duration={100}
+                useNativeDriver={true}
+              >
+                <Text style={[styles.pageButtonText, currentPage === totalPages && styles.pageButtonTextDisabled]}>
+                  Next
+                </Text>
+              </Animatable.View>
             </TouchableOpacity>
           </View>
 
-          {/* Top Authors */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Top Authors</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentInset={{ left: 8, right: 8 }}
+              bounces={true}
+            >
               {topAuthors.map((author, index) => (
                 <View key={`author-${author}-${index}`} style={styles.authorCard}>
-                  <Animatable.View animation="fadeInUp" duration={500} delay={index * 100}>
+                  <Animatable.View
+                    animation="fadeInUp"
+                    duration={500}
+                    delay={index * 100}
+                    useNativeDriver={true}
+                  >
                     <Image source={author.image} style={styles.authorImage} />
                     <Text style={styles.authorName} numberOfLines={1}>
                       {author.author}
@@ -626,7 +666,6 @@ const BlogScreen = ({ navigation }) => {
             </ScrollView>
           </View>
 
-          {/* Newsletter */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Newsletter</Text>
             <Text style={styles.sectionSubtitle}>
@@ -641,9 +680,21 @@ const BlogScreen = ({ navigation }) => {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 placeholderTextColor="#6B7280"
+                accessibilityLabel="Newsletter email input"
+                accessibilityHint="Enter your email to subscribe to the newsletter"
+                returnKeyType="done"
+                autoCorrect={false}
               />
-              <TouchableOpacity style={styles.newsletterButton} onPress={handleNewsletterSubmit}>
-                <Text style={styles.newsletterButtonText}>Subscribe</Text>
+              <TouchableOpacity
+                style={styles.newsletterButton}
+                onPress={handleNewsletterSubmit}
+                accessibilityLabel="Subscribe to newsletter"
+                accessibilityHint="Submits your email for newsletter updates"
+                activeOpacity={0.7}
+              >
+                <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+                  <Text style={styles.newsletterButtonText}>Subscribe</Text>
+                </Animatable.View>
               </TouchableOpacity>
             </View>
             {subscriptionStatus && (
@@ -659,9 +710,14 @@ const BlogScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* Bookmarks Popup (Bottom Sheet) */}
         {showBookmarkPopup && (
-          <View style={styles.bottomSheetOverlay}>
+          <TouchableOpacity
+            style={styles.bottomSheetOverlay}
+            onPress={() => setShowBookmarkPopup(false)}
+            accessibilityLabel="Close bookmarks"
+            accessibilityHint="Closes the bookmarks popup"
+            activeOpacity={1}
+          >
             <Animated.View
               style={[
                 styles.bottomSheet,
@@ -671,15 +727,13 @@ const BlogScreen = ({ navigation }) => {
               <View style={styles.bottomSheetHandle} />
               <View style={styles.bottomSheetHeader}>
                 <Text style={styles.bottomSheetTitle}>Your Bookmarks</Text>
-                <TouchableOpacity
-                  style={styles.bottomSheetCloseButton}
-                  onPress={() => setShowBookmarkPopup(false)}
-                  accessibilityLabel="Close bookmarks"
-                >
-                  <Ionicons name="close" size={24} color="#6b9fff" />
-                </TouchableOpacity>
               </View>
-              <ScrollView style={styles.bottomSheetContent}>
+              <ScrollView
+                style={styles.bottomSheetContent}
+                contentInsetAdjustmentBehavior="automatic"
+                bounces={true}
+                showsVerticalScrollIndicator={false}
+              >
                 {bookmarkedBlogs.length > 0 ? (
                   bookmarkedBlogs.map(blog => (
                     <TouchableOpacity
@@ -690,6 +744,8 @@ const BlogScreen = ({ navigation }) => {
                         navigation.navigate('BlogPost', { blogId: blog.id });
                       }}
                       accessibilityLabel={`View bookmarked post ${blog.title || 'Untitled'}`}
+                      accessibilityHint="Navigates to the selected bookmarked blog post"
+                      activeOpacity={0.7}
                     >
                       <Image
                         source={getValidImageSource(blog.images?.[0]?.fileUrl)}
@@ -710,9 +766,13 @@ const BlogScreen = ({ navigation }) => {
                           style={styles.bookmarkRemoveButton}
                           onPress={() => toggleBookmark(blog.id)}
                           accessibilityLabel={`Remove bookmark for ${blog.title || 'Untitled'}`}
+                          accessibilityHint="Removes the post from bookmarks"
+                          activeOpacity={0.7}
                         >
-                          <Feather name="bookmark" size={16} color="#ff6b6b" />
-                          <Text style={styles.bookmarkRemoveText}>Remove</Text>
+                          <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+                            <Feather name="bookmark" size={16} color="#ff6b6b" />
+                            <Text style={styles.bookmarkRemoveText}>Remove</Text>
+                          </Animatable.View>
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
@@ -722,13 +782,17 @@ const BlogScreen = ({ navigation }) => {
                 )}
               </ScrollView>
             </Animated.View>
-          </View>
+          </TouchableOpacity>
         )}
 
-        {/* Auth Popup */}
         {showAuthPopup && (
           <View style={styles.popup}>
-            <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
+            <Animatable.View
+              animation="fadeIn"
+              duration={300}
+              useNativeDriver={true}
+              style={styles.popupContent}
+            >
               <Text style={styles.popupTitle}>Please Log In</Text>
               <Text style={styles.popupText}>Log in to like or bookmark posts.</Text>
               <View style={styles.popupButtons}>
@@ -736,58 +800,73 @@ const BlogScreen = ({ navigation }) => {
                   style={styles.popupButton}
                   onPress={() => navigation.navigate('Login')}
                   accessibilityLabel="Sign in"
+                  accessibilityHint="Navigates to the login screen"
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.popupButtonText}>Sign In</Text>
+                  <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+                    <Text style={styles.popupButtonText}>Sign In</Text>
+                  </Animatable.View>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.popupButton}
                   onPress={() => navigation.navigate('Register')}
                   accessibilityLabel="Sign up"
+                  accessibilityHint="Navigates to the registration screen"
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.popupButtonText}>Sign Up</Text>
+                  <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+                    <Text style={styles.popupButtonText}>Sign Up</Text>
+                  </Animatable.View>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.popupButton, styles.popupCloseButton]}
                   onPress={() => setShowAuthPopup(false)}
                   accessibilityLabel="Close login prompt"
+                  accessibilityHint="Closes the login prompt popup"
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.popupButtonText}>Close</Text>
+                  <Animatable.View animation="pulse" duration={100} useNativeDriver={true}>
+                    <Text style={styles.popupButtonText}>Close</Text>
+                  </Animatable.View>
                 </TouchableOpacity>
               </View>
             </Animatable.View>
           </View>
         )}
 
-        {/* Bookmarks Button */}
         <Animatable.View
           style={styles.bookmarksFab}
           animation="pulse"
           iterationCount="infinite"
           iterationDelay={2000}
+          useNativeDriver={true}
         >
           <TouchableOpacity
-            onPress={() => setShowBookmarkPopup(true)}
-            accessibilityLabel="View bookmarks"
+            onPress={() => setShowBookmarkPopup(!showBookmarkPopup)}
+            accessibilityLabel={showBookmarkPopup ? "Close bookmarks" : "View bookmarks"}
+            accessibilityHint={showBookmarkPopup ? "Closes the bookmarks popup" : "Opens the bookmarks popup"}
+            activeOpacity={0.7}
           >
             <Feather name="bookmark" size={24} color="#fff" />
           </TouchableOpacity>
         </Animatable.View>
       </LinearGradient>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f7fa',
   },
   blogContainer: {
     flex: 1,
-    paddingTop: 70,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 80,
+    paddingTop: 80,
   },
   loadingContainer: {
     flex: 1,
@@ -1087,7 +1166,7 @@ const styles = StyleSheet.create({
   },
   popup: {
     position: 'absolute',
-    top: 70,
+    top: 0,
     left: 0,
     right: 0,
     bottom: 0,
@@ -1145,7 +1224,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     zIndex: 1000,
   },
   bottomSheet: {
@@ -1170,14 +1249,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
     borderRadius: 2.5,
     alignSelf: 'center',
-    marginVertical: 10,
+    marginVertical: 12,
   },
   bottomSheetHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
@@ -1186,12 +1265,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1F2937',
   },
-  bottomSheetCloseButton: {
-    padding: 12,
-  },
   bottomSheetContent: {
-    paddingHorizontal: 12,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   bottomSheetEmptyText: {
     fontSize: 14,
@@ -1204,7 +1280,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 10,
+    padding: 12,
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -1213,37 +1289,37 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   bookmarkImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    marginRight: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginRight: 12,
   },
   bookmarkInfo: {
     flex: 1,
     justifyContent: 'center',
   },
   bookmarkTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   bookmarkMeta: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B7280',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   bookmarkRemoveButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
   },
   bookmarkRemoveText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#ff6b6b',
     fontWeight: '600',
   },
@@ -1263,83 +1339,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
     zIndex: 1002,
-  },
-  header: {
-    backgroundColor: '#04668D',
-    paddingHorizontal: 8,
-    paddingVertical: 15,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1002,
-    height: 70,
-  },
-  headerContainer: {
-    maxWidth: 1280,
-    width: '100%',
-    marginHorizontal: 'auto',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    height: '100%',
-  },
-  logo: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#feffe9',
-    textDecorationLine: 'none',
-  },
-  menuToggle: {
-    padding: 6,
-  },
-  navLinks: {
-    position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
-    backgroundColor: '#04668D',
-    flexDirection: 'column',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    zIndex: 1003,
-    height: height - 70,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  navLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginVertical: 5,
-  },
-  navLinkText: {
-    color: '#feffe9',
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
   },
 });
 
