@@ -19,7 +19,6 @@ const JournalEntryDetail = () => {
     navigation.navigate('PregnancyTracking', {
       growthDataId,
       journalinfo: 'true',
-      weeklyinfo: 'true',
     });
     return null;
   }

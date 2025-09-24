@@ -9,7 +9,6 @@ export const viewAllAllergies = async (token) => {
         Accept: "text/plain",
       },
     });
-    console.log("Get all allergies response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -32,10 +31,7 @@ export const viewAllergyById = async (allergyId) => {
       },
     }
     );
-    console.log(
-      "View allergy by id response:",
-      response.data
-    );
+   
     return response;
   } catch (error) {
     console.error(

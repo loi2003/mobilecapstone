@@ -640,8 +640,7 @@ const JournalEntryForm = ({ onError }) => {
             onPress={() =>
               navigation.navigate("PregnancyTracking", {
                 growthDataId,
-                journalinfo: undefined,
-                weeklyinfo: 'true',
+                journalinfo: 'true',
               })
             }
             accessibilityLabel="Back to pregnancy tracking"

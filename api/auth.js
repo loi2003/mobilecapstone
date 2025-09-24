@@ -139,9 +139,7 @@ export const editUserProfile = async (profileData, token) => {
     formData.append('PhoneNumber', profileData.PhoneNumber);
     formData.append('DateOfBirth', profileData.DateOfBirth);
 
-    console.log('FormData contents:');
     for (let [key, value] of formData.entries()) {
-      console.log(key, value);
     }
 
     const response = await apiClient.put(

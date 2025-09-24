@@ -12,15 +12,19 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { viewMenuSuggestionByTrimester } from '../../api/meal-api';
+import { Ionicons } from '@expo/vector-icons';
 
 const SystemMealPlanner = () => {
   const { width } = useWindowDimensions();
-  const [week, setWeek] = useState('Week 1');
+  const [week, setWeek] = useState(1);
+  const [showWeekPicker, setShowWeekPicker] = useState(false);
   const [day, setDay] = useState('');
+  const [showDayPicker, setShowDayPicker] = useState(false);
   const [preferredFoods, setPreferredFoods] = useState('');
   const [error, setError] = useState('');
   const [mode, setMode] = useState('day');
@@ -108,7 +112,7 @@ const SystemMealPlanner = () => {
     setLoading(true);
 
     try {
-      const weekNumber = parseInt(week.replace('Week ', ''), 10);
+      const weekNumber = week;
       const res = await viewMenuSuggestionByTrimester({ stage: weekNumber });
       const data = res?.data;
 
@@ -251,18 +255,53 @@ const SystemMealPlanner = () => {
         </View>
         <View style={styles(width).mealplannerForm}>
           <Text style={styles(width).label}>Gestational Week</Text>
-          <View style={styles(width).pickerContainer}>
-            <Picker
-              selectedValue={week}
-              onValueChange={(value) => setWeek(value)}
-              style={styles(width).mealplannerSelect}
-              accessibilityLabel="Select gestational week"
+          <TouchableOpacity
+            style={[styles(width).input, week && styles(width).inputSelected]}
+            onPress={() => setShowWeekPicker(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles(width).inputText, week && styles(width).inputTextSelected]}>
+              {week ? `Week ${week}` : 'Select Week'}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color={week ? '#02808f' : '#666'} />
+          </TouchableOpacity>
+          {showWeekPicker && (
+            <Modal
+              visible={showWeekPicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowWeekPicker(false)}
             >
-              {Array.from({ length: 40 }, (_, i) => (
-                <Picker.Item key={i} label={`Week ${i + 1}`} value={`Week ${i + 1}`} />
-              ))}
-            </Picker>
-          </View>
+              <View style={styles(width).modalOverlay}>
+                <View style={styles(width).pickerModal}>
+                  <ScrollView style={styles(width).pickerScroll}>
+                    <Picker
+                      selectedValue={week}
+                      onValueChange={(value) => {
+                        setWeek(Number(value));
+                        setShowWeekPicker(Platform.OS !== 'ios');
+                      }}
+                      style={styles(width).picker}
+                      itemStyle={styles(width).pickerItem}
+                    >
+                      <Picker.Item label="Select Week" value="" />
+                      {Array.from({ length: 40 }, (_, i) => (
+                        <Picker.Item key={i + 1} label={`Week ${i + 1}`} value={i + 1} />
+                      ))}
+                    </Picker>
+                  </ScrollView>
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity
+                      style={styles(width).pickerDoneButton}
+                      onPress={() => setShowWeekPicker(false)}
+                    >
+                      <Text style={styles(width).pickerDoneText}>Done</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </Modal>
+          )}
 
           <View style={styles(width).modeToggle}>
             <TouchableOpacity
@@ -292,25 +331,57 @@ const SystemMealPlanner = () => {
           {mode === 'day' && (
             <View style={styles(width).dayPicker}>
               <Text style={styles(width).label}>Select Day</Text>
-              <View style={styles(width).pickerContainer}>
-                <Picker
-                  selectedValue={day}
-                  onValueChange={(value) => setDay(value)}
-                  style={styles(width).mealplannerSelect}
-                  accessibilityLabel="Select day"
+              <TouchableOpacity
+                style={[styles(width).input, day && styles(width).inputSelected]}
+                onPress={() => setShowDayPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles(width).inputText, day && styles(width).inputTextSelected]}>
+                  {day ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(day) - 1] : 'Select Day'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={day ? '#02808f' : '#666'} />
+              </TouchableOpacity>
+              {showDayPicker && (
+                <Modal
+                  visible={showDayPicker}
+                  transparent
+                  animationType="slide"
+                  onRequestClose={() => setShowDayPicker(false)}
                 >
-                  <Picker.Item label="-- Choose a Day --" value="" />
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
-                    (dayName, i) => (
-                      <Picker.Item key={i + 1} label={dayName} value={`${i + 1}`} />
-                    )
-                  )}
-                </Picker>
-              </View>
+                  <View style={styles(width).modalOverlay}>
+                    <View style={styles(width).pickerModal}>
+                      <ScrollView style={styles(width).pickerScroll}>
+                        <Picker
+                          selectedValue={day}
+                          onValueChange={(value) => {
+                            setDay(value);
+                            setShowDayPicker(Platform.OS !== 'ios');
+                          }}
+                          style={styles(width).picker}
+                          itemStyle={styles(width).pickerItem}
+                        >
+                          <Picker.Item label="Select Day" value="" />
+                          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
+                            (dayName, i) => (
+                              <Picker.Item key={i + 1} label={dayName} value={`${i + 1}`} />
+                            )
+                          )}
+                        </Picker>
+                      </ScrollView>
+                      {Platform.OS === 'ios' && (
+                        <TouchableOpacity
+                          style={styles(width).pickerDoneButton}
+                          onPress={() => setShowDayPicker(false)}
+                        >
+                          <Text style={styles(width).pickerDoneText}>Done</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                </Modal>
+              )}
             </View>
           )}
-
-         
 
           <View style={styles(width).mealplannerBtnWrapper}>
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
@@ -337,7 +408,7 @@ const SystemMealPlanner = () => {
         {generatedPlan && mode === 'day' && Array.isArray(generatedPlan) && generatedPlan.length > 0 && (
           <View style={styles(width).mealplannerOutput}>
             <Text style={styles(width).outputTitle}>
-              Meals for {week}{day && ` - ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(day) - 1]}`}
+              Meals for Week {week}{day && ` - ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(day) - 1]}`}
               {'\n'}
               <Text style={styles(width).totalCalories}>
                 Total Calories: <Text style={styles(width).bold}>
@@ -560,6 +631,7 @@ const styles = (width) => StyleSheet.create({
     fontWeight: '700',
     color: '#013f50',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   headingText: {
     fontSize: width < 768 ? 16 : 18,
@@ -567,6 +639,7 @@ const styles = (width) => StyleSheet.create({
     color: '#4a606a',
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   mealplannerForm: {
     backgroundColor: '#ffffff',
@@ -585,29 +658,88 @@ const styles = (width) => StyleSheet.create({
     fontWeight: '600',
     fontSize: width < 768 ? 16 : 18,
     color: '#013f50',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
-  mealplannerInput: {
-    width: '100%',
+  input: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#d1d9dd',
+    borderColor: '#D1D5DB',
     borderRadius: 12,
-    padding: 14,
-    backgroundColor: '#f9fafb',
-    fontSize: width < 768 ? 16 : 18,
-    fontWeight: '400',
+    padding: width < 768 ? 12 : 14,
+    backgroundColor: '#F9FAFB',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  pickerContainer: {
+  inputSelected: {
+    borderColor: '#02808f',
+    backgroundColor: '#e6f0f5',
+  },
+  inputText: {
+    fontSize: width < 768 ? 14 : 16,
+    color: '#999',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  inputTextSelected: {
+    color: '#013f50',
+    fontWeight: '600',
+  },
+  pickerModal: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     borderWidth: 1,
-    borderColor: '#d1d9dd',
-    borderRadius: 12,
-    backgroundColor: '#f9fafb',
-    overflow: 'hidden',
-  },
-  mealplannerSelect: {
+    borderColor: '#02808f',
+    padding: 20,
     width: '100%',
-    padding: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  pickerScroll: {
+    maxHeight: width < 768 ? 200 : 250,
+    width: '100%',
+  },
+  picker: {
+    width: '100%',
     fontSize: width < 768 ? 16 : 18,
-    color: '#1a2a33',
+    color: '#013f50',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    backgroundColor: '#f9fafb',
+  },
+  pickerItem: {
+    fontSize: width < 768 ? 16 : 18,
+    color: '#013f50',
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    backgroundColor: '#ffffff',
+    paddingVertical: 8,
+  },
+  pickerDoneButton: {
+    padding: 12,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#D1D5DB',
+    backgroundColor: '#ffffff',
+  },
+  pickerDoneText: {
+    fontSize: width < 768 ? 16 : 18,
+    color: '#02808f',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   modeToggle: {
     flexDirection: 'row',
@@ -633,6 +765,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
     color: '#1a2a33',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   modeTextActive: {
     color: '#02808f',
@@ -662,6 +795,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
     color: '#fff',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   mealplannerDetailBtn: {
     paddingVertical: 12,
@@ -678,6 +812,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
     color: '#fff',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   errorTextWrapper: {
     backgroundColor: '#fee2e2',
@@ -690,6 +825,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 14 : 16,
     fontWeight: '500',
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   mealplannerOutput: {
     marginHorizontal: width < 768 ? 12 : 20,
@@ -701,11 +837,13 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 24 : 30,
     fontWeight: '700',
     marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   totalCalories: {
     fontSize: width < 768 ? 16 : 18,
     fontWeight: '500',
     color: '#4a606a',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   bold: {
     fontWeight: '700',
@@ -731,6 +869,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 18 : 20,
     fontWeight: '700',
     color: '#013f50',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   mealDishes: {
     padding: 16,
@@ -766,11 +905,13 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 18 : 20,
     color: '#013f50',
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   dishCalories: {
     fontSize: width < 768 ? 16 : 18,
     color: '#4a606a',
     fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   weekDayCard: {
     backgroundColor: '#ffffff',
@@ -793,6 +934,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 20 : 22,
     fontWeight: '700',
     color: '#013f50',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   weekMealGrid: {
     flexDirection: 'row',
@@ -830,6 +972,7 @@ const styles = (width) => StyleSheet.create({
     color: '#013f50',
     marginBottom: 12,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   mealplannerDetailWrapper: {
     flexDirection: 'column',
@@ -874,6 +1017,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 22 : 28,
     fontWeight: '700',
     marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   modalScroll: {
     maxHeight: width < 768 ? 300 : 400,
@@ -898,6 +1042,7 @@ const styles = (width) => StyleSheet.create({
     fontSize: width < 768 ? 16 : 18,
     fontWeight: '600',
     color: '#fff',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });
 
