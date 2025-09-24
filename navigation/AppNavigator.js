@@ -27,6 +27,7 @@ import FoodWarning from '../screens/pregnacytracker/FoodWarning';
 import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner';
 import CustomMealPlanner from '../screens/pregnacytracker/CustomMealPlanner';
 import ClinicDetailScreen from '../screens/ClinicDetailScreen';
+import ImagePreview from '../screens/pregnacytracker/ImagePreview';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
@@ -51,6 +52,7 @@ const HomeStack = () => {
       <Stack.Screen name="SystemMealPlanner" component={SystemMealPlanner} />
       <Stack.Screen name="CustomMealPlanner" component={CustomMealPlanner} />
       <Stack.Screen name="ClinicDetail" component={ClinicDetailScreen} />
+      <Stack.Screen name="ImagePreview" component={ImagePreview} />
 
     </Stack.Navigator>
   );

@@ -61,11 +61,40 @@ const PregnancyTrackingPage = () => {
 
   // Handle route params to set active tab
   useEffect(() => {
-    const { journalinfo } = route.params || {};
-    if (journalinfo === 'true') {
-      setActiveTab('journal');
+    const { journalinfo, weeklyinfo, reminderconsultationinfo, nutritionalguidance, mealplanner } = route.params || {};
+    const tabParams = {
+      journalinfo: 'journal',
+      weeklyinfo: 'weekly',
+      reminderconsultationinfo: 'reminderconsultation',
+      nutritionalguidance: 'nutritional-guidance',
+      mealplanner: 'mealplanner',
+    };
+
+    const activeTabKey = Object.keys(tabParams).find(
+      (key) => route.params?.[key] === 'true'
+    );
+
+    if (activeTabKey) {
+      setActiveTab(tabParams[activeTabKey]);
     }
   }, [route.params]);
+
+  // Reset params on focus to ensure clean state
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      navigation.setParams({
+        journalinfo: undefined,
+        weeklyinfo: 'true',
+        reminderconsultationinfo: undefined,
+        'nutritional-guidance': undefined,
+        mealplanner: undefined,
+        growthDataId: pregnancyData?.id,
+      });
+      setActiveTab('weekly');
+    });
+
+    return unsubscribe;
+  }, [navigation, pregnancyData?.id]);
 
   // Fade animation for content transitions
   useEffect(() => {
@@ -409,7 +438,7 @@ const PregnancyTrackingPage = () => {
     { key: 'weekly', label: 'Weekly', queryKey: 'weeklyinfo' },
     { key: 'reminderconsultation', label: 'Reminders', queryKey: 'reminderconsultationinfo' },
     { key: 'journal', label: 'Journal', queryKey: 'journalinfo' },
-    { key: 'nutritional-guidance', label: 'Nutrition', queryKey: 'nutritional-guidance' },
+    { key: 'nutritional-guidance', label: 'Nutrition', queryKey: 'nutritionalguidance' },
     { key: 'mealplanner', label: 'Meals', queryKey: 'mealplanner' },
   ];
 
@@ -508,8 +537,16 @@ const PregnancyTrackingPage = () => {
                   <TouchableOpacity
                     style={[styles(width).tab, activeTab === tab.key ? styles(width).tabActive : {}]}
                     onPress={() => {
+                      const resetParams = tabs.reduce((acc, t) => {
+                        acc[t.queryKey] = undefined;
+                        return acc;
+                      }, {});
+                      navigation.setParams({
+                        ...resetParams,
+                        [tab.queryKey]: 'true',
+                        growthDataId: pregnancyData?.id,
+                      });
                       setActiveTab(tab.key);
-                      navigation.setParams({ [tab.queryKey]: 'true', growthDataId: pregnancyData?.id });
                     }}
                     accessibilityLabel={`Switch to ${tab.label} tab`}
                   >
@@ -519,6 +556,7 @@ const PregnancyTrackingPage = () => {
                   </TouchableOpacity>
                 )}
                 keyExtractor={(item) => item.key}
+                key={`tabs-${activeTab}`}
               />
               {activeTab === 'nutritional-guidance' && (
                 <View style={styles(width).subTabs}>
@@ -529,7 +567,7 @@ const PregnancyTrackingPage = () => {
                       onPress={() => {
                         setNutritionSubTab(subTab.key);
                         navigation.setParams({
-                          'nutritional-guidance': subTab.key,
+                          'nutritionalguidance': subTab.key,
                           growthDataId: pregnancyData?.id,
                         });
                       }}
