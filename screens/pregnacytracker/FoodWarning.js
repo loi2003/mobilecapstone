@@ -10,6 +10,9 @@ import {
   useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { viewWarningFoods, getAllAllergies, getAllDiseases } from '../../api/nutriet-api';
@@ -27,12 +30,12 @@ const FoodWarning = () => {
   const [diseaseInput, setDiseaseInput] = useState('');
   const [selectedAllergies, setSelectedAllergies] = useState([]);
   const [selectedDiseases, setSelectedDiseases] = useState([]);
-  const [showAllergyList, setShowAllergyList] = useState(false);
-  const [showDiseaseList, setShowDiseaseList] = useState(false);
+  const [showAllergyModal, setShowAllergyModal] = useState(false);
+  const [showDiseaseModal, setShowDiseaseModal] = useState(false);
   const allergyInputRef = useRef(null);
   const diseaseInputRef = useRef(null);
   const isSubmitting = useRef(false);
-  const submitTimeout = useRef(null); // Timeout for debouncing
+  const submitTimeout = useRef(null);
 
   // Fetch token and dropdown options
   useEffect(() => {
@@ -70,11 +73,9 @@ const FoodWarning = () => {
     fetchTokenAndOptions();
   }, []);
 
-  // Handle submit with enhanced debouncing
+  // Handle submit with debouncing
   const handleSubmit = useCallback(async () => {
-    if (isSubmitting.current || loading) {
-      return;
-    }
+    if (isSubmitting.current || loading) return;
 
     if (!token) {
       setError('Please log in to access food warnings.');
@@ -95,13 +96,9 @@ const FoodWarning = () => {
     setLoading(true);
     isSubmitting.current = true;
 
-    // Clear any existing timeout
-    if (submitTimeout.current) {
-      clearTimeout(submitTimeout.current);
-    }
+    if (submitTimeout.current) clearTimeout(submitTimeout.current);
 
     try {
-      // Add a small delay to ensure no rapid successive calls
       await new Promise((resolve) => {
         submitTimeout.current = setTimeout(resolve, 500);
       });
@@ -113,9 +110,7 @@ const FoodWarning = () => {
         ? response.data
         : response.data?.data || [];
 
-      if (foodData.length > 0) {
-        setFoods(foodData);
-      }
+      if (foodData.length > 0) setFoods(foodData);
     } catch (err) {
       setError('Unable to fetch food warnings. Please try again.');
     } finally {
@@ -131,7 +126,7 @@ const FoodWarning = () => {
       setSelectedAllergies([...selectedAllergies, allergy]);
     }
     setAllergyInput('');
-    setShowAllergyList(false);
+    setShowAllergyModal(false);
   };
 
   const handleSelectDisease = (disease) => {
@@ -139,7 +134,7 @@ const FoodWarning = () => {
       setSelectedDiseases([...selectedDiseases, disease]);
     }
     setDiseaseInput('');
-    setShowDiseaseList(false);
+    setShowDiseaseModal(false);
   };
 
   const handleRemoveAllergy = (id) => {
@@ -153,21 +148,21 @@ const FoodWarning = () => {
   // Render dropdown items
   const renderAllergyItem = ({ item }) => (
     <TouchableOpacity
-      style={styles(width).autocompleteItem}
+      style={styles(width).modalItem}
       onPress={() => handleSelectAllergy(item)}
       activeOpacity={0.7}
     >
-      <Text style={styles(width).autocompleteText}>{item.name}</Text>
+      <Text style={styles(width).modalItemText}>{item.name}</Text>
     </TouchableOpacity>
   );
 
   const renderDiseaseItem = ({ item }) => (
     <TouchableOpacity
-      style={styles(width).autocompleteItem}
+      style={styles(width).modalItem}
       onPress={() => handleSelectDisease(item)}
       activeOpacity={0.7}
     >
-      <Text style={styles(width).autocompleteText}>{item.name}</Text>
+      <Text style={styles(width).modalItemText}>{item.name}</Text>
     </TouchableOpacity>
   );
 
@@ -179,7 +174,7 @@ const FoodWarning = () => {
         onPress={() => (type === 'allergy' ? handleRemoveAllergy(item.id) : handleRemoveDisease(item.id))}
         activeOpacity={0.7}
       >
-        <Ionicons name="close" size={width < 768 ? 16 : 18} color="#02808F" />
+        <Ionicons name="close" size={width < 768 ? 18 : 20} color="#02808F" />
       </TouchableOpacity>
     </View>
   );
@@ -232,160 +227,187 @@ const FoodWarning = () => {
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
-    >
-      <FlatList
-        data={[
-          { id: 'header', type: 'header' },
-          ...(loading ? [{ id: 'loading', type: 'loading' }] : []),
-          ...foods.map((food, index) => ({ ...food, id: `${food.id || index}-${food.name}`, type: 'food' })),
-        ]}
-        renderItem={({ item }) => {
-          if (item.type === 'header') {
-            return (
-              <View style={styles(width).form}>
-                <View style={styles(width).header}>
-                  <Text style={styles(width).headerTitle}>
-                    Food Warnings
-                    <Text style={styles(width).headerSubtitle}>
-                      {'\n'}Find foods unsafe for your conditions
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7FBFC' }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <FlatList
+          data={[
+            { id: 'header', type: 'header' },
+            ...(loading ? [{ id: 'loading', type: 'loading' }] : []),
+            ...foods.map((food, index) => ({ ...food, id: `${food.id || index}-${food.name}`, type: 'food' })),
+          ]}
+          renderItem={({ item }) => {
+            if (item.type === 'header') {
+              return (
+                <View style={styles(width).form}>
+                  <View style={styles(width).header}>
+                    <Text style={styles(width).headerTitle}>
+                      Food Warnings
+                      <Text style={styles(width).headerSubtitle}>
+                        {'\n'}Find foods unsafe for your conditions
+                      </Text>
                     </Text>
-                  </Text>
-                </View>
+                  </View>
 
-                {/* Allergies */}
-                <Text style={styles(width).label}>Allergies</Text>
-                <View style={styles(width).autocompleteWrapper}>
-                  <TextInput
-                    ref={allergyInputRef}
+                  {/* Allergies */}
+                  <Text style={styles(width).label}>Allergies</Text>
+                  <TouchableOpacity
                     style={styles(width).input}
-                    value={allergyInput}
-                    onChangeText={(text) => {
-                      setAllergyInput(text);
-                      setShowAllergyList(true);
-                    }}
-                    placeholder="Optional - Type allergy name (e.g., Peanuts)"
-                    placeholderTextColor="#888"
-                    onFocus={() => setShowAllergyList(true)}
+                    onPress={() => setShowAllergyModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={allergyInput ? styles(width).inputText : styles(width).placeholderText}>
+                      {allergyInput || 'Tap to select allergies (e.g., Peanuts)'}
+                    </Text>
+                  </TouchableOpacity>
+                  <FlatList
+                    data={selectedAllergies}
+                    renderItem={({ item }) => renderTag({ item, type: 'allergy' })}
+                    keyExtractor={(item) => item.id.toString()}
+                    horizontal
+                    style={styles(width).tags}
+                    showsHorizontalScrollIndicator={false}
+                    ListEmptyComponent={<View />}
                   />
-                  {showAllergyList && allergyInput.trim() && (
-                    <View style={[styles(width).autocompleteList, { zIndex: 10000 }]}>
-                      <FlatList
-                        data={allergyOptions.filter((a) =>
-                          a.name?.toLowerCase().includes(allergyInput.trim().toLowerCase())
-                        )}
-                        renderItem={renderAllergyItem}
-                        keyExtractor={(item) => item.id.toString()}
-                        ListEmptyComponent={
-                          <Text style={styles(width).autocompleteText}>No allergies found</Text>
-                        }
-                        style={{ maxHeight: 200 }}
-                      />
-                    </View>
+
+                  {/* Diseases */}
+                  <Text style={styles(width).label}>Diseases</Text>
+                  <TouchableOpacity
+                    style={styles(width).input}
+                    onPress={() => setShowDiseaseModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={diseaseInput ? styles(width).inputText : styles(width).placeholderText}>
+                      {diseaseInput || 'Tap to select diseases (e.g., Diabetes)'}
+                    </Text>
+                  </TouchableOpacity>
+                  <FlatList
+                    data={selectedDiseases}
+                    renderItem={({ item }) => renderTag({ item, type: 'disease' })}
+                    keyExtractor={(item) => item.id.toString()}
+                    horizontal
+                    style={styles(width).tags}
+                    showsHorizontalScrollIndicator={false}
+                    ListEmptyComponent={<View />}
+                  />
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={[styles(width).button, loading && styles(width).buttonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={loading}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles(width).buttonText}>
+                      {loading ? 'Loading...' : 'View Food Warnings'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {error && <Text style={styles(width).error}>{error}</Text>}
+                  {!loading && foods.length === 0 && !error && (
+                    <Text style={styles(width).noResults}>
+                      No foods found for your selected conditions.
+                    </Text>
                   )}
                 </View>
-                <FlatList
-                  data={selectedAllergies}
-                  renderItem={({ item }) => renderTag({ item, type: 'allergy' })}
-                  keyExtractor={(item) => item.id.toString()}
-                  horizontal
-                  style={styles(width).tags}
-                  showsHorizontalScrollIndicator={false}
-                  ListEmptyComponent={
-                    <Text style={styles(width).noResults}></Text>
-                  }
-                />
+              );
+            }
+            if (item.type === 'loading') {
+              return <Text style={styles(width).noResults}>Loading...</Text>;
+            }
+            return renderFoodCard({ item });
+          }}
+          keyExtractor={(item) => item.id}
+          numColumns={1}
+          contentContainerStyle={styles(width).container}
+          showsVerticalScrollIndicator={false}
+        />
 
-                {/* Diseases */}
-                <Text style={styles(width).label}>Diseases</Text>
-                <View style={styles(width).autocompleteWrapper}>
-                  <TextInput
-                    ref={diseaseInputRef}
-                    style={styles(width).input}
-                    value={diseaseInput}
-                    onChangeText={(text) => {
-                      setDiseaseInput(text);
-                      setShowDiseaseList(true);
-                    }}
-                    placeholder="Optional - Type disease name (e.g., Diabetes)"
-                    placeholderTextColor="#888"
-                    onFocus={() => setShowDiseaseList(true)}
-                  />
-                  {showDiseaseList && diseaseInput.trim() && (
-                    <View style={[styles(width).autocompleteList, { zIndex: 10000 }]}>
-                      <FlatList
-                        data={diseaseOptions.filter((d) =>
-                          d.name?.toLowerCase().includes(diseaseInput.trim().toLowerCase())
-                        )}
-                        renderItem={renderDiseaseItem}
-                        keyExtractor={(item) => item.id.toString()}
-                        ListEmptyComponent={
-                          <Text style={styles(width).autocompleteText}>No diseases found</Text>
-                        }
-                        style={{ maxHeight: 200 }}
-                      />
-                    </View>
-                  )}
-                </View>
-                <FlatList
-                  data={selectedDiseases}
-                  renderItem={({ item }) => renderTag({ item, type: 'disease' })}
-                  keyExtractor={(item) => item.id.toString()}
-                  horizontal
-                  style={styles(width).tags}
-                  showsHorizontalScrollIndicator={false}
-                  ListEmptyComponent={
-                    <Text style={styles(width).noResults}></Text>
-                  }
-                />
+        {/* Allergy Modal */}
+        <Modal
+          visible={showAllergyModal}
+          animationType="slide"
+          onRequestClose={() => setShowAllergyModal(false)}
+        >
+          <SafeAreaView style={styles(width).modalContainer}>
+            <View style={styles(width).modalHeader}>
+              <Text style={styles(width).modalTitle}>Select Allergies</Text>
+              <TouchableOpacity onPress={() => setShowAllergyModal(false)}>
+                <Ionicons name="close" size={24} color="#02808F" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles(width).modalInput}
+              value={allergyInput}
+              onChangeText={setAllergyInput}
+              placeholder="Search allergies"
+              placeholderTextColor="#888"
+              autoFocus
+            />
+            <FlatList
+              data={allergyOptions.filter((a) =>
+                a.name?.toLowerCase().includes(allergyInput.trim().toLowerCase())
+              )}
+              renderItem={renderAllergyItem}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <Text style={styles(width).modalItemText}>No allergies found</Text>
+              }
+              contentContainerStyle={styles(width).modalList}
+            />
+          </SafeAreaView>
+        </Modal>
 
-                {/* Submit Button */}
-                <TouchableOpacity
-                  style={[styles(width).button, loading && styles(width).buttonDisabled]}
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles(width).buttonText}>
-                    {loading ? 'Loading...' : 'View Food Warnings'}
-                  </Text>
-                </TouchableOpacity>
-
-                {error && <Text style={styles(width).error}>{error}</Text>}
-                {!loading && foods.length === 0 && !error && (
-                  <Text style={styles(width).noResults}>
-                    No foods found for your selected conditions.
-                  </Text>
-                )}
-              </View>
-            );
-          }
-          if (item.type === 'loading') {
-            return <Text style={styles(width).noResults}>Loading...</Text>;
-          }
-          return renderFoodCard({ item });
-        }}
-        keyExtractor={(item) => item.id}
-        numColumns={width < 768 ? 1 : 2}
-        columnWrapperStyle={width >= 768 ? styles(width).gridRow : null}
-        contentContainerStyle={styles(width).container}
-        showsVerticalScrollIndicator={false}
-      />
-    </KeyboardAvoidingView>
+        {/* Disease Modal */}
+        <Modal
+          visible={showDiseaseModal}
+          animationType="slide"
+          onRequestClose={() => setShowDiseaseModal(false)}
+        >
+          <SafeAreaView style={styles(width).modalContainer}>
+            <View style={styles(width).modalHeader}>
+              <Text style={styles(width).modalTitle}>Select Diseases</Text>
+              <TouchableOpacity onPress={() => setShowDiseaseModal(false)}>
+                <Ionicons name="close" size={24} color="#02808F" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles(width).modalInput}
+              value={diseaseInput}
+              onChangeText={setDiseaseInput}
+              placeholder="Search diseases"
+              placeholderTextColor="#888"
+              autoFocus
+            />
+            <FlatList
+              data={diseaseOptions.filter((d) =>
+                d.name?.toLowerCase().includes(diseaseInput.trim().toLowerCase())
+              )}
+              renderItem={renderDiseaseItem}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <Text style={styles(width).modalItemText}>No diseases found</Text>
+              }
+              contentContainerStyle={styles(width).modalList}
+            />
+          </SafeAreaView>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = (width) => StyleSheet.create({
   container: {
-    padding: width < 768 ? 16 : 20,
+    padding: 16,
     backgroundColor: '#F7FBFC',
     minHeight: '100%',
   },
   header: {
     alignItems: 'center',
-    marginVertical: width < 768 ? 12 : 16,
+    marginVertical: 12,
   },
   headerTitle: {
     fontSize: width < 768 ? 32 : 45,
@@ -403,61 +425,40 @@ const styles = (width) => StyleSheet.create({
     textAlign: 'center',
   },
   form: {
-    maxWidth: 800,
-    marginHorizontal: 'auto',
     backgroundColor: '#FFFFFF',
-    padding: width < 768 ? 24 : 32,
+    padding: 20,
     borderRadius: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 3,
-    marginBottom: 16,
   },
   label: {
-    fontSize: width < 768 ? 16 : 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#04668D',
-    marginTop: 24,
-    marginBottom: 12,
+    marginBottom: 8,
+    marginTop: 16,
   },
   input: {
     borderWidth: 1,
     borderColor: '#DBDBDB',
     borderRadius: 10,
-    padding: width < 768 ? 12 : 16,
+    padding: 12,
     backgroundColor: '#F9FDFF',
-    fontSize: width < 768 ? 16 : 18,
+    fontSize: 16,
   },
-  autocompleteWrapper: {
-    position: 'relative',
-    zIndex: 1000,
-  },
-  autocompleteList: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 5,
-    zIndex: 10000,
-    marginTop: 4,
-  },
-  autocompleteItem: {
-    padding: width < 768 ? 12 : 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  autocompleteText: {
-    fontSize: width < 768 ? 16 : 18,
+  inputText: {
+    fontSize: 16,
     color: '#333',
   },
+  placeholderText: {
+    fontSize: 16,
+    color: '#888',
+  },
   tags: {
-    flexDirection: 'row',
     marginVertical: 12,
   },
   tag: {
@@ -465,10 +466,9 @@ const styles = (width) => StyleSheet.create({
     borderWidth: 1,
     borderColor: '#02808F',
     borderRadius: 20,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     marginRight: 10,
-    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#02808F',
@@ -478,19 +478,17 @@ const styles = (width) => StyleSheet.create({
     elevation: 2,
   },
   tagText: {
-    fontSize: width < 768 ? 14 : 16,
+    fontSize: 14,
     color: '#02808F',
     fontWeight: '600',
+    marginRight: 8,
   },
   button: {
     backgroundColor: '#02808F',
     paddingVertical: 14,
-    paddingHorizontal: 24,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 24,
-    width: width < 768 ? '100%' : 230,
-    alignSelf: 'center',
+    marginTop: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -499,7 +497,7 @@ const styles = (width) => StyleSheet.create({
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: width < 768 ? 16 : 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   buttonDisabled: {
@@ -508,53 +506,48 @@ const styles = (width) => StyleSheet.create({
   error: {
     color: '#E74C3C',
     textAlign: 'center',
-    marginVertical: 16,
-    fontSize: 16,
+    marginVertical: 12,
+    fontSize: 14,
   },
   noResults: {
-    fontSize: width < 768 ? 16 : 18,
+    fontSize: 14,
     color: '#555555',
     textAlign: 'center',
-    marginVertical: 16,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    marginVertical: 12,
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    marginBottom: 24,
-    marginHorizontal: width < 768 ? 0 : 16,
+    borderRadius: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 32,
     elevation: 4,
     overflow: 'hidden',
-    flex: width < 768 ? 1 : 0.48,
   },
   cardImage: {
     width: '100%',
-    height: 200,
+    height: 160,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   cardInfo: {
-    padding: width < 768 ? 16 : 24,
+    padding: 16,
   },
   cardTitle: {
-    fontSize: width < 768 ? 20 : 22,
+    fontSize: 18,
     fontWeight: '700',
     color: '#04668D',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   cardDescription: {
-    fontSize: width < 768 ? 14 : 16,
+    fontSize: 14,
     color: '#555555',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   cardText: {
-    fontSize: width < 768 ? 14 : 16,
+    fontSize: 14,
     color: '#555555',
     marginBottom: 8,
   },
@@ -578,15 +571,57 @@ const styles = (width) => StyleSheet.create({
     borderColor: '#FBC02D',
   },
   sectionTitle: {
-    fontSize: width < 768 ? 16 : 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#013F50',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   sectionText: {
-    fontSize: width < 768 ? 14 : 16,
+    fontSize: 14,
     color: '#333333',
     marginBottom: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F7FBFC',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBDBDB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#013F50',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#DBDBDB',
+    borderRadius: 10,
+    padding: 12,
+    margin: 16,
+    backgroundColor: '#F9FDFF',
+    fontSize: 16,
+  },
+  modalList: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  modalItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: '#333',
   },
 });
 

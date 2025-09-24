@@ -63,10 +63,7 @@ export const viewMealsSuggestion = async ({
 
     return response.data;
   } catch (error) {
-    console.error(
-      "Error fetching custom meal suggestion",
-      error.response?.data || error.message
-    );
+  
     throw error;
   }
 };

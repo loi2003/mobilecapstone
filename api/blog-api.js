@@ -14,7 +14,6 @@ export const createCategory = async (userId, categoryName, blogCategoryTag, toke
         Accept: 'text/plain',
       },
     });
-    console.log('Create category response:', response.data);
     return response;
   } catch (error) {
     console.error('Error creating category:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -31,7 +30,6 @@ export const getAllCategories = async (token, params = {}) => {
       },
       params,
     });
-    console.log('Get all categories response:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching categories:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -54,7 +52,6 @@ export const updateCategory = async (categoryId, categoryName, isActive, blogCat
         Accept: 'text/plain',
       },
     });
-    console.log('Update category response:', response.data);
     return response;
   } catch (error) {
     console.error('Error updating category:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -70,7 +67,6 @@ export const deleteCategory = async (categoryId, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Delete category response:', response.data);
     return response;
   } catch (error) {
     console.error('Error deleting category:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -96,7 +92,6 @@ export const addBlog = async (blogData, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Add blog response:', response.data);
     return response;
   } catch (error) {
     console.error('Error adding blog:', error.response?.data || error.message);
@@ -129,9 +124,7 @@ export const editBlog = async (formData, token) => {
     }
     images.forEach((image, index) => formData.append(`Images`, image));
 
-    console.log('editBlog FormData contents:');
     for (const [key, value] of formData.entries()) {
-      console.log(`${key}: ${value instanceof File ? value.name : value}`);
     }
 
     const response = await apiClient.put('/api/blog/edit-blog', formData, {
@@ -141,7 +134,6 @@ export const editBlog = async (formData, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Edit blog response:', response.data);
     return response;
   } catch (error) {
     console.error('Error editing blog:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -157,7 +149,6 @@ export const getAllBlogs = async (token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Get all blogs response:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching blogs:', error.response?.data || error.message);
@@ -173,7 +164,6 @@ export const getAllLikedBlogs = async (token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Get all liked blogs response:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching liked blogs:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -189,7 +179,6 @@ export const getAllBookmarkedBlogs = async (token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Get all bookmarked blogs response:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching bookmarked blogs:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -205,7 +194,6 @@ export const deleteBlog = async (blogId, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Delete blog response:', response.data);
     return response;
   } catch (error) {
     console.error('Error deleting blog:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -232,7 +220,6 @@ export const approveBlog = async (blogId, approvedByUserId, token, blogCategoryT
         },
       }
     );
-    console.log('Approve blog response:', response.data);
     return response;
   } catch (error) {
     console.error('Error approving blog:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -259,7 +246,6 @@ export const rejectBlog = async (blogId, approvedByUserId, rejectionReason, toke
         },
       }
     );
-    console.log('Reject blog response:', response.data);
     return response;
   } catch (error) {
     console.error('Error rejecting blog:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -278,7 +264,6 @@ export const getBlogsByUser = async (userId, token) => {
         userId,
       },
     });
-    console.log('Get blogs by user response:', response.data);
     return response;
   } catch (error) {
     console.error('Error fetching user blogs:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -294,7 +279,6 @@ export const deleteLike = async (blogId, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Delete like response:', response.data);
     return response;
   } catch (error) {
     console.error('Error deleting like:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
@@ -310,7 +294,6 @@ export const deleteBookmark = async (blogId, token) => {
         Accept: 'text/plain',
       },
     });
-    console.log('Delete bookmark response:', response.data);
     return response;
   } catch (error) {
     console.error('Error deleting bookmark:', error.response?.data?.message || error.message, error.response?.status, error.response?.data);
