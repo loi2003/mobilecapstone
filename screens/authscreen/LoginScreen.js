@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Image,
   Alert,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Animatable from "react-native-animatable";
@@ -24,16 +26,19 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState({ email: "", password: "", server: "" });
-  const [successMessage, setSuccessMessage] = useState("");
+  const [errors, setErrors] = useState({ email: "", password: "" });
+  const scrollViewRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId:
-        "876889673753-t6c36pi4tg7fp30mdeeorqjjpi3t9010.apps.googleusercontent.com", // Thay bằng client ID của bạn
+        "876889673753-t6c36pi4tg7fp30mdeeorqjjpi3t9010.apps.googleapis.com",
       scopes: ["profile", "email"],
       redirectUri: AuthSession.makeRedirectUri({
-        useProxy: true, // Sử dụng Expo proxy trong development
+        useProxy: true,
       }),
     },
     {
@@ -43,43 +48,54 @@ const LoginScreen = ({ navigation }) => {
   );
 
   useEffect(() => {
-    if (errors.server || successMessage) {
-      const timer = setTimeout(() => {
-        setErrors({ ...errors, server: "" });
-        setSuccessMessage("");
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [errors.server, successMessage]);
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
 
   const validateForm = () => {
-    let isValid = true;
-    const newErrors = { email: "", password: "", server: "" };
+    const newErrors = { email: "", password: "" };
 
     if (!email) {
       newErrors.email = "Please enter your email";
-      isValid = false;
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Invalid email format";
-      isValid = false;
     }
 
     if (!password) {
       newErrors.password = "Please enter your password";
-      isValid = false;
     } else if (password.length < 6) {
       newErrors.password = "Password must be at least 6 characters";
-      isValid = false;
     }
 
     setErrors(newErrors);
-    return isValid;
+    const errorMessages = Object.values(newErrors)
+      .filter((error) => error)
+      .join('\n');
+    if (errorMessages) {
+      Alert.alert('Validation Error', errorMessages, [{ text: 'OK' }]);
+      return false;
+    }
+    return true;
   };
 
   const handleLogin = async () => {
     setIsLoading(true);
-    setErrors({ ...errors, server: "" });
-    setSuccessMessage("");
+    setErrors({ email: "", password: "" });
 
     if (!validateForm()) {
       setIsLoading(false);
@@ -94,10 +110,10 @@ const LoginScreen = ({ navigation }) => {
       const response = await login(payload);
       const token = response.data.data.accessToken;
       await AsyncStorage.setItem("authToken", token);
-      setSuccessMessage("Login successful!");
+      Alert.alert('Success', 'Login successful!', [{ text: 'OK' }]);
       setTimeout(() => {
         navigation.replace("HomeTabs");
-}, 1500);
+      }, 2000);
     } catch (error) {
       let errorMessage = "Login failed. Please check your email or password.";
       if (error.response?.status === 401) {
@@ -107,7 +123,7 @@ const LoginScreen = ({ navigation }) => {
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
-      setErrors({ ...errors, server: errorMessage });
+      Alert.alert('Login Error', errorMessage, [{ text: 'OK' }]);
       setIsLoading(false);
     }
   };
@@ -124,14 +140,13 @@ const LoginScreen = ({ navigation }) => {
       await promptAsync();
     } catch (error) {
       console.error("Google login error:", error);
-      setErrors({ ...errors, server: "Google login failed" });
+      Alert.alert('Google Login Error', 'Google login failed', [{ text: 'OK' }]);
     }
   };
 
   const handleGoogleAuthSuccess = async (accessToken) => {
     setIsLoading(true);
     try {
-      // Gửi token đến server của bạn để xác thực
       const response = await fetch("YOUR_API_ENDPOINT/google-auth", {
         method: "POST",
         headers: {
@@ -144,19 +159,16 @@ const LoginScreen = ({ navigation }) => {
 
       if (response.ok) {
         await AsyncStorage.setItem("authToken", data.token);
-        setSuccessMessage("Login successful!");
+        Alert.alert('Success', 'Google authentication successful!', [{ text: 'OK' }]);
         setTimeout(() => {
           navigation.replace("HomeTabs");
-        }, 1500);
+        }, 2000);
       } else {
-        setErrors({
-          ...errors,
-          server: data.message || "Google authentication failed",
-        });
+        Alert.alert('Google Authentication Error', data.message || "Google authentication failed", [{ text: 'OK' }]);
       }
     } catch (error) {
       console.error("Google auth error:", error);
-      setErrors({ ...errors, server: "Google authentication failed" });
+      Alert.alert('Google Authentication Error', "Google authentication failed", [{ text: 'OK' }]);
     } finally {
       setIsLoading(false);
     }
@@ -166,208 +178,215 @@ const LoginScreen = ({ navigation }) => {
     setShowPassword(!showPassword);
   };
 
+  const handleInputFocus = (inputRef) => {
+    if (scrollViewRef.current && inputRef.current) {
+      inputRef.current.measure((x, y, width, height, pageX, pageY) => {
+        const keyboardGap = 10;
+        const offset = pageY + height + keyboardGap - keyboardHeight / 2;
+        scrollViewRef.current.scrollTo({ y: offset, animated: true });
+      });
+    }
+  };
+
   return (
     <LinearGradient
       colors={["#1E40AF", "#10B981"]}
       style={styles.gradientBackground}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.container}>
-          {/* Background Decorative Shapes */}
-          <View style={[styles.shape, styles.shape1]} />
-          <View style={[styles.shape, styles.shape2]} />
-          <View style={[styles.shape, styles.shape3]} />
-
-          {/* Branding Section */}
-          <Animatable.View
-            animation={{
-              from: { opacity: 0, translateX: -30 },
-              to: { opacity: 1, translateX: 0 },
-            }}
-            duration={800}
-            easing="ease-out"
-            style={styles.branding}
-          >
-            <Svg width={80} height={80} viewBox="0 0 64 64">
-              <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
-              <Circle
-                cx="32"
-                cy="32"
-                r="20"
-                fill="#FFD6E7"
-stroke="#FFFFFF"
-                strokeWidth={1.5}
-              />
-              <Circle cx="26" cy="28" r="3" fill="#333" />
-              <Circle cx="38" cy="28" r="3" fill="#333" />
-              <Circle
-                cx="22"
-                cy="32"
-                r="2.5"
-                fill="#FFB6C1"
-                fillOpacity={0.8}
-              />
-              <Circle
-                cx="42"
-                cy="32"
-                r="2.5"
-                fill="#FFB6C1"
-                fillOpacity={0.8}
-              />
-              <Path
-                d="M26 38 Q32 42 38 38"
-                stroke="#333"
-                strokeWidth={2}
-                fill="none"
-                strokeLinecap="round"
-              />
-              <Path
-                d="M32 12 Q34 8 36 12"
-                stroke="#333"
-                strokeWidth={1.5}
-                fill="none"
-              />
-            </Svg>
-            <Text style={styles.title}>Welcome to the Community</Text>
-            <Text style={styles.description}>
-              Log in to track your pregnancy journey, receive professional
-              health advice, and connect with a community of mothers.
-            </Text>
-            <Text style={styles.quote}>
-              "Making the journey of motherhood easier with our support!"
-            </Text>
-          </Animatable.View>
-
-          {/* Form Section */}
-          <Animatable.View
-            animation={{
-              from: { opacity: 0, scale: 0.95, translateY: 20 },
-              to: { opacity: 1, scale: 1, translateY: 0 },
-            }}
-            duration={800}
-            easing="ease-out"
-            style={styles.formContainer}
-          >
-            <Text style={styles.formTitle}>Sign In</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, errors.email ? styles.inputError : null]}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor="#4B5563"
-              />
-              {errors.email ? (
-                <Text style={styles.errorText}>{errors.email}</Text>
-              ) : null}
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    errors.password ? styles.inputError : null,
-                  ]}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  placeholderTextColor="#4B5563"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoidingContainer}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <View style={[styles.shape, styles.shape1]} />
+            <View style={[styles.shape, styles.shape2]} />
+            <View style={[styles.shape, styles.shape3]} />
+            <Animatable.View
+              animation={{
+                from: { opacity: 0, translateX: -30 },
+                to: { opacity: 1, translateX: 0 },
+              }}
+              duration={800}
+              easing="ease-out"
+              style={styles.branding}
+            >
+              <Svg width={80} height={80} viewBox="0 0 64 64">
+                <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
+                <Circle
+                  cx="32"
+                  cy="32"
+                  r="20"
+                  fill="#FFD6E7"
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5}
                 />
-                <TouchableOpacity
-onPress={toggleShowPassword}
-                  style={styles.passwordToggle}
-                >
-                  <Feather
-                    name={showPassword ? "eye" : "eye-off"}
-                    size={20}
-                    color="#4B5563"
-                  />
-                </TouchableOpacity>
-              </View>
-              {errors.password ? (
-                <Text style={styles.errorText}>{errors.password}</Text>
-              ) : null}
-            </View>
-            <TouchableOpacity
-              style={[styles.signInButton, isLoading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
-              <LinearGradient
-                colors={["#1E40AF", "#10B981"]}
-                style={styles.buttonGradient}
-              >
-                <Text style={styles.buttonText}>
-                  {isLoading ? "Logging in..." : "Sign In"}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-            <TouchableOpacity
-              style={[styles.googleButton, isLoading && styles.buttonDisabled]}
-              onPress={handleGoogleLogin}
-              disabled={isLoading || !request}
-            >
-              <Image
-                source={{
-                  uri: "https://img.icons8.com/color/48/000000/google-logo.png",
-                }}
-                style={styles.googleLogo}
-              />
-              <Text style={styles.googleButtonText}>
-                {isLoading ? "Signing in..." : "Sign In With Google"}
+                <Circle cx="26" cy="28" r="3" fill="#333" />
+                <Circle cx="38" cy="28" r="3" fill="#333" />
+                <Circle
+                  cx="22"
+                  cy="32"
+                  r="2.5"
+                  fill="#FFB6C1"
+                  fillOpacity={0.8}
+                />
+                <Circle
+                  cx="42"
+                  cy="32"
+                  r="2.5"
+                  fill="#FFB6C1"
+                  fillOpacity={0.8}
+                />
+                <Path
+                  d="M26 38 Q32 42 38 38"
+                  stroke="#333"
+                  strokeWidth={2}
+                  fill="none"
+                  strokeLinecap="round"
+                />
+                <Path
+                  d="M32 12 Q34 8 36 12"
+                  stroke="#333"
+                  strokeWidth={1.5}
+                  fill="none"
+                />
+              </Svg>
+              <Text style={styles.title}>Welcome to the Community</Text>
+              <Text style={styles.description}>
+                Log in to track your pregnancy journey, receive professional
+                health advice, and connect with a community of mothers.
               </Text>
-            </TouchableOpacity>
-            {(errors.server || successMessage) && (
+              <Text style={styles.quote}>
+                "Making the journey of motherhood easier with our support!"
+              </Text>
+            </Animatable.View>
+            <View style={styles.formContainer}>
               <Animatable.View
-                animation="fadeIn"
-                duration={400}
-                style={[
-                  styles.notification,
-                  errors.server
-                    ? styles.notificationError
-                    : styles.notificationSuccess,
-                ]}
+                animation={{
+                  from: { opacity: 0, scale: 0.95, translateY: 20 },
+                  to: { opacity: 1, scale: 1, translateY: 0 },
+                }}
+                duration={800}
+                easing="ease-out"
+                style={styles.formInnerContainer}
               >
-                <Feather
-                  name={errors.server ? "alert-circle" : "check-circle"}
-                  size={24}
-                  color={errors.server ? "#EF4444" : "#34C759"}
-                  style={styles.notificationIcon}
-                />
-                <Text style={styles.notificationText}>
-                  {errors.server || successMessage}
-                </Text>
+                <Text style={styles.formTitle}>Sign In</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    ref={emailInputRef}
+                    style={[styles.input, errors.email ? styles.inputError : null]}
+                    placeholder="Enter your email"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => handleInputFocus(emailInputRef)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    placeholderTextColor="#4B5563"
+                  />
+                  {errors.email ? (
+                    <Text style={styles.errorText}>{errors.email}</Text>
+                  ) : null}
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <View style={styles.passwordWrapper}>
+                    <TextInput
+                      ref={passwordInputRef}
+                      style={[
+                        styles.input,
+                        errors.password ? styles.inputError : null,
+                      ]}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChangeText={setPassword}
+                      onFocus={() => handleInputFocus(passwordInputRef)}
+                      secureTextEntry={!showPassword}
+                      placeholderTextColor="#4B5563"
+                    />
+                    <TouchableOpacity
+                      onPress={toggleShowPassword}
+                      style={styles.passwordToggle}
+                    >
+                      <Feather
+                        name={showPassword ? "eye" : "eye-off"}
+                        size={20}
+                        color="#4B5563"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.password ? (
+                    <Text style={styles.errorText}>{errors.password}</Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  style={[styles.signInButton, isLoading && styles.buttonDisabled]}
+                  onPress={handleLogin}
+                  disabled={isLoading}
+                >
+                  <LinearGradient
+                    colors={["#1E40AF", "#10B981"]}
+                    style={styles.buttonGradient}
+                  >
+                    <Text style={styles.buttonText}>
+                      {isLoading ? "Logging in..." : "Sign In"}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+                <TouchableOpacity
+                  style={[styles.googleButton, isLoading && styles.buttonDisabled]}
+                  onPress={handleGoogleLogin}
+                  disabled={isLoading || !request}
+                >
+                  <Image
+                    source={{
+                      uri: "https://img.icons8.com/color/48/000000/google-logo.png",
+                    }}
+                    style={styles.googleLogo}
+                  />
+                  <Text style={styles.googleButtonText}>
+                    {isLoading ? "Signing in..." : "Sign In With Google"}
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.linksContainer}>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("ForgotPassword")}
+                  >
+                    <Text style={styles.linkText}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("Register")}
+                  >
+                    <Text style={styles.linkText}>Create a New Account</Text>
+                  </TouchableOpacity>
+                </View>
               </Animatable.View>
-            )}
-            <View style={styles.linksContainer}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate("ForgotPassword")}
-              >
-                <Text style={styles.linkText}>Forgot Password?</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-<Text style={styles.linkText}>Create a New Account</Text>
-              </TouchableOpacity>
             </View>
-          </Animatable.View>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   gradientBackground: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
+  keyboardAvoidingContainer: {
     flex: 1,
   },
   scrollContainer: {
@@ -376,6 +395,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 40,
     paddingHorizontal: 20,
+    minHeight: "100%",
   },
   container: {
     width: "100%",
@@ -414,9 +434,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 40,
   },
-  logoContainer: {
-    marginBottom: 20,
-  },
   title: {
     fontSize: 36,
     fontWeight: "800",
@@ -453,6 +470,8 @@ const styles = StyleSheet.create({
   formContainer: {
     width: "100%",
     maxWidth: 320,
+  },
+  formInnerContainer: {
     backgroundColor: "#FFFFFF",
     padding: 24,
     borderRadius: 12,
@@ -507,7 +526,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   passwordToggle: {
-position: "absolute",
+    position: "absolute",
     right: 12,
     height: "100%",
     justifyContent: "center",
@@ -563,39 +582,6 @@ position: "absolute",
     fontSize: 16,
     fontWeight: "600",
     color: "#1F2937",
-  },
-  notification: {
-    position: "absolute",
-    top: -80,
-    right: 20,
-    left: 20,
-    padding: 12,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-    backgroundColor: "#FFFFFF",
-  },
-  notificationSuccess: {
-    borderWidth: 2,
-    borderColor: "#34C759",
-  },
-  notificationError: {
-    borderWidth: 2,
-    borderColor: "#EF4444",
-  },
-  notificationIcon: {
-    marginRight: 8,
-  },
-  notificationText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1F2937",
-    flex: 1,
   },
   linksContainer: {
     marginTop: 20,

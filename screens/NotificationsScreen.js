@@ -10,19 +10,22 @@ import {
   Alert,
   Animated,
   Platform,
+  SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient'; // Use 'react-native-linear-gradient' for bare RN
+import { LinearGradient } from 'expo-linear-gradient';
 import { viewNotificationsByUserId, markNotificationAsRead, deleteNotification } from '../api/notification-api';
 import { getCurrentUser } from '../api/auth';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const isSmallScreen = width < 768;
 
 const NotificationsScreen = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
   const [token, setToken] = useState(null);
@@ -57,43 +60,48 @@ const NotificationsScreen = ({ navigation }) => {
   }, []);
 
   // Fetch notifications
-  useEffect(() => {
+  const fetchNotifications = async () => {
     if (!userId || !token) return;
-
-    const fetchNotifications = async () => {
-      try {
-        setLoading(true);
-        const response = await viewNotificationsByUserId(userId, token);
-        if (response.error === 0 && Array.isArray(response.data)) {
-          const notificationsWithId = response.data.map((notif, index) => ({
-            ...notif,
-            id: notif.notificationId || notif.id || `notif-${index}`,
-          }));
-          setNotifications(notificationsWithId);
-          // Initialize animations
-          const newFadeAnims = notificationsWithId.map(() => new Animated.Value(0));
-          setFadeAnims(newFadeAnims);
-          notificationsWithId.forEach((_, index) => {
-            Animated.timing(newFadeAnims[index], {
-              toValue: 1,
-              duration: 500,
-              useNativeDriver: true,
-            }).start();
-          });
-          setError(null);
-        } else {
-          setNotifications([]);
-          setError('No notifications found.');
-        }
-      } catch (err) {
-        setError('Failed to load notifications. Please try again.');
-      } finally {
-        setLoading(false);
+    try {
+      setLoading(true);
+      const response = await viewNotificationsByUserId(userId, token);
+      if (response.error === 0 && Array.isArray(response.data)) {
+        const notificationsWithId = response.data.map((notif, index) => ({
+          ...notif,
+          id: notif.notificationId || notif.id || `notif-${index}`,
+        }));
+        setNotifications(notificationsWithId);
+        const newFadeAnims = notificationsWithId.map(() => new Animated.Value(0));
+        setFadeAnims(newFadeAnims);
+        notificationsWithId.forEach((_, index) => {
+          Animated.timing(newFadeAnims[index], {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }).start();
+        });
+        setError(null);
+      } else {
+        setNotifications([]);
+        setError('No notifications found.');
       }
-    };
+    } catch (err) {
+      setError('Failed to load notifications. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchNotifications();
   }, [userId, token]);
+
+  // Handle pull-to-refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+  };
 
   // Update badge count
   useEffect(() => {
@@ -116,10 +124,11 @@ const NotificationsScreen = ({ navigation }) => {
   };
 
   const handleDeleteNotification = async (notificationId) => {
-    Alert.alert('Delete Notification', 'Are you sure?', [
-      { text: 'Cancel' },
+    Alert.alert('Delete Notification', 'Are you sure you want to delete this notification?', [
+      { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
+        style: 'destructive',
         onPress: async () => {
           try {
             await deleteNotification(notificationId, token);
@@ -132,18 +141,36 @@ const NotificationsScreen = ({ navigation }) => {
     ]);
   };
 
-  const handleClearAll = async () => {
-    Alert.alert('Clear All', 'Mark all unread as read?', [
-      { text: 'Cancel' },
+  const handleMarkAllAsRead = async () => {
+    Alert.alert('Mark All as Read', 'Mark all unread notifications as read?', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Clear',
+        text: 'Mark All',
         onPress: async () => {
           try {
             const unread = notifications.filter((n) => !n.isRead);
             await Promise.all(unread.map((n) => markNotificationAsRead(n.id, token)));
             setNotifications((prev) => prev.map((notif) => ({ ...notif, isRead: true })));
           } catch (err) {
-            Alert.alert('Error', 'Failed to clear notifications.');
+            Alert.alert('Error', 'Failed to mark all notifications as read.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAll = async () => {
+    Alert.alert('Delete All Notifications', 'Are you sure you want to delete all notifications?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete All',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await Promise.all(notifications.map((n) => deleteNotification(n.id, token)));
+            setNotifications([]);
+          } catch (err) {
+            Alert.alert('Error', 'Failed to delete all notifications.');
           }
         },
       },
@@ -155,17 +182,32 @@ const NotificationsScreen = ({ navigation }) => {
       style={[styles.notificationItem, item.isRead && styles.readItem, { opacity: fadeAnims[index] }]}
     >
       <View style={styles.messageContainer}>
+        <Text style={styles.notificationTitle}>
+          {item.title || 'Notification'}
+        </Text>
         <Text style={styles.notificationMessage}>{item.message}</Text>
+        <Text style={styles.notificationTimestamp}>
+          {item.createdAt
+            ? new Date(item.createdAt).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : 'Just now'}
+        </Text>
       </View>
       <View style={styles.actionsContainer}>
         {!item.isRead && (
           <TouchableOpacity
-            style={styles.actionBtn}
+            style={[styles.actionBtn, styles.markReadBtn]}
             onPress={() => handleMarkAsRead(item.id)}
             accessibilityRole="button"
-            accessibilityLabel="Mark as read"
+            accessibilityLabel="Mark notification as read"
+            accessibilityHint="Marks this notification as read"
           >
-            <Text style={styles.btnText}>Mark as Read</Text>
+            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.btnText}>Read</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -173,7 +215,9 @@ const NotificationsScreen = ({ navigation }) => {
           onPress={() => handleDeleteNotification(item.id)}
           accessibilityRole="button"
           accessibilityLabel="Delete notification"
+          accessibilityHint="Removes this notification"
         >
+          <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
           <Text style={[styles.btnText, styles.deleteText]}>Delete</Text>
         </TouchableOpacity>
       </View>
@@ -182,72 +226,105 @@ const NotificationsScreen = ({ navigation }) => {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
-      <LinearGradient colors={['#E6F0FA', '#F5F9FF']} style={styles.container}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0057D8" />
+      <LinearGradient colors={['#F5F7FA', '#E6F0FF']} style={styles.container}>
+        <SafeAreaView style={styles.center}>
+          <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Loading notifications...</Text>
-        </View>
+        </SafeAreaView>
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={['#E6F0FA', '#F5F9FF']} style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Notifications</Text>
-      </View>
+    <LinearGradient colors={['#F5F7FA', '#E6F0FF']} style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            accessibilityHint="Returns to the previous screen"
+          >
+            <Ionicons name="chevron-back" size={28} color="#007AFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Notifications</Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Notifications</Text>
-
-        {error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-            {error.includes('log in') && (
-              <TouchableOpacity
-                style={styles.retryBtn}
-                onPress={() => navigation.navigate('Login')}
-              >
-                <Text style={styles.btnText}>Go to Login</Text>
-              </TouchableOpacity>
-            )}
-            {!error.includes('log in') && (
+        <View style={styles.content}>
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
               <TouchableOpacity
                 style={styles.retryBtn}
                 onPress={() => {
-                  setError(null);
-                  setLoading(true);
-                  setUserId(null); // Trigger refetch
+                  if (error.includes('log in')) {
+                    navigation.navigate('Login');
+                  } else {
+                    setError(null);
+                    setLoading(true);
+                    setUserId(null);
+                  }
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={error.includes('log in') ? 'Go to login' : 'Retry loading notifications'}
+                accessibilityHint={error.includes('log in') ? 'Navigates to the login screen' : 'Retries fetching notifications'}
               >
-                <Text style={styles.btnText}>Retry</Text>
+                <Text style={styles.btnText}>{error.includes('log in') ? 'Go to Login' : 'Retry'}</Text>
               </TouchableOpacity>
-            )}
-          </View>
-        ) : notifications.length > 0 ? (
-          <>
-            <FlatList
-              data={notifications}
-              renderItem={renderNotification}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.list}
-              showsVerticalScrollIndicator={false}
-            />
-            {unreadCount > 0 && (
-              <TouchableOpacity style={styles.clearBtn} onPress={handleClearAll}>
-                <Text style={styles.clearText}>Clear All ({unreadCount})</Text>
-              </TouchableOpacity>
-            )}
-          </>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-off" size={64} color="#B0BEC5" />
-            <Text style={styles.emptyText}>No new notifications</Text>
-          </View>
-        )}
-      </View>
+            </View>
+          ) : notifications.length > 0 ? (
+            <>
+              <View style={styles.actionBar}>
+                <TouchableOpacity
+                  style={[styles.actionBarBtn, unreadCount === 0 && styles.actionBarBtnDisabled]}
+                  onPress={handleMarkAllAsRead}
+                  disabled={unreadCount === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark all notifications as read"
+                  accessibilityHint="Marks all unread notifications as read"
+                >
+                  <Text style={styles.actionBarText}>Mark All Read ({unreadCount})</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBarBtn, notifications.length === 0 && styles.actionBarBtnDisabled]}
+                  onPress={handleDeleteAll}
+                  disabled={notifications.length === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete all notifications"
+                  accessibilityHint="Deletes all notifications"
+                >
+                  <Text style={styles.actionBarText}>Delete All</Text>
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                data={notifications}
+                renderItem={renderNotification}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={['#007AFF']}
+                    tintColor="#007AFF"
+                  />
+                }
+              />
+            </>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="notifications-off-outline" size={64} color="#8E8E93" />
+              <Text style={styles.emptyText}>No notifications yet</Text>
+              <Text style={styles.emptySubText}>We'll notify you when something new arrives.</Text>
+            </View>
+          )}
+        </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 };
@@ -256,135 +333,249 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  backButton: {
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 24 : 32,
+    fontSize: isSmallScreen ? 22 : 24,
     fontWeight: '700',
-    color: '#0057D8',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  headerSpacer: {
+    width: 44, // Match backButton width for symmetry
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
-  title: {
-    fontSize: isSmallScreen ? 20 : 24,
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 12,
+  },
+  actionBarBtn: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  actionBarBtnDisabled: {
+    backgroundColor: '#C7C7CC',
+    opacity: 0.6,
+    shadowOpacity: 0,
+  },
+  actionBarText: {
+    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
-    color: '#0073E6',
-    marginBottom: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   list: {
     paddingBottom: 20,
   },
   notificationItem: {
-    backgroundColor: '#E6F0FA',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
-    flexDirection: isSmallScreen ? 'column' : 'row',
-    justifyContent: 'space-between',
-    alignItems: isSmallScreen ? 'flex-start' : 'center',
     marginBottom: 12,
-    borderLeftWidth: 5,
-    borderLeftColor: '#0073E6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   readItem: {
-    backgroundColor: '#F0F4FF',
-    opacity: 0.9,
+    backgroundColor: '#F2F2F7',
+    opacity: 0.85,
+    borderLeftColor: '#8E8E93',
   },
   messageContainer: {
     flex: 1,
     marginBottom: isSmallScreen ? 12 : 0,
   },
+  notificationTitle: {
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
   notificationMessage: {
-    fontSize: 16,
-    color: '#002B6B',
-    fontWeight: '500',
-    lineHeight: 24,
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#3C3C43',
+    lineHeight: 22,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  notificationTimestamp: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#8E8E93',
+    marginTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   actionsContainer: {
     flexDirection: 'row',
     gap: 8,
-    width: isSmallScreen ? '100%' : 'auto',
     justifyContent: isSmallScreen ? 'flex-end' : 'flex-start',
+    alignItems: 'center',
   },
   actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#0057D8',
-    borderRadius: 6,
+    borderRadius: 8,
     minHeight: 44,
+    minWidth: 44,
+  },
+  markReadBtn: {
+    backgroundColor: '#34C759',
   },
   deleteBtn: {
-    backgroundColor: '#D81B60',
+    backgroundColor: '#FF3B30',
   },
   btnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
+    marginLeft: 6,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   deleteText: {
     color: '#FFFFFF',
-  },
-  clearBtn: {
-    marginTop: 20,
-    paddingVertical: 12,
-    backgroundColor: '#0073E6',
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  clearText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   errorContainer: {
     backgroundColor: '#FFF0F0',
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   errorText: {
-    color: '#D81B60',
-    fontSize: 16,
+    color: '#FF3B30',
+    fontSize: isSmallScreen ? 16 : 18,
     textAlign: 'center',
     marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   retryBtn: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#0057D8',
-    borderRadius: 6,
+    paddingVertical: 12,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
     minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E6F0FA',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 40,
+    marginTop: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   emptyText: {
-    fontSize: 18,
-    color: '#002B6B',
-    fontWeight: '500',
+    fontSize: isSmallScreen ? 18 : 20,
+    color: '#3C3C43',
+    fontWeight: '600',
     marginTop: 12,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  emptySubText: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#8E8E93',
+    marginTop: 8,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#4B6A9B',
+    fontSize: isSmallScreen ? 16 : 18,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   center: {
     flex: 1,

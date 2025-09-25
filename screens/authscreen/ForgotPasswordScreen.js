@@ -1,26 +1,70 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform, KeyboardAvoidingView, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
 import { Feather } from '@expo/vector-icons';
 import { forgotPassword } from '../../api/auth';
+import { Svg, Circle, Path } from 'react-native-svg';
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({ emailOrPhone: '' });
+  const scrollViewRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
+  const validateForm = () => {
+    let newErrors = { emailOrPhone: '' };
+
+    if (!emailOrPhone.trim()) {
+      newErrors.emailOrPhone = 'Please enter your email';
+    } else if (!/\S+@\S+\.\S+/.test(emailOrPhone)) {
+      newErrors.emailOrPhone = 'Invalid email format';
+    }
+
+    setErrors(newErrors);
+    const errorMessages = Object.values(newErrors)
+      .filter((error) => error)
+      .join('\n');
+    if (errorMessages) {
+      Alert.alert('Validation Error', errorMessages, [{ text: 'OK' }]);
+      return false;
+    }
+    return true;
+  };
 
   const handleForgotPassword = async () => {
-    if (!emailOrPhone.trim()) {
-      setError('Please enter your email.');
+    setIsLoading(true);
+    setErrors({ emailOrPhone: '' });
+
+    if (!validateForm()) {
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setError('');
     try {
-      const response = await forgotPassword(emailOrPhone);
-      setError('');
+      await forgotPassword(emailOrPhone);
       Alert.alert('Success', 'OTP sent successfully. Please check your email.', [
         { text: 'OK', onPress: () => navigation.navigate('ResetPassword', { emailOrPhone }) },
       ]);
@@ -31,9 +75,19 @@ const ForgotPasswordScreen = ({ navigation }) => {
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
-      setError(errorMessage);
+      Alert.alert('Error', errorMessage, [{ text: 'OK' }]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleInputFocus = (inputRef) => {
+    if (scrollViewRef.current && inputRef.current) {
+      inputRef.current.measure((x, y, width, height, pageX, pageY) => {
+        const keyboardGap = 10;
+        const offset = pageY + height + keyboardGap - keyboardHeight / 2;
+        scrollViewRef.current.scrollTo({ y: offset, animated: true });
+      });
     }
   };
 
@@ -42,99 +96,137 @@ const ForgotPasswordScreen = ({ navigation }) => {
       colors={['#1E40AF', '#10B981']}
       style={styles.gradientBackground}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.container}>
-          {/* Background Decorative Shapes */}
-          <View style={[styles.shape, styles.shape1]} />
-          <View style={[styles.shape, styles.shape2]} />
-          <View style={[styles.shape, styles.shape3]} />
-
-          {/* Branding Section */}
-          <Animatable.View
-            animation={{
-              from: { opacity: 0, translateX: -30 },
-              to: { opacity: 1, translateX: 0 },
-            }}
-            duration={800}
-            easing="ease-out"
-            style={styles.branding}
-          >
-            <Text style={styles.title}>Forgot Password</Text>
-            <Text style={styles.description}>
-              Enter your email to receive an OTP for password reset.
-            </Text>
-            <Text style={styles.quote}>
-              "Making the journey of motherhood easier with our support!"
-            </Text>
-          </Animatable.View>
-
-          {/* Form Section */}
-          <Animatable.View
-            animation={{
-              from: { opacity: 0, scale: 0.95, translateY: 20 },
-              to: { opacity: 1, scale: 1, translateY: 0 },
-            }}
-            duration={800}
-            easing="ease-out"
-            style={styles.formContainer}
-          >
-            <Text style={styles.formTitle}>Reset Your Password</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, error ? styles.inputError : null]}
-                placeholder="Enter your email"
-                value={emailOrPhone}
-                onChangeText={setEmailOrPhone}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor="#4B5563"
-              />
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            </View>
-            <TouchableOpacity
-              style={[styles.signInButton, isLoading && styles.buttonDisabled]}
-              onPress={handleForgotPassword}
-              disabled={isLoading}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingContainer}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <View style={[styles.shape, styles.shape1]} />
+            <View style={[styles.shape, styles.shape2]} />
+            <View style={[styles.shape, styles.shape3]} />
+            <Animatable.View
+              animation={{
+                from: { opacity: 0, translateX: -30 },
+                to: { opacity: 1, translateX: 0 },
+              }}
+              duration={800}
+              easing="ease-out"
+              style={styles.branding}
             >
-              <LinearGradient
-                colors={['#1E40AF', '#10B981']}
-                style={styles.buttonGradient}
-              >
-                <Text style={styles.buttonText}>
-                  {isLoading ? 'Sending...' : 'Send OTP'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            {error && (
-              <Animatable.View
-                animation="fadeIn"
-                duration={400}
-                style={styles.notificationError}
-              >
-                <Feather
-                  name="alert-circle"
-                  size={24}
-                  color="#EF4444"
-                  style={styles.notificationIcon}
+              <Svg width={80} height={80} viewBox="0 0 64 64">
+                <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
+                <Circle
+                  cx="32"
+                  cy="32"
+                  r="20"
+                  fill="#FFD6E7"
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5}
                 />
-                <Text style={styles.notificationText}>{error}</Text>
-              </Animatable.View>
-            )}
-            <View style={styles.linksContainer}>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.linkText}>Back to Login</Text>
+                <Circle cx="26" cy="28" r="3" fill="#333" />
+                <Circle cx="38" cy="28" r="3" fill="#333" />
+                <Circle
+                  cx="22"
+                  cy="32"
+                  r="2.5"
+                  fill="#FFB6C1"
+                  fillOpacity={0.8}
+                />
+                <Circle
+                  cx="42"
+                  cy="32"
+                  r="2.5"
+                  fill="#FFB6C1"
+                  fillOpacity={0.8}
+                />
+                <Path
+                  d="M26 38 Q32 42 38 38"
+                  stroke="#333"
+                  strokeWidth={2}
+                  fill="none"
+                  strokeLinecap="round"
+                />
+                <Path
+                  d="M32 12 Q34 8 36 12"
+                  stroke="#333"
+                  strokeWidth={1.5}
+                  fill="none"
+                />
+              </Svg>
+              <Text style={styles.title}>Forgot Password</Text>
+              <Text style={styles.description}>
+                Enter your email to receive an OTP for password reset.
+              </Text>
+              <Text style={styles.quote}>
+                "Making the journey of motherhood easier with our support!"
+              </Text>
+            </Animatable.View>
+            <Animatable.View
+              animation={{
+                from: { opacity: 0, scale: 0.95, translateY: 20 },
+                to: { opacity: 1, scale: 1, translateY: 0 },
+              }}
+              duration={800}
+              easing="ease-out"
+              style={styles.formContainer}
+            >
+              <Text style={styles.formTitle}>Reset Your Password</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  ref={emailInputRef}
+                  style={[styles.input, errors.emailOrPhone ? styles.inputError : null]}
+                  placeholder="Enter your email"
+                  value={emailOrPhone}
+                  onChangeText={setEmailOrPhone}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor="#4B5563"
+                  onFocus={() => handleInputFocus(emailInputRef)}
+                />
+                {errors.emailOrPhone ? <Text style={styles.errorText}>{errors.emailOrPhone}</Text> : null}
+              </View>
+              <TouchableOpacity
+                style={[styles.signInButton, isLoading && styles.buttonDisabled]}
+                onPress={handleForgotPassword}
+                disabled={isLoading}
+              >
+                <LinearGradient
+                  colors={['#1E40AF', '#10B981']}
+                  style={styles.buttonGradient}
+                >
+                  <Text style={styles.buttonText}>
+                    {isLoading ? 'Sending...' : 'Send OTP'}
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
-            </View>
-          </Animatable.View>
-        </View>
-      </ScrollView>
+              <View style={styles.linksContainer}>
+                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                  <Text style={styles.linkText}>Back to Login</Text>
+                </TouchableOpacity>
+              </View>
+            </Animatable.View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  keyboardAvoidingContainer: {
     flex: 1,
   },
   scrollContainer: {
@@ -143,6 +235,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 40,
     paddingHorizontal: 20,
+    minHeight: '100%',
   },
   container: {
     width: '100%',
@@ -277,33 +370,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7,
-  },
-  notificationError: {
-    position: 'absolute',
-    top: -80,
-    right: 20,
-    left: 20,
-    padding: 12,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#EF4444',
-  },
-  notificationIcon: {
-    marginRight: 8,
-  },
-  notificationText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1F2937',
-    flex: 1,
   },
   linksContainer: {
     marginTop: 20,
