@@ -40,7 +40,6 @@ export const login = async (data) => {
     });
     return response;
   } catch (error) {
-    console.error("Error logging in:", error);
     throw error;
   }
 };
@@ -91,7 +90,6 @@ export const forgotPassword = async (email) => {
     });
     return response;
   } catch (error) {
-    console.error("Error sending OTP for password reset:", error);
     throw error;
   }
 };
@@ -106,7 +104,6 @@ export const resetPassword = async (data) => {
     });
     return response;
   } catch (error) {
-    console.error("Error resetting password:", error);
     throw error;
   }
 };

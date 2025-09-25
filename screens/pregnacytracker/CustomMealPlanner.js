@@ -73,7 +73,7 @@ const CustomMealPlanner = ({ navigation }) => {
   // Fetch token
   useEffect(() => {
     const fetchToken = async () => {
-      const storedToken = await AsyncStorage.getItem('token');
+      const storedToken = await AsyncStorage.getItem('authToken');
       setToken(storedToken || '');
     };
     fetchToken();
@@ -156,6 +156,15 @@ const CustomMealPlanner = ({ navigation }) => {
   const validateInputs = () => {
     if (!type) {
       return 'Please select a meal type.';
+    }
+    if (allergyInput && !selectedAllergyId) {
+      return 'Please select a valid allergy from the list.';
+    }
+    if (diseaseInput && !selectedDiseaseId) {
+      return 'Please select a valid disease from the list.';
+    }
+    if (preferredFoodInput && !selectedPreferredFoodId) {
+      return 'Please select a valid favorite dish from the list.';
     }
     return '';
   };
@@ -397,13 +406,12 @@ const CustomMealPlanner = ({ navigation }) => {
           {/* DOB */}
           <Text style={styles.label}>Date of Birth</Text>
           <TextInput
-            style={[styles.input, styles.inputEditable]}
+            style={[styles.input, styles.inputDisabled]}
             value={dateOfBirth}
-            onChangeText={setDateOfBirth}
+            editable={false}
             placeholder="YYYY-MM-DD"
             placeholderTextColor="#666"
-            keyboardType="numeric"
-            accessibilityLabel="Enter date of birth"
+            accessibilityLabel="Date of birth (read-only)"
           />
 
           {/* Meal Type */}
@@ -564,7 +572,7 @@ const CustomMealPlanner = ({ navigation }) => {
             preferredFoodInput,
             setPreferredFoodInput,
             setSelectedPreferredFoodId,
-            setAllergies, // Fixed to avoid overwriting preferredFoodInput
+            () => {}, // No-op to prevent unintended state changes
             'Optional - Type to search e.g. Rice, Beef',
           )}
 
@@ -739,7 +747,7 @@ const CustomMealPlanner = ({ navigation }) => {
 const styles = StyleSheet.create({
   pageWrapper: {
     flex: 1,
-    backgroundColor: '# F9FAFB',
+    backgroundColor: '#F9FAFB',
   },
   scrollContent: {
     paddingBottom: 100,
@@ -790,9 +798,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     marginBottom: 16,
   },
-  inputEditable: {
-    borderColor: '#02808F',
-    backgroundColor: '#F0F6FF',
+  inputDisabled: {
+    backgroundColor: '#F5F6F5',
+    opacity: 0.6,
   },
   inputText: {
     fontSize: width < 768 ? 14 : 16,

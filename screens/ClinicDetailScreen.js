@@ -1,17 +1,32 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, TextInput, Modal, Dimensions, Linking } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  TextInput,
+  Modal,
+  Dimensions,
+  Linking,
+  Platform,
+  SafeAreaView,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { Animated, Easing } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getClinicById } from "../api/clinic-api";
-import { startChatThread } from "../api/message-api";
-import { createFeedback } from "../api/feedback-api";
-import { getCurrentUser } from "../api/auth";
+import { LinearGradient } from 'expo-linear-gradient';
+import { getClinicById } from '../api/clinic-api';
+import { startChatThread } from '../api/message-api';
+import { createFeedback } from '../api/feedback-api';
+import { getCurrentUser } from '../api/auth';
 
 const { width } = Dimensions.get('window');
+const isSmallScreen = width < 768;
 
 // Helper to calculate star rating
 const getStarRating = (feedbacks) => {
@@ -36,14 +51,16 @@ const renderStars = (stars, onPress = null, selectedRating = 0) => {
           onPress={() => onPress && onPress(i + 1)}
           disabled={!onPress}
           style={styles.starTouchable}
+          accessibilityRole="button"
+          accessibilityLabel={`Rate ${i + 1} star${i + 1 > 1 ? 's' : ''}`}
         >
           <Text
             style={[
               styles.star,
               {
                 color: onPress
-                  ? selectedRating >= i + 1 ? '#f7b801' : '#ccc'
-                  : i < filled ? '#f7b801' : i === filled && half ? '#f7b801' : '#ccc',
+                  ? selectedRating >= i + 1 ? '#FF9500' : '#C7C7CC'
+                  : i < filled ? '#FF9500' : i === filled && half ? '#FF9500' : '#C7C7CC',
               },
             ]}
           >
@@ -55,13 +72,28 @@ const renderStars = (stars, onPress = null, selectedRating = 0) => {
   );
 };
 
+// Helper to validate and initiate phone call
+const initiatePhoneCall = (phoneNumber) => {
+  if (!phoneNumber) {
+    alert('Phone number is not available.');
+    return;
+  }
+  const cleanedPhone = phoneNumber.replace(/[^0-9+]/g, '');
+  if (cleanedPhone.length < 7) {
+    alert('Invalid phone number.');
+    return;
+  }
+  const url = `tel:${cleanedPhone}`;
+  Linking.openURL(url).catch((err) => alert('Failed to make call: ' + err.message));
+};
+
 // Doctor Card Component
 const DoctorCard = ({ user, onImageError, onImageLoad, imageErrors, imageLoading }) => (
   <View style={styles.clinicDoctorCard}>
     <View style={styles.clinicDoctorAvatar}>
       {imageLoading[`doctor-${user.id}`] && (
         <View style={styles.imageLoadingOverlay}>
-          <ActivityIndicator size="small" color="#0D7AA5" />
+          <ActivityIndicator size="small" color="#007AFF" />
         </View>
       )}
       <Image
@@ -76,21 +108,27 @@ const DoctorCard = ({ user, onImageError, onImageLoad, imageErrors, imageLoading
       />
       {(imageErrors[`doctor-${user.id}`] || !user?.avatar?.fileUrl) && (
         <View style={styles.placeholderOverlay}>
-          <Icon name="user" size={40} color="rgba(13, 122, 165, 0.4)" />
+          <Icon name="user" size={40} color="rgba(0, 122, 255, 0.4)" />
         </View>
       )}
     </View>
     <View style={styles.clinicDoctorInfo}>
-      <Text style={styles.clinicDoctorName}>{user?.userName}</Text>
+      <Text style={styles.clinicDoctorName}>{user?.userName || 'Unknown'}</Text>
       <View style={styles.clinicDoctorContact}>
-        <Text style={styles.clinicDoctorContactText}>
-          <Text style={styles.clinicDoctorContactLabel}>Phone: </Text>
-          {user?.phone || user?.phoneNo}
-        </Text>
-        <Text style={styles.clinicDoctorContactText}>
-          <Text style={styles.clinicDoctorContactLabel}>Email: </Text>
-          {user?.email}
-        </Text>
+        <TouchableOpacity
+          style={styles.clinicDoctorContactItem}
+          onPress={() => initiatePhoneCall(user?.phone || user?.phoneNo)}
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${user?.userName}`}
+          accessibilityHint="Initiates a phone call to this doctor"
+        >
+          <Icon name="phone" size={16} color="#007AFF" style={styles.clinicDoctorContactIcon} />
+          <Text style={styles.clinicDoctorContactText}>{user?.phone || user?.phoneNo || 'N/A'}</Text>
+        </TouchableOpacity>
+        <View style={styles.clinicDoctorContactItem}>
+          <Icon name="envelope" size={16} color="#8E8E93" style={styles.clinicDoctorContactIcon} />
+          <Text style={styles.clinicDoctorContactText}>{user?.email || 'N/A'}</Text>
+        </View>
       </View>
     </View>
   </View>
@@ -102,7 +140,7 @@ const ConsultantCard = ({ consultant, onSendMessage, chatLoading, onImageError, 
     <View style={styles.clinicDoctorAvatar}>
       {imageLoading[`consultant-${consultant.user.id}`] && (
         <View style={styles.imageLoadingOverlay}>
-          <ActivityIndicator size="small" color="#0D7AA5" />
+          <ActivityIndicator size="small" color="#007AFF" />
         </View>
       )}
       <Image
@@ -117,28 +155,37 @@ const ConsultantCard = ({ consultant, onSendMessage, chatLoading, onImageError, 
       />
       {(imageErrors[`consultant-${consultant.user.id}`] || !consultant.user?.avatar?.fileUrl) && (
         <View style={styles.placeholderOverlay}>
-          <Icon name="user" size={40} color="rgba(13, 122, 165, 0.4)" />
+          <Icon name="user" size={40} color="rgba(0, 122, 255, 0.4)" />
         </View>
       )}
     </View>
     <View style={styles.clinicDoctorInfo}>
-      <Text style={styles.clinicDoctorName}>{consultant.user?.userName}</Text>
+      <Text style={styles.clinicDoctorName}>{consultant.user?.userName || 'Unknown'}</Text>
       <View style={styles.clinicDoctorContact}>
-        <Text style={styles.clinicDoctorContactText}>
-          <Text style={styles.clinicDoctorContactLabel}>Phone: </Text>
-          {consultant.user?.phone || consultant.user?.phoneNo}
-        </Text>
-        <Text style={styles.clinicDoctorContactText}>
-          <Text style={styles.clinicDoctorContactLabel}>Email: </Text>
-          {consultant.user?.email}
-        </Text>
+        <TouchableOpacity
+          style={styles.clinicDoctorContactItem}
+          onPress={() => initiatePhoneCall(consultant.user?.phone || consultant.user?.phoneNo)}
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${consultant.user?.userName}`}
+          accessibilityHint="Initiates a phone call to this consultant"
+        >
+          <Icon name="phone" size={16} color="#007AFF" style={styles.clinicDoctorContactIcon} />
+          <Text style={styles.clinicDoctorContactText}>{consultant.user?.phone || consultant.user?.phoneNo || 'N/A'}</Text>
+        </TouchableOpacity>
+        <View style={styles.clinicDoctorContactItem}>
+          <Icon name="envelope" size={16} color="#8E8E93" style={styles.clinicDoctorContactIcon} />
+          <Text style={styles.clinicDoctorContactText}>{consultant.user?.email || 'N/A'}</Text>
+        </View>
       </View>
       <TouchableOpacity
         style={[styles.consultantSendMessageBtn, chatLoading && styles.consultantSendMessageBtnDisabled]}
         onPress={() => onSendMessage(consultant)}
         disabled={chatLoading}
+        accessibilityRole="button"
+        accessibilityLabel={`Message ${consultant.user?.userName}`}
+        accessibilityHint="Opens a chat with this consultant"
       >
-        <Icon name="send" size={18} color="#1976d2" style={styles.consultantSendMessageIcon} />
+        <Icon name="send" size={16} color="#007AFF" style={styles.consultantSendMessageIcon} />
         <Text style={styles.consultantSendMessageText}>
           {chatLoading ? 'Starting...' : 'Send Message'}
         </Text>
@@ -151,12 +198,15 @@ const ConsultantCard = ({ consultant, onSendMessage, chatLoading, onImageError, 
 const ChatBox = ({ consultant, onClose, userId, chatThread, onImageError, onImageLoad, imageErrors, imageLoading }) => (
   <View style={styles.floatingChatboxContainer}>
     <View style={styles.floatingChatboxWindow}>
-      <View style={styles.floatingChatboxHeader}>
+      <LinearGradient
+        colors={['#007AFF', '#005BB5']}
+        style={styles.floatingChatboxHeader}
+      >
         <View style={styles.floatingChatboxHeaderLeft}>
           <View style={styles.floatingChatboxAvatarContainer}>
             {imageLoading[`chat-${consultant.user.id}`] && (
               <View style={styles.imageLoadingOverlay}>
-                <ActivityIndicator size="small" color="#0D7AA5" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               </View>
             )}
             <Image
@@ -171,32 +221,39 @@ const ChatBox = ({ consultant, onClose, userId, chatThread, onImageError, onImag
             />
             {(imageErrors[`chat-${consultant.user.id}`] || !consultant.user.avatar?.fileUrl) && (
               <View style={styles.placeholderOverlay}>
-                <Icon name="user" size={20} color="rgba(13, 122, 165, 0.4)" />
+                <Icon name="user" size={20} color="rgba(255, 255, 255, 0.4)" />
               </View>
             )}
           </View>
           <Text style={styles.floatingChatboxUsername}>{consultant.user.userName}</Text>
         </View>
-        <TouchableOpacity onPress={onClose} style={styles.floatingChatboxActionBtn}>
-          <Icon name="times" size={20} color="#fff" />
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.floatingChatboxActionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Close chat"
+          accessibilityHint="Closes the chat window"
+        >
+          <Ionicons name="close" size={20} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
       <View style={styles.floatingChatboxBody}>
         <View style={styles.floatingChatboxLoading}>
-          <ActivityIndicator size="large" color="#0D7AA5" />
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.floatingChatboxLoadingText}>Loading chat...</Text>
         </View>
       </View>
       <View style={styles.floatingChatboxFooter}>
-        <TouchableOpacity style={styles.floatingChatboxFooterBtn}>
-          <Icon name="image" size={22} color="#2196f3" />
+        <TouchableOpacity style={styles.floatingChatboxFooterBtn} accessibilityRole="button" accessibilityLabel="Attach image">
+          <Ionicons name="image" size={22} color="#007AFF" />
         </TouchableOpacity>
         <TextInput
           style={styles.floatingChatboxInput}
-          placeholder="Aa"
-          placeholderTextColor="#848785"
+          placeholder="Type a message..."
+          placeholderTextColor="#8E8E93"
         />
-        <TouchableOpacity style={styles.floatingChatboxSendBtn}>
-          <Icon name="send" size={22} color="#2196f3" />
+        <TouchableOpacity style={styles.floatingChatboxSendBtn} accessibilityRole="button" accessibilityLabel="Send message">
+          <Ionicons name="send" size={22} color="#007AFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -228,23 +285,16 @@ const ClinicDetailScreen = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Check token on mount for debugging
-  useEffect(() => {
-    const checkStoredToken = async () => {
-      const token = await AsyncStorage.getItem('authToken'); // Changed from 'token' to 'authToken'
-    };
-    checkStoredToken();
-  }, []);
-
   // Fetch clinic details
   useEffect(() => {
     const fetchClinicDetails = async () => {
       try {
-        const data = await getClinicById(clinicId);
+        const token = await AsyncStorage.getItem('authToken');
+        const data = await getClinicById(clinicId, token);
         setClinic(data.data || data);
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 600,
+          duration: 400,
           easing: Easing.out(Easing.ease),
           useNativeDriver: true,
         }).start();
@@ -262,7 +312,7 @@ const ClinicDetailScreen = () => {
     const fetchCurrentUser = async () => {
       try {
         setAuthLoading(true);
-        const token = await AsyncStorage.getItem('authToken'); // Changed from 'token' to 'authToken'
+        const token = await AsyncStorage.getItem('authToken');
         if (!token) {
           setCurrentUserId('');
           return;
@@ -274,16 +324,14 @@ const ClinicDetailScreen = () => {
           userRes?.id ||
           '';
         if (!userId) {
-          console.warn('User ID not found in response');
-          await AsyncStorage.removeItem('authToken'); // Changed from 'token' to 'authToken'
+          await AsyncStorage.removeItem('authToken');
           setCurrentUserId('');
           return;
         }
         setCurrentUserId(userId);
       } catch (err) {
-        console.error('Error fetching current user:', err.response?.data || err.message);
         setCurrentUserId('');
-        await AsyncStorage.removeItem('authToken'); // Changed from 'token' to 'authToken'
+        await AsyncStorage.removeItem('authToken');
       } finally {
         setAuthLoading(false);
       }
@@ -293,27 +341,27 @@ const ClinicDetailScreen = () => {
 
   // Handle image loading and errors
   const handleImageError = (imageId) => {
-    setImageErrors(prev => ({ ...prev, [imageId]: true }));
-    setImageLoading(prev => ({ ...prev, [imageId]: false }));
+    setImageErrors((prev) => ({ ...prev, [imageId]: true }));
+    setImageLoading((prev) => ({ ...prev, [imageId]: false }));
   };
 
   const handleImageLoad = (imageId) => {
-    setImageLoading(prev => ({ ...prev, [imageId]: false }));
+    setImageLoading((prev) => ({ ...prev, [imageId]: false }));
   };
 
   const handleImageLoadStart = (imageId) => {
-    setImageLoading(prev => ({ ...prev, [imageId]: true }));
+    setImageLoading((prev) => ({ ...prev, [imageId]: true }));
   };
 
   // Handle sending messages to consultants
   const handleSendMessage = async (consultant) => {
     if (!currentUserId || !consultant?.user?.id) {
-      setShowLoginModal(true); // Show login modal if user is not authenticated
+      setShowLoginModal(true);
       return;
     }
     setChatLoading(true);
     try {
-      const token = await AsyncStorage.getItem('authToken'); // Changed from 'token' to 'authToken'
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         setShowLoginModal(true);
         setChatLoading(false);
@@ -326,8 +374,7 @@ const ClinicDetailScreen = () => {
       setChatThread(thread);
       setChatConsultant(consultant);
     } catch (err) {
-      console.error('Error starting chat thread:', err.response?.data || err.message);
-      alert('Failed to start chat thread: ' + (err.response?.data?.message || err.message));
+      alert('Failed to start chat: ' + (err.response?.data?.message || err.message));
     }
     setChatLoading(false);
   };
@@ -342,9 +389,8 @@ const ClinicDetailScreen = () => {
       setFeedbackSuccess('');
       return;
     }
-
     try {
-      const token = await AsyncStorage.getItem('authToken'); // Changed from 'token' to 'authToken'
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         setShowLoginModal(true);
         return;
@@ -356,7 +402,7 @@ const ClinicDetailScreen = () => {
         userRes?.id ||
         '';
       if (!userId) {
-        await AsyncStorage.removeItem('authToken'); // Changed from 'token' to 'authToken'
+        await AsyncStorage.removeItem('authToken');
         setShowLoginModal(true);
         return;
       }
@@ -367,8 +413,7 @@ const ClinicDetailScreen = () => {
       setFeedbackError('');
       setFeedbackSuccess('');
     } catch (err) {
-      console.error('Error in handleOpenFeedbackModal:', err.response?.data || err.message);
-      await AsyncStorage.removeItem('authToken'); // Changed from 'token' to 'authToken'
+      await AsyncStorage.removeItem('authToken');
       setShowLoginModal(true);
     }
   };
@@ -399,7 +444,7 @@ const ClinicDetailScreen = () => {
       return;
     }
     try {
-      const token = await AsyncStorage.getItem('authToken'); // Changed from 'token' to 'authToken'
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         setFeedbackError('Authentication token is missing.');
         setFeedbackLoading(false);
@@ -421,7 +466,6 @@ const ClinicDetailScreen = () => {
         setFeedbackComment('');
       }, 1200);
     } catch (err) {
-      console.error('Feedback submission error:', err.response?.data || err.message);
       setFeedbackError('Failed to submit feedback: ' + (err.response?.data?.message || err.message));
     }
     setFeedbackLoading(false);
@@ -435,14 +479,14 @@ const ClinicDetailScreen = () => {
     }
     const encodedAddress = encodeURIComponent(clinic.address);
     const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-    Linking.openURL(url).catch(err => alert('Failed to open map: ' + err.message));
+    Linking.openURL(url).catch((err) => alert('Failed to open map: ' + err.message));
   };
 
   // Loading state
   if (loading || authLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0D7AA5" />
+        <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Loading Clinic Details...</Text>
       </SafeAreaView>
     );
@@ -456,7 +500,11 @@ const ClinicDetailScreen = () => {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to the previous screen"
         >
+          <Ionicons name="arrow-back" size={20} color="#007AFF" />
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -471,7 +519,11 @@ const ClinicDetailScreen = () => {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to the previous screen"
         >
+          <Ionicons name="arrow-back" size={20} color="#007AFF" />
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -481,6 +533,7 @@ const ClinicDetailScreen = () => {
   const { avg, count } = getStarRating(clinic.feedbacks);
   const doctorsToShow = clinic.doctors && !showAllDoctors ? clinic.doctors.slice(0, 9) : clinic.doctors;
   const consultantsToShow = clinic.consultants && !showAllConsultants ? clinic.consultants.slice(0, 9) : clinic.consultants;
+  const clinicName = clinic.name || clinic.user?.userName || 'Unnamed Clinic';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -489,11 +542,12 @@ const ClinicDetailScreen = () => {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          accessibilityLabel={`Go back from ${clinicName}`}
+          accessibilityHint="Navigates back to the previous screen"
         >
-          <Ionicons name="arrow-back" size={20} color="#0D7AA5" />
+          <Ionicons name="arrow-back" size={20} color="#007AFF" />
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
-
         {/* Header Banner */}
         <Animated.View
           style={[
@@ -511,57 +565,76 @@ const ClinicDetailScreen = () => {
             },
           ]}
         >
-          <View style={styles.clinicHeaderLogo}>
-            {imageLoading['clinic-main'] && (
-              <View style={styles.imageLoadingOverlay}>
-                <ActivityIndicator size="small" color="#0D7AA5" />
-              </View>
-            )}
-            <Image
-              source={{
-                uri: imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl
-                  ? 'https://via.placeholder.com/150'
-                  : clinic.imageUrl.fileUrl,
-              }}
-              style={styles.clinicHeaderLogoImage}
-              onError={() => handleImageError('clinic-main')}
-              onLoad={() => handleImageLoad('clinic-main')}
-              onLoadStart={() => handleImageLoadStart('clinic-main')}
-            />
-            {(imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl) && (
-              <View style={styles.placeholderOverlay}>
-                <Icon name="hospital-o" size={40} color="rgba(13, 122, 165, 0.4)" />
-              </View>
-            )}
-          </View>
-          <View style={styles.clinicHeaderMeta}>
-            <Text style={styles.clinicHeaderTitle}>{clinic.name}</Text>
-            <View style={styles.clinicHeaderAddress}>
-              <Icon name="map-marker" size={18} color="#757575" style={styles.clinicHeaderLocationIcon} />
-              <Text style={styles.clinicHeaderLocation}>{clinic.address}</Text>
+          <LinearGradient colors={['#FFFFFF', '#F2F2F7']} style={styles.clinicHeaderBanner}>
+            <View style={styles.clinicHeaderLogo}>
+              {imageLoading['clinic-main'] && (
+                <View style={styles.imageLoadingOverlay}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                </View>
+              )}
+              <Image
+                source={{
+                  uri: imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl
+                    ? 'https://via.placeholder.com/150'
+                    : clinic.imageUrl.fileUrl,
+                }}
+                style={styles.clinicHeaderLogoImage}
+                onError={() => handleImageError('clinic-main')}
+                onLoad={() => handleImageLoad('clinic-main')}
+                onLoadStart={() => handleImageLoadStart('clinic-main')}
+              />
+              {(imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl) && (
+                <View style={styles.placeholderOverlay}>
+                  <Ionicons name="medkit" size={40} color="rgba(0, 122, 255, 0.4)" />
+                </View>
+              )}
             </View>
-            <View style={styles.clinicHeaderContactRow}>
-              <View style={styles.clinicHeaderContactItem}>
-                <Icon name="phone" size={18} color="#757575" style={styles.clinicHeaderContactIcon} />
-                <Text style={styles.clinicHeaderContactText}>{clinic.user.phoneNo}</Text>
-              </View>
-              <View style={styles.clinicHeaderContactItem}>
-                <Icon name="envelope" size={18} color="#757575" style={styles.clinicHeaderContactIcon} />
-                <Text style={styles.clinicHeaderContactText}>{clinic.user.email}</Text>
+            <View style={styles.clinicHeaderMeta}>
+              <Text style={styles.clinicHeaderTitle}>{clinicName}</Text>
+              <TouchableOpacity
+                style={styles.clinicHeaderAddress}
+                onPress={openMap}
+                accessibilityRole="button"
+                accessibilityLabel="View clinic location on map"
+                accessibilityHint="Opens the clinic address in Google Maps"
+              >
+                <Ionicons name="location" size={18} color="#8E8E93" style={styles.clinicHeaderLocationIcon} />
+                <Text style={styles.clinicHeaderLocation}>{clinic.address || 'Address not available'}</Text>
+              </TouchableOpacity>
+              <View style={styles.clinicHeaderContactRow}>
+                <TouchableOpacity
+                  style={styles.clinicHeaderContactItem}
+                  onPress={() => initiatePhoneCall(clinic.user.phoneNo)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Call clinic"
+                  accessibilityHint="Initiates a phone call to the clinic"
+                >
+                  <Ionicons name="call" size={18} color="#007AFF" style={styles.clinicHeaderContactIcon} />
+                  <Text style={styles.clinicHeaderContactText}>{clinic.user.phoneNo || 'N/A'}</Text>
+                </TouchableOpacity>
+                <View style={styles.clinicHeaderContactItem}>
+                  <Ionicons name="mail" size={18} color="#8E8E93" style={styles.clinicHeaderContactIcon} />
+                  <Text style={styles.clinicHeaderContactText}>{clinic.user.email || 'N/A'}</Text>
+                </View>
               </View>
             </View>
-          </View>
+          </LinearGradient>
         </Animated.View>
-
         {/* Main Content */}
         <View style={styles.clinicMainContent}>
           <View style={styles.clinicMainLeft}>
             {/* About the Clinic */}
             <View style={styles.clinicSection}>
               <Text style={styles.clinicSectionTitle}>About the Clinic</Text>
-              <Text style={styles.clinicSectionDesc}>{clinic.description}</Text>
-              <TouchableOpacity style={styles.clinicMapButton} onPress={openMap}>
-                <Icon name="map" size={18} color="#fff" style={styles.clinicMapButtonIcon} />
+              <Text style={styles.clinicSectionDesc}>{clinic.description || 'No description available.'}</Text>
+              <TouchableOpacity
+                style={styles.clinicMapButton}
+                onPress={openMap}
+                accessibilityRole="button"
+                accessibilityLabel="View location on map"
+                accessibilityHint="Opens the clinic address in Google Maps"
+              >
+                <Ionicons name="map" size={18} color="#FFFFFF" style={styles.clinicMapButtonIcon} />
                 <Text style={styles.clinicMapButtonText}>View Location on Map</Text>
               </TouchableOpacity>
               <View style={styles.clinicSectionInfo}>
@@ -571,11 +644,10 @@ const ClinicDetailScreen = () => {
                 </Text>
                 <Text style={styles.clinicSectionInfoText}>
                   <Text style={styles.clinicSectionInfoLabel}>Specializations: </Text>
-                  {clinic.specializations}
+                  {clinic.specializations || 'N/A'}
                 </Text>
               </View>
             </View>
-
             {/* Doctors Section */}
             <View style={styles.clinicSection}>
               <Text style={styles.clinicSectionTitle}>Our Doctors</Text>
@@ -593,7 +665,7 @@ const ClinicDetailScreen = () => {
                   ))
                 ) : (
                   <View style={styles.clinicDoctorCardEmpty}>
-                    <Text style={styles.clinicDoctorCardEmptyText}>No doctors</Text>
+                    <Text style={styles.clinicDoctorCardEmptyText}>No doctors available</Text>
                   </View>
                 )}
               </View>
@@ -601,12 +673,13 @@ const ClinicDetailScreen = () => {
                 <TouchableOpacity
                   style={styles.clinicSeeMoreBtn}
                   onPress={() => setShowAllDoctors(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="See more doctors"
                 >
-                  <Text style={styles.clinicSeeMoreBtnText}>See more</Text>
+                  <Text style={styles.clinicSeeMoreBtnText}>See More</Text>
                 </TouchableOpacity>
               )}
             </View>
-
             {/* Consultants Section */}
             <View style={styles.clinicSection}>
               <Text style={styles.clinicSectionTitle}>Our Consultants</Text>
@@ -626,7 +699,7 @@ const ClinicDetailScreen = () => {
                   ))
                 ) : (
                   <View style={styles.clinicDoctorCardEmpty}>
-                    <Text style={styles.clinicDoctorCardEmptyText}>No consultants</Text>
+                    <Text style={styles.clinicDoctorCardEmptyText}>No consultants available</Text>
                   </View>
                 )}
               </View>
@@ -634,18 +707,22 @@ const ClinicDetailScreen = () => {
                 <TouchableOpacity
                   style={styles.clinicSeeMoreBtn}
                   onPress={() => setShowAllConsultants(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="See more consultants"
                 >
-                  <Text style={styles.clinicSeeMoreBtnText}>See more</Text>
+                  <Text style={styles.clinicSeeMoreBtnText}>See More</Text>
                 </TouchableOpacity>
               )}
             </View>
-
             {/* Feedback Section */}
             <View style={styles.clinicSection}>
               <Text style={styles.clinicSectionTitle}>Feedback</Text>
               <TouchableOpacity
                 style={styles.clinicDetailGiveFeedbackBtn}
                 onPress={handleOpenFeedbackModal}
+                accessibilityRole="button"
+                accessibilityLabel="Send feedback"
+                accessibilityHint="Opens a form to submit feedback for the clinic"
               >
                 <Text style={styles.clinicDetailGiveFeedbackBtnText}>Send Feedback</Text>
               </TouchableOpacity>
@@ -666,7 +743,7 @@ const ClinicDetailScreen = () => {
                               key={i}
                               style={[
                                 styles.star,
-                                { color: i < stars ? '#f7b801' : '#ccc' },
+                                { color: i < stars ? '#FF9500' : '#C7C7CC' },
                               ]}
                             >
                               ★
@@ -683,7 +760,6 @@ const ClinicDetailScreen = () => {
               </View>
             </View>
           </View>
-
           {/* Booking Widget */}
           <View style={styles.clinicMainRight}>
             <View style={styles.clinicBookingWidget}>
@@ -692,7 +768,7 @@ const ClinicDetailScreen = () => {
                 <Text style={styles.clinicBookingLabel}>Clinic</Text>
                 <TextInput
                   style={styles.clinicBookingInput}
-                  value={clinic.name}
+                  value={clinicName}
                   editable={false}
                 />
               </View>
@@ -700,7 +776,7 @@ const ClinicDetailScreen = () => {
                 <Text style={styles.clinicBookingLabel}>Specialization</Text>
                 <TextInput
                   style={styles.clinicBookingInput}
-                  value={clinic.specializations}
+                  value={clinic.specializations || 'N/A'}
                   editable={false}
                 />
               </View>
@@ -709,6 +785,7 @@ const ClinicDetailScreen = () => {
                 <TextInput
                   style={styles.clinicBookingInput}
                   placeholder="Select doctor"
+                  placeholderTextColor="#8E8E93"
                   editable={false}
                 />
               </View>
@@ -719,11 +796,10 @@ const ClinicDetailScreen = () => {
           </View>
         </View>
       </ScrollView>
-
       {/* Feedback Modal */}
       <Modal
         visible={showFeedbackModal}
-        animationType="fade"
+        animationType="slide"
         transparent={true}
         onRequestClose={handleCloseFeedbackModal}
       >
@@ -731,17 +807,21 @@ const ClinicDetailScreen = () => {
           <View style={styles.clinicFeedbackModal}>
             <View style={styles.clinicFeedbackModalHeader}>
               <Text style={styles.clinicFeedbackModalHeaderText}>Send Feedback</Text>
-              <TouchableOpacity onPress={handleCloseFeedbackModal}>
-                <Text style={styles.clinicFeedbackModalClose}>×</Text>
+              <TouchableOpacity
+                onPress={handleCloseFeedbackModal}
+                accessibilityRole="button"
+                accessibilityLabel="Close feedback modal"
+              >
+                <Ionicons name="close" size={24} color="#3C3C43" />
               </TouchableOpacity>
             </View>
             <View style={styles.clinicFeedbackModalBody}>
               <View style={styles.clinicFeedbackModalGroup}>
-                <Text style={styles.clinicFeedbackModalLabel}>Rating (1-5)</Text>
+                <Text style={styles.clinicFeedbackModalLabel}>Rating</Text>
                 <View style={styles.clinicFeedbackModalStars}>
                   {renderStars(feedbackRating, setFeedbackRating, feedbackRating)}
                 </View>
-                <Text style={styles.clinicFeedbackModalRatingNote}>Click to rate</Text>
+                <Text style={styles.clinicFeedbackModalRatingNote}>Tap to rate</Text>
               </View>
               <View style={styles.clinicFeedbackModalGroup}>
                 <Text style={styles.clinicFeedbackModalLabel}>Comment</Text>
@@ -750,6 +830,7 @@ const ClinicDetailScreen = () => {
                   value={feedbackComment}
                   onChangeText={setFeedbackComment}
                   placeholder="Write your feedback here..."
+                  placeholderTextColor="#8E8E93"
                   multiline
                   numberOfLines={4}
                 />
@@ -764,6 +845,8 @@ const ClinicDetailScreen = () => {
                 <TouchableOpacity
                   style={styles.clinicDetailSendFeedbackCancelBtn}
                   onPress={handleCloseFeedbackModal}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel feedback"
                 >
                   <Text style={styles.clinicDetailSendFeedbackCancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
@@ -774,6 +857,8 @@ const ClinicDetailScreen = () => {
                   ]}
                   onPress={handleSubmitFeedback}
                   disabled={feedbackLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Submit feedback"
                 >
                   <Text style={styles.clinicDetailSendFeedbackBtnText}>
                     {feedbackLoading ? 'Submitting...' : 'Submit'}
@@ -784,11 +869,10 @@ const ClinicDetailScreen = () => {
           </View>
         </View>
       </Modal>
-
       {/* Login Modal */}
       <Modal
         visible={showLoginModal}
-        animationType="fade"
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setShowLoginModal(false)}
       >
@@ -796,20 +880,27 @@ const ClinicDetailScreen = () => {
           <View style={styles.clinicFeedbackModal}>
             <View style={styles.clinicFeedbackModalHeader}>
               <Text style={styles.clinicFeedbackModalHeaderText}>Login Required</Text>
-              <TouchableOpacity onPress={() => setShowLoginModal(false)}>
-                <Text style={styles.clinicFeedbackModalClose}>×</Text>
+              <TouchableOpacity
+                onPress={() => setShowLoginModal(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close login modal"
+              >
+                <Ionicons name="close" size={24} color="#3C3C43" />
               </TouchableOpacity>
             </View>
             <View style={[styles.clinicFeedbackModalBody, { alignItems: 'center' }]}>
               <Text style={styles.clinicFeedbackModalMessage}>
-                You need to log in to send feedback.
+                You need to log in to access this feature.
               </Text>
               <TouchableOpacity
                 style={styles.clinicDetailSendFeedbackBtn}
                 onPress={() => {
                   setShowLoginModal(false);
-                  navigation.navigate('Login', { redirectTo: 'ClinicDetail', params: { clinicId } }); // Pass clinicId in params
+                  navigation.navigate('Login', { redirectTo: 'ClinicDetail', params: { clinicId } });
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Go to login"
+                accessibilityHint="Navigates to the login screen"
               >
                 <Text style={styles.clinicDetailSendFeedbackBtnText}>Go to Login</Text>
               </TouchableOpacity>
@@ -817,7 +908,6 @@ const ClinicDetailScreen = () => {
           </View>
         </View>
       </Modal>
-
       {/* Chat Box */}
       {chatConsultant && (
         <ChatBox
@@ -838,11 +928,10 @@ const ClinicDetailScreen = () => {
   );
 };
 
-// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e3f7ff',
+    backgroundColor: '#F5F7FA',
   },
   scrollContent: {
     paddingBottom: 100,
@@ -850,63 +939,65 @@ const styles = StyleSheet.create({
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#0D7AA5',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    margin: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    margin: 16,
     alignSelf: 'flex-start',
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   backButtonText: {
-    color: '#0D7AA5',
+    color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 6,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicHeaderBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 16,
+    padding: 16,
     marginHorizontal: 16,
     marginBottom: 16,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 5,
-    backgroundImage: 'linear-gradient(135deg, #ffffff 0%, #f8fffe 100%)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   clinicHeaderLogo: {
-    width: 150,
-    height: 150,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    marginTop: -10,
-    borderWidth: 3,
-    borderColor: 'rgba(13, 122, 165, 0.1)',
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 5,
-  },
-  clinicHeaderLogoImage: {
     width: 120,
     height: 120,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  clinicHeaderLogoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
   },
   clinicHeaderMeta: {
     flex: 1,
@@ -914,13 +1005,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   clinicHeaderTitle: {
-    fontSize: width < 480 ? 24 : 28,
-    fontWeight: '800',
-    color: '#0D7AA5',
-    lineHeight: 34,
-    textShadowColor: 'rgba(13, 122, 165, 0.1)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    fontSize: isSmallScreen ? 22 : 24,
+    fontWeight: '700',
+    color: '#000000',
+    lineHeight: 30,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicHeaderAddress: {
     flexDirection: 'row',
@@ -928,12 +1017,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   clinicHeaderLocationIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   clinicHeaderLocation: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#02808F',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#3C3C43',
+    flex: 1,
+    flexWrap: 'wrap',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicHeaderContactRow: {
     flexDirection: 'column',
@@ -942,19 +1034,19 @@ const styles = StyleSheet.create({
   clinicHeaderContactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(13, 122, 165, 0.05)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginBottom: 6,
   },
   clinicHeaderContactIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   clinicHeaderContactText: {
     fontSize: 14,
-    color: '#848785',
+    color: '#3C3C43',
     fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicMainContent: {
     flexDirection: 'column',
@@ -968,43 +1060,57 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   clinicSection: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: 'rgba(13, 122, 165, 0.1)',
-    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    backgroundImage: 'linear-gradient(135deg, #ffffff 0%, #f8fffe 100%)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   clinicSectionTitle: {
-    fontSize: width < 480 ? 18 : 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '700',
-    color: '#0D7AA5',
+    color: '#000000',
     marginBottom: 12,
-    paddingLeft: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicSectionDesc: {
-    fontSize: 16,
-    color: '#013f50',
-    lineHeight: 24,
+    fontSize: 14,
+    color: '#3C3C43',
+    lineHeight: 22,
     marginBottom: 12,
-    paddingLeft: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicMapButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#02808F',
-    borderRadius: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    marginBottom: 12,
     alignSelf: 'flex-start',
-    paddingLeft: 8,
+    marginBottom: 12,
+    minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   clinicMapButtonIcon: {
     marginRight: 8,
@@ -1012,143 +1118,163 @@ const styles = StyleSheet.create({
   clinicMapButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicSectionInfo: {
-    paddingLeft: 8,
+    marginTop: 8,
   },
   clinicSectionInfoText: {
     fontSize: 14,
-    color: '#848785',
+    color: '#3C3C43',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicSectionInfoLabel: {
-    color: '#0D7AA5',
+    color: '#007AFF',
     fontWeight: '600',
   },
   clinicDoctorList: {
-    paddingLeft: 8,
+    paddingHorizontal: 4,
   },
   clinicDoctorCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: 'rgba(13, 122, 165, 0.1)',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   clinicDoctorCardEmpty: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(13, 122, 165, 0.02)',
-    borderWidth: 2,
-    borderColor: 'rgba(13, 122, 165, 0.2)',
-    borderStyle: 'dashed',
-    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
     padding: 16,
-    minHeight: 120,
+    minHeight: 100,
   },
   clinicDoctorCardEmptyText: {
-    fontSize: 16,
-    color: '#848785',
+    fontSize: 14,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicDoctorAvatar: {
-    marginBottom: 12,
+    marginRight: 12,
     position: 'relative',
   },
   clinicDoctorAvatarImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   clinicDoctorInfo: {
-    width: '100%',
-    alignItems: 'center',
+    flex: 1,
   },
   clinicDoctorName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0D7AA5',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicDoctorContact: {
     marginBottom: 8,
   },
+  clinicDoctorContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    paddingVertical: 4,
+  },
+  clinicDoctorContactIcon: {
+    marginRight: 6,
+  },
   clinicDoctorContactText: {
     fontSize: 14,
-    color: '#848785',
-    marginBottom: 4,
-  },
-  clinicDoctorContactLabel: {
-    color: '#02808F',
-    fontWeight: '600',
+    color: '#3C3C43',
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   consultantSendMessageBtn: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#0D7AA5',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     marginTop: 8,
-    width: '100%',
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   consultantSendMessageBtnDisabled: {
     opacity: 0.6,
   },
   consultantSendMessageIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   consultantSendMessageText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#0D7AA5',
+    color: '#007AFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicSeeMoreBtn: {
-    backgroundColor: '#02808F',
-    borderRadius: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 24,
     alignSelf: 'center',
     marginTop: 12,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   clinicSeeMoreBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackRating: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    paddingLeft: 8,
   },
   starsContainer: {
     flexDirection: 'row',
@@ -1156,35 +1282,45 @@ const styles = StyleSheet.create({
   },
   starTouchable: {
     padding: 4,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   star: {
     fontSize: 18,
   },
   ratingValue: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#0D7AA5',
+    fontWeight: '600',
+    color: '#000000',
     marginRight: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   reviewCount: {
     fontSize: 14,
-    color: '#848785',
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackList: {
-    paddingLeft: 8,
+    paddingHorizontal: 4,
   },
   clinicFeedbackCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: 'rgba(13, 122, 165, 0.1)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   feedbackStars: {
     flexDirection: 'row',
@@ -1192,46 +1328,65 @@ const styles = StyleSheet.create({
   },
   feedbackComment: {
     fontSize: 14,
-    color: '#1976d2',
+    color: '#3C3C43',
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackEmpty: {
     fontSize: 14,
-    color: '#848785',
-    paddingLeft: 8,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicDetailGiveFeedbackBtn: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: '#1a73e8',
-    borderRadius: 8,
+    top: 12,
+    right: 12,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   clinicDetailGiveFeedbackBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicBookingWidget: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: 'rgba(13, 122, 165, 0.1)',
-    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 5,
-    backgroundImage: 'linear-gradient(135deg, #ffffff 0%, #f8fffe 100%)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   clinicBookingTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0D7AA5',
+    color: '#000000',
     marginBottom: 16,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicBookingField: {
     marginBottom: 12,
@@ -1239,97 +1394,101 @@ const styles = StyleSheet.create({
   clinicBookingLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0D7AA5',
+    color: '#007AFF',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicBookingInput: {
     width: '100%',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(13, 122, 165, 0.2)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: '#F2F2F7',
     fontSize: 14,
-    color: '#013f50',
+    color: '#3C3C43',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicBookingBtn: {
-    backgroundColor: 'rgba(13, 122, 165, 0.3)',
+    backgroundColor: '#C7C7CC',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
+    minHeight: 44,
   },
   clinicBookingBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   floatingChatboxContainer: {
     position: 'absolute',
     bottom: 16,
-    right: 0,
-    width: '100%',
+    right: 16,
+    width: isSmallScreen ? '90%' : 360,
     zIndex: 3000,
-    alignItems: 'flex-end',
   },
   floatingChatboxWindow: {
-    width: '95%',
-    maxWidth: 420,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    shadowColor: '#0D7AA5',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.15,
-    shadowRadius: 40,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(13, 122, 165, 0.2)',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   floatingChatboxHeader: {
-    backgroundColor: '#0D7AA5',
-    backgroundImage: 'linear-gradient(135deg, #0D7AA5 0%, #02808F 50%, #00A996 100%)',
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   floatingChatboxHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   floatingChatboxAvatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: 8,
     position: 'relative',
   },
   floatingChatboxAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: '#FFFFFF',
   },
   floatingChatboxUsername: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   floatingChatboxActionBtn: {
     padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   floatingChatboxBody: {
-    height: 400,
-    backgroundColor: '#fff',
+    height: 300,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1337,31 +1496,47 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
   },
+  floatingChatboxLoadingText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
   floatingChatboxFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(13, 122, 165, 0.1)',
+    borderTopColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   floatingChatboxFooterBtn: {
     padding: 8,
     borderRadius: 8,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   floatingChatboxInput: {
     flex: 1,
-    backgroundColor: 'rgba(13, 122, 165, 0.05)',
-    borderWidth: 2,
-    borderColor: 'rgba(13, 122, 165, 0.2)',
+    backgroundColor: '#F2F2F7',
     borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: '#013f50',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#3C3C43',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   floatingChatboxSendBtn: {
     padding: 8,
     borderRadius: 8,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   imageLoadingOverlay: {
     position: 'absolute',
@@ -1371,7 +1546,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(13, 122, 165, 0.05)',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderRadius: 'inherit',
   },
   placeholderOverlay: {
@@ -1382,26 +1557,32 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(248, 249, 250, 0.9)',
+    backgroundColor: 'rgba(242, 242, 247, 0.9)',
     borderRadius: 'inherit',
   },
   clinicFeedbackModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   clinicFeedbackModal: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     width: '90%',
-    maxWidth: 500,
+    maxWidth: 400,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   clinicFeedbackModalHeader: {
     flexDirection: 'row',
@@ -1412,11 +1593,8 @@ const styles = StyleSheet.create({
   clinicFeedbackModalHeaderText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0D7AA5',
-  },
-  clinicFeedbackModalClose: {
-    fontSize: 24,
-    color: '#222',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalBody: {
     flexDirection: 'column',
@@ -1427,8 +1605,9 @@ const styles = StyleSheet.create({
   clinicFeedbackModalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0D7AA5',
+    color: '#007AFF',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalStars: {
     flexDirection: 'row',
@@ -1436,91 +1615,115 @@ const styles = StyleSheet.create({
   },
   clinicFeedbackModalRatingNote: {
     fontSize: 12,
-    color: '#666',
+    color: '#8E8E93',
     marginTop: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalTextarea: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 6,
-    padding: 10,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    padding: 12,
     fontSize: 14,
-    color: '#013f50',
+    color: '#3C3C43',
+    backgroundColor: '#F2F2F7',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalError: {
     fontSize: 14,
-    color: '#d93025',
+    color: '#FF3B30',
     marginBottom: 10,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalSuccess: {
     fontSize: 14,
-    color: '#188038',
+    color: '#34C759',
     marginBottom: 10,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 20,
+    gap: 12,
   },
   clinicDetailSendFeedbackCancelBtn: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: '#222',
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#3C3C43',
+    borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    marginRight: 12,
+    minHeight: 44,
   },
   clinicDetailSendFeedbackCancelBtnText: {
     fontSize: 14,
-    color: '#222',
-    fontWeight: '500',
+    color: '#3C3C43',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicDetailSendFeedbackBtn: {
-    backgroundColor: '#1a73e8',
-    borderRadius: 6,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 20,
+    minHeight: 44,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   clinicDetailSendFeedbackBtnDisabled: {
-    backgroundColor: '#90caf9',
+    backgroundColor: '#C7C7CC',
+    opacity: 0.6,
   },
   clinicDetailSendFeedbackBtnText: {
     fontSize: 14,
-    color: '#fff',
-    fontWeight: '500',
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   clinicFeedbackModalMessage: {
     fontSize: 16,
-    color: '#013f50',
+    color: '#3C3C43',
     marginBottom: 16,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#e3f7ff',
+    backgroundColor: '#F5F7FA',
   },
   loadingText: {
     fontSize: 16,
-    color: '#0D7AA5',
+    color: '#007AFF',
     marginTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#e3f7ff',
+    backgroundColor: '#F5F7FA',
     padding: 16,
   },
   errorText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fe6b6a',
+    color: '#FF3B30',
     marginBottom: 16,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });
 

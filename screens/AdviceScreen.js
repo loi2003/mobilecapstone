@@ -11,12 +11,14 @@ import {
   Modal,
   FlatList,
   Pressable,
+  KeyboardAvoidingView,
+  Keyboard, // Added Keyboard import
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Animatable from 'react-native-animatable';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser } from '../api/auth'; // Adjust path as needed
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAIChatResponse } from '../api/aiadvise-api'; // Adjust path as needed
 
 const { width, height } = Dimensions.get('window');
@@ -25,9 +27,7 @@ const AdviceScreen = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [activeMode, setActiveMode] = useState('ai'); // 'ai' or 'staff'
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showStaffTypePrompt, setShowStaffTypePrompt] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedStaffType, setSelectedStaffType] = useState(null);
@@ -41,7 +41,7 @@ const AdviceScreen = () => {
   const inputFormRef = useRef(null);
   const navigation = useNavigation();
 
-  // Check authentication status and load chat history
+  // Load chat history (matches AdvicePage's localStorage logic)
   useEffect(() => {
     const loadChatHistory = async () => {
       try {
@@ -53,54 +53,24 @@ const AdviceScreen = () => {
         console.error('Error loading chat history:', error);
       }
     };
-
-    const checkAuthStatus = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          setIsLoggedIn(false);
-          return;
-        }
-        const response = await getCurrentUser(token);
-        if (response.status === 200 && response.data?.data) {
-          setIsLoggedIn(true);
-        } else {
-          setIsLoggedIn(false);
-          await AsyncStorage.removeItem('token');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error.response?.data || error.message);
-        setIsLoggedIn(false);
-        await AsyncStorage.removeItem('token');
-      }
-    };
-
     loadChatHistory();
-    checkAuthStatus();
   }, []);
 
-  // Auto-scroll to the latest message
+  // Auto-scroll to the latest message (equivalent to AdvicePage's scrollIntoView)
   useEffect(() => {
     if (scrollViewRef.current && messages.length > 0) {
       scrollViewRef.current.scrollToEnd({ animated: true });
     }
   }, [messages]);
 
-  // Disable scrolling and trap focus when staff type prompt is shown
-  useEffect(() => {
-    if (showStaffTypePrompt) {
-      staffPromptRef.current?.focus();
-    }
-  }, [showStaffTypePrompt]);
-
-  // Handle message submission
+  // Handle message submission (matches AdvicePage's staff advice logic)
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
     let currentChatId = selectedChatId;
     let storedHistory = chatHistory;
 
-    // If no chat is selected, create a new chat
+    // Create new chat if none selected (same as AdvicePage)
     if (currentChatId === null) {
       currentChatId = Date.now();
       const newChat = { id: currentChatId, question: input, messages: [] };
@@ -123,13 +93,15 @@ const AdviceScreen = () => {
         minute: '2-digit',
       }),
     };
+
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput('');
+    Keyboard.dismiss(); // Close the keyboard after sending the message
     setIsLoading(true);
     setAiComparison(null);
 
-    // Update chat history
+    // Update chat history (matches AdvicePage's localStorage update)
     const updatedHistory = storedHistory.map((chat) =>
       chat.id === currentChatId
         ? { ...chat, question: chat.question || input, messages: updatedMessages }
@@ -155,7 +127,6 @@ const AdviceScreen = () => {
         };
         const finalMessages = [...updatedMessages, aiMessage];
         setMessages(finalMessages);
-
         const newHistory = updatedHistory.map((chat) =>
           chat.id === currentChatId
             ? { ...chat, messages: finalMessages }
@@ -180,7 +151,6 @@ const AdviceScreen = () => {
         };
         const finalMessages = [...updatedMessages, errorMessage];
         setMessages(finalMessages);
-
         const newHistory = updatedHistory.map((chat) =>
           chat.id === currentChatId
             ? { ...chat, messages: finalMessages }
@@ -191,6 +161,7 @@ const AdviceScreen = () => {
         setIsLoading(false);
       }
     } else {
+      // Staff advice logic (identical to AdvicePage)
       try {
         setTimeout(() => {
           const staffLabel = selectedStaffType === 'nutrition' ? 'Nutrition Staff' : 'Health Staff';
@@ -210,7 +181,6 @@ const AdviceScreen = () => {
           };
           const finalMessages = [...updatedMessages, staffMessage];
           setMessages(finalMessages);
-
           const newHistory = updatedHistory.map((chat) =>
             chat.id === currentChatId
               ? { ...chat, messages: finalMessages }
@@ -237,7 +207,6 @@ const AdviceScreen = () => {
         };
         const finalMessages = [...updatedMessages, errorMessage];
         setMessages(finalMessages);
-
         const newHistory = updatedHistory.map((chat) =>
           chat.id === currentChatId
             ? { ...chat, messages: finalMessages }
@@ -250,12 +219,11 @@ const AdviceScreen = () => {
     }
   };
 
-  // Compare to AI Chat
+  // Compare to AI Chat (matches AdvicePage's compareToAiChat)
   const compareToAiChat = async () => {
     const lastUserMessage = messages.filter((msg) => msg.sender === 'user').slice(-1)[0];
     const lastStaffResponse = messages.filter((msg) => msg.sender === 'staff').slice(-1)[0];
     if (!lastUserMessage) return;
-
     setIsLoading(true);
     try {
       const response = await getAIChatResponse(lastUserMessage.text);
@@ -295,10 +263,6 @@ const AdviceScreen = () => {
   // Switch between AI and Staff modes
   const switchMode = (mode) => {
     if (mode === 'staff') {
-      if (!isLoggedIn) {
-        setShowLoginPrompt(true);
-        return;
-      }
       setShowStaffTypePrompt(true);
       return;
     }
@@ -306,7 +270,6 @@ const AdviceScreen = () => {
     setMessages([]);
     setInput('');
     setAiComparison(null);
-    setShowLoginPrompt(false);
     setShowStaffTypePrompt(false);
     setSelectedStaffType(null);
     setSelectedChatId(null);
@@ -321,7 +284,6 @@ const AdviceScreen = () => {
     setInput('');
     setAiComparison(null);
     setShowStaffTypePrompt(false);
-    setShowLoginPrompt(false);
     setSelectedChatId(null);
     setCurrentPage(1);
   };
@@ -341,7 +303,6 @@ const AdviceScreen = () => {
       return newHistory;
     });
     setShowHistoryModal(false);
-    // Scroll to input form
     scrollViewRef.current?.scrollToEnd({ animated: true });
   };
 
@@ -356,7 +317,6 @@ const AdviceScreen = () => {
       setSelectedStaffType(lastStaffMessage ? lastStaffMessage.staffType : null);
       setActiveMode(lastStaffMessage ? 'staff' : 'ai');
       setShowHistoryModal(false);
-      // Scroll to bottom of chat
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }
   };
@@ -366,7 +326,6 @@ const AdviceScreen = () => {
     const updatedHistory = chatHistory.filter((chat) => chat.id !== chatId);
     setChatHistory(updatedHistory);
     await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
-
     if (selectedChatId === chatId) {
       setMessages([]);
       setSelectedChatId(null);
@@ -374,7 +333,6 @@ const AdviceScreen = () => {
       setSelectedStaffType(null);
       setActiveMode('ai');
     }
-
     const newTotalPages = Math.ceil(updatedHistory.length / chatsPerPage);
     if (currentPage > newTotalPages && newTotalPages > 0) {
       setCurrentPage(newTotalPages);
@@ -402,349 +360,387 @@ const AdviceScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
-        <Text style={styles.title}>
-          {activeMode === 'ai' ? 'AI Advice Chat' : `${selectedStaffType === 'nutrition' ? 'Nutrition' : 'Health'} Staff Advice Chat`}
-        </Text>
-        <TouchableOpacity onPress={() => setShowHistoryModal(true)} style={styles.historyButton}>
-          <Ionicons name="time-outline" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.description}>
-        {activeMode === 'ai'
-          ? 'Chat with our AI for instant pregnancy-related advice.'
-          : `Get personalized guidance from our ${selectedStaffType === 'nutrition' ? 'nutrition' : 'health'} staff.`}
-      </Text>
-
-      {/* Mode Toggle */}
-      <View style={styles.modeNav}>
-        <TouchableOpacity
-          style={[styles.modeButton, activeMode === 'ai' && styles.modeButtonActive]}
-          onPress={() => switchMode('ai')}
-        >
-          <Text style={[styles.modeButtonText, activeMode === 'ai' && styles.modeButtonTextActive]}>
-            AI Advice
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeButton, activeMode === 'staff' && styles.modeButtonActive, !isLoggedIn && styles.modeButtonDisabled]}
-          onPress={() => switchMode('staff')}
-          disabled={!isLoggedIn}
-        >
-          <Text style={[styles.modeButtonText, activeMode === 'staff' && styles.modeButtonTextActive]}>
-            Staff Advice
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Chat Container */}
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        ref={scrollViewRef}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.chatContainer}>
-          {messages.length === 0 && (
-            <Text style={styles.emptyMessage}>
-              Start chatting by typing your question below!
-            </Text>
-          )}
-          {messages.map((msg, index) => (
-            <Animatable.View
-              key={index}
-              animation="fadeInUp"
-              duration={300}
-              style={[
-                styles.message,
-                msg.sender === 'user' ? styles.messageUser : msg.sender === 'ai' ? styles.messageBot : styles.messageStaff,
-              ]}
-            >
-              {msg.sender === 'ai' && (
-                <View style={styles.avatar} />
-              )}
-              <View
-                style={[
-                  styles.messageContent,
-                  msg.sender === 'user'
-                    ? styles.bgUser
-                    : msg.sender === 'ai'
-                    ? styles.bgAI
-                    : styles.bgStaff,
-                ]}
-              >
-                <Text style={[styles.messageText, msg.sender === 'user' && styles.messageTextUser]}>
-                  {msg.text}
-                </Text>
-                <Text style={[styles.messageTimestamp, msg.sender === 'user' && styles.messageTimestampUser]}>
-                  {msg.time}
-                </Text>
-              </View>
-            </Animatable.View>
-          ))}
-          {isLoading && (
-            <Animatable.View
-              animation="fadeInUp"
-              duration={300}
-              style={[styles.message, activeMode === 'ai' ? styles.messageBot : styles.messageStaff]}
-            >
-              {activeMode === 'ai' && <View style={styles.avatar} />}
-              <View style={[styles.messageContent, styles.typing]}>
-                <View style={styles.dot} />
-                <View style={[styles.dot, { animationDelay: '0.2s' }]} />
-                <View style={[styles.dot, { animationDelay: '0.4s' }]} />
-              </View>
-            </Animatable.View>
-          )}
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            accessible
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            accessibilityHint="Return to previous screen"
+          >
+            <Ionicons name="arrow-back" size={28} color="#1a1a1a" />
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            {activeMode === 'ai' ? 'AI Advice Chat' : `${selectedStaffType === 'nutrition' ? 'Nutrition' : 'Health'} Staff Advice Chat`}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setShowHistoryModal(true)}
+            style={styles.historyButton}
+            accessible
+            accessibilityLabel="View chat history"
+            accessibilityRole="button"
+            accessibilityHint="Open chat history view"
+          >
+            <Ionicons name="time-outline" size={28} color="#1a1a1a" />
+          </TouchableOpacity>
         </View>
-
-        {/* AI Comparison */}
-        {aiComparison && (
-          <Animatable.View animation="fadeInUp" duration={300} style={styles.comparisonContainer}>
-            <Text style={styles.comparisonTitle}>Response Comparison</Text>
-            <Text style={styles.comparisonQuestion}>
-              <Text style={styles.comparisonQuestionLabel}>Question: </Text>
-              {aiComparison.userMessage}
-            </Text>
-            <View style={styles.comparisonTable}>
-              <View style={styles.comparisonRow}>
-                <Text style={styles.comparisonHeader}>
-                  {aiComparison.staffType === 'nutrition' ? 'Nutrition Staff Response' : 'Health Staff Response'}
-                </Text>
-                <View style={[styles.messageContent, styles.bgStaff]}>
-                  <Text style={styles.messageText}>{aiComparison.staffResponse}</Text>
-                  <Text style={styles.messageTimestamp}>{aiComparison.time}</Text>
-                </View>
-              </View>
-              <View style={styles.comparisonRow}>
-                <Text style={styles.comparisonHeader}>AI Response</Text>
-                <View style={[styles.messageContent, styles.bgAI]}>
-                  <Text style={styles.messageText}>{aiComparison.aiResponse}</Text>
-                  <Text style={styles.messageTimestamp}>{aiComparison.time}</Text>
-                </View>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setAiComparison(null)}
-            >
-              <Text style={styles.closeButtonText}>Close Comparison</Text>
-            </TouchableOpacity>
-          </Animatable.View>
-        )}
-
-        {/* Footer Note */}
-        <Text style={styles.footerNote}>
+        <Text style={styles.description}>
           {activeMode === 'ai'
-            ? 'Need a human touch? Try our '
-            : 'Want instant answers? Check out our '}
-          <Text
-            style={styles.linkText}
-            onPress={() => navigation.navigate('Consultation')}
-          >
-            Consultant Chat
-          </Text>{' '}
-          page.
+            ? 'Chat with our AI for instant pregnancy-related advice.'
+            : `Get personalized guidance from our ${selectedStaffType === 'nutrition' ? 'nutrition' : 'health'} staff.`}
         </Text>
-
-        {/* Compare Button (Staff Mode) */}
-        {activeMode === 'staff' && messages.length > 0 && (
+        {/* Mode Toggle */}
+        <View style={styles.modeNav}>
           <TouchableOpacity
-            style={[styles.compareButton, isLoading && styles.compareButtonDisabled]}
-            onPress={compareToAiChat}
-            disabled={isLoading}
+            style={[styles.modeButton, activeMode === 'ai' && styles.modeButtonActive]}
+            onPress={() => switchMode('ai')}
+            accessible
+            accessibilityLabel="Switch to AI Advice"
+            accessibilityRole="button"
+            accessibilityHint="Switch to AI-powered advice chat"
           >
-            <Text style={styles.compareButtonText}>Compare to AI Chat</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
-
-      {/* Input Form */}
-      {(activeMode === 'ai' || (activeMode === 'staff' && isLoggedIn)) && (
-        <View style={styles.inputForm}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask a question..."
-            placeholderTextColor="#6B7280"
-            multiline
-            ref={inputFormRef}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!input.trim() || isLoading) && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={isLoading || !input.trim()}
-          >
-            <Ionicons name="send" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Login Prompt Modal */}
-      <Modal
-        visible={showLoginPrompt}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.overlay}>
-          <Animatable.View animation="zoomIn" duration={300} style={styles.loginPopup}>
-            <Text style={styles.popupText}>
-              Please{' '}
-              <Text
-                style={styles.linkText}
-                onPress={() => navigation.navigate('Login')}
-              >
-                log in
-              </Text>{' '}
-              to access Staff Advice.
+            <Text style={[styles.modeButtonText, activeMode === 'ai' && styles.modeButtonTextActive]}>
+              AI Advice
             </Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowLoginPrompt(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </Animatable.View>
-        </View>
-      </Modal>
-
-      {/* Staff Type Prompt Modal */}
-      <Modal
-        visible={showStaffTypePrompt}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.overlay}>
-          <Animatable.View
-            animation="zoomIn"
-            duration={300}
-            style={styles.staffTypePopup}
-            ref={staffPromptRef}
-            accessibilityRole="dialog"
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeButton, activeMode === 'staff' && styles.modeButtonActive]}
+            onPress={() => switchMode('staff')}
+            accessible
+            accessibilityLabel="Switch to Staff Advice"
+            accessibilityRole="button"
+            accessibilityHint="Switch to staff advice chat"
           >
-            <Text style={styles.staffTypeTitle}>Let's Get Started!</Text>
-            <Text style={styles.staffTypeMessage}>Who would you like to consult with today?</Text>
-            <View style={styles.staffTypeButtons}>
-              <TouchableOpacity
-                style={styles.staffTypeButton}
-                onPress={() => handleStaffTypeSelect('nutrition')}
-              >
-                <Text style={styles.staffTypeButtonText}>Nutrition Staff</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.staffTypeButton}
-                onPress={() => handleStaffTypeSelect('health')}
-              >
-                <Text style={styles.staffTypeButtonText}>Health Staff</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.staffTypeCancel}
-              onPress={() => setShowStaffTypePrompt(false)}
-            >
-              <Text style={styles.staffTypeCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </Animatable.View>
+            <Text style={[styles.modeButtonText, activeMode === 'staff' && styles.modeButtonTextActive]}>
+              Staff Advice
+            </Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-
-      {/* Chat History Modal */}
-      <Modal
-        visible={showHistoryModal}
-        transparent
-        animationType="slide"
-      >
-        <View style={styles.historyModal}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>Advice History</Text>
+        {/* Chat Container */}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.chatContainer}>
+            {messages.length === 0 && (
+              <Text style={styles.emptyMessage}>
+                Start chatting by typing your question below!
+              </Text>
+            )}
+            {messages.map((msg, index) => (
+              <Animatable.View
+                key={index}
+                animation="fadeInUp"
+                duration={300}
+                style={[
+                  styles.message,
+                  msg.sender === 'user' ? styles.messageUser : msg.sender === 'ai' ? styles.messageBot : styles.messageStaff,
+                ]}
+                accessible
+                accessibilityLabel={`${msg.sender === 'user' ? 'Your message' : msg.sender === 'ai' ? 'AI response' : 'Staff response'}: ${msg.text}`}
+              >
+                {msg.sender === 'ai' && (
+                  <View style={styles.avatar} />
+                )}
+                <View
+                  style={[
+                    styles.messageContent,
+                    msg.sender === 'user'
+                      ? styles.bgUser
+                      : msg.sender === 'ai'
+                      ? styles.bgAI
+                      : styles.bgStaff,
+                  ]}
+                >
+                  <Text style={[styles.messageText, msg.sender === 'user' && styles.messageTextUser]}>
+                    {msg.text}
+                  </Text>
+                  <Text style={[styles.messageTimestamp, msg.sender === 'user' && styles.messageTimestampUser]}>
+                    {msg.time}
+                  </Text>
+                </View>
+              </Animatable.View>
+            ))}
+            {isLoading && (
+              <Animatable.View
+                animation="fadeInUp"
+                duration={300}
+                style={[styles.message, activeMode === 'ai' ? styles.messageBot : styles.messageStaff]}
+              >
+                {activeMode === 'ai' && <View style={styles.avatar} />}
+                <View style={[styles.messageContent, styles.typing]}>
+                  <View style={styles.dot} />
+                  <View style={[styles.dot, { animationDelay: '0.2s' }]} />
+                  <View style={[styles.dot, { animationDelay: '0.4s' }]} />
+                </View>
+              </Animatable.View>
+            )}
+          </View>
+          {/* AI Comparison (optimized for iOS) */}
+          {aiComparison && (
+            <Animatable.View animation="fadeInUp" duration={300} style={styles.comparisonContainer}>
+              <Text style={styles.comparisonTitle}>Response Comparison</Text>
+              <Text style={styles.comparisonQuestion}>
+                <Text style={styles.comparisonQuestionLabel}>Question: </Text>
+                {aiComparison.userMessage}
+              </Text>
+              <View style={styles.comparisonTable}>
+                <View style={styles.comparisonRow}>
+                  <Text style={styles.comparisonHeader}>
+                    {aiComparison.staffType === 'nutrition' ? 'Nutrition Staff Response' : 'Health Staff Response'}
+                  </Text>
+                  <View style={[styles.messageContent, styles.bgStaff]}>
+                    <Text style={styles.messageText}>{aiComparison.staffResponse}</Text>
+                    <Text style={styles.messageTimestamp}>{aiComparison.time}</Text>
+                  </View>
+                </View>
+                <View style={styles.comparisonRow}>
+                  <Text style={styles.comparisonHeader}>AI Response</Text>
+                  <View style={[styles.messageContent, styles.bgAI]}>
+                    <Text style={styles.messageText}>{aiComparison.aiResponse}</Text>
+                    <Text style={styles.messageTimestamp}>{aiComparison.time}</Text>
+                  </View>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setAiComparison(null)}
+                accessible
+                accessibilityLabel="Close comparison"
+                accessibilityRole="button"
+                accessibilityHint="Close the response comparison view"
+              >
+                <Text style={styles.closeButtonText}>Close Comparison</Text>
+              </TouchableOpacity>
+            </Animatable.View>
+          )}
+          {/* Compare Button (Staff Mode) */}
+          {activeMode === 'staff' && messages.length > 0 && (
             <TouchableOpacity
-              style={styles.closeHistoryButton}
-              onPress={() => setShowHistoryModal(false)}
+              style={[styles.compareButton, isLoading && styles.compareButtonDisabled]}
+              onPress={compareToAiChat}
+              disabled={isLoading}
+              accessible
+              accessibilityLabel="Compare to AI Chat"
+              accessibilityRole="button"
+              accessibilityHint="Compare staff response with AI response"
             >
-              <Ionicons name="close" size={24} color="#1a1a1a" />
+              <Text style={styles.compareButtonText}>Compare to AI Chat</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+        {/* Input Form (same for AI and Staff modes) */}
+        {(activeMode === 'ai' || activeMode === 'staff') && (
+          <View style={styles.inputForm}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ask a question..."
+              placeholderTextColor="#6B7280"
+              multiline
+              ref={inputFormRef}
+              accessible
+              accessibilityLabel="Message input"
+              accessibilityHint="Type your question here"
+              returnKeyType="send"
+              onSubmitEditing={handleSendMessage}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!input.trim() || isLoading) && styles.sendButtonDisabled]}
+              onPress={handleSendMessage}
+              disabled={isLoading || !input.trim()}
+              accessible
+              accessibilityLabel="Send message"
+              accessibilityRole="button"
+              accessibilityHint="Send your question"
+            >
+              <Ionicons name="send" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.newChatButton}
-            onPress={startNewChat}
-          >
-            <Text style={styles.newChatButtonText}>New Chat</Text>
-          </TouchableOpacity>
-          {chatHistory.length === 0 ? (
-            <Text style={styles.emptyHistoryMessage}>No history yet.</Text>
-          ) : (
-            <FlatList
-              data={currentChats}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => (
-                <Animatable.View
-                  animation="fadeInUp"
-                  duration={300}
-                  style={[styles.historyItem, selectedChatId === item.id && styles.historyItemSelected]}
+        )}
+        {/* Staff Type Prompt Modal (iOS-optimized) */}
+        <Modal
+          visible={showStaffTypePrompt}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowStaffTypePrompt(false)}
+        >
+          <View style={styles.overlay}>
+            <Animatable.View
+              animation="zoomIn"
+              duration={300}
+              style={styles.staffTypePopup}
+              ref={staffPromptRef}
+              accessibilityRole="dialog"
+              accessibilityLabel="Select staff type"
+              accessibilityHint="Choose between Nutrition Staff or Health Staff"
+            >
+              <Text style={styles.staffTypeTitle}>Let's Get Started!</Text>
+              <Text style={styles.staffTypeMessage}>Who would you like to consult with today?</Text>
+              <View style={styles.staffTypeButtons}>
+                <TouchableOpacity
+                  style={styles.staffTypeButton}
+                  onPress={() => handleStaffTypeSelect('nutrition')}
+                  accessible
+                  accessibilityLabel="Consult Nutrition Staff"
+                  accessibilityRole="button"
+                  accessibilityHint="Chat with nutrition experts"
                 >
-                  <Pressable
-                    style={styles.historyContent}
-                    onPress={() => loadChatHistory(item.id)}
-                  >
-                    <Text style={styles.historySender}>
-                      {item.question || 'New Chat'}:
-                    </Text>
-                    <Text style={styles.historyText}>
-                      {item.messages.length > 0 ? item.messages[item.messages.length - 1].text.slice(0, 50) + '...' : 'No messages yet'}
-                    </Text>
-                    <Text style={styles.historyTimestamp}>
-                      {item.messages.length > 0
-                        ? item.messages[item.messages.length - 1].time
-                        : new Date(item.id).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                    </Text>
-                  </Pressable>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => deleteChat(item.id)}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#ffffff" />
-                  </TouchableOpacity>
-                </Animatable.View>
-              )}
-            />
-          )}
-          {totalPages > 1 && (
-            <View style={styles.pagination}>
+                  <Text style={styles.staffTypeButtonText}>Nutrition Staff</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.staffTypeButton}
+                  onPress={() => handleStaffTypeSelect('health')}
+                  accessible
+                  accessibilityLabel="Consult Health Staff"
+                  accessibilityRole="button"
+                  accessibilityHint="Chat with health experts"
+                >
+                  <Text style={styles.staffTypeButtonText}>Health Staff</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
-                style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-                onPress={goToPreviousPage}
-                disabled={currentPage === 1}
+                style={styles.staffTypeCancel}
+                onPress={() => setShowStaffTypePrompt(false)}
+                accessible
+                accessibilityLabel="Cancel staff selection"
+                accessibilityRole="button"
+                accessibilityHint="Close the staff selection dialog"
               >
-                <Ionicons name="chevron-back" size={14} color="#ffffff" />
-                <Text style={styles.paginationButtonText}>Prev</Text>
+                <Text style={styles.staffTypeCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.paginationInfo}>
-                {currentPage}/{totalPages}
-              </Text>
+            </Animatable.View>
+          </View>
+        </Modal>
+        {/* Chat History Modal */}
+        <Modal
+          visible={showHistoryModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowHistoryModal(false)}
+        >
+          <SafeAreaView style={styles.historyModal} edges={['bottom', 'left', 'right']}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Advice History</Text>
               <TouchableOpacity
-                style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-                onPress={goToNextPage}
-                disabled={currentPage === totalPages}
+                style={styles.closeHistoryButton}
+                onPress={() => setShowHistoryModal(false)}
+                accessible
+                accessibilityLabel="Close history"
+                accessibilityRole="button"
+                accessibilityHint="Close the chat history view"
               >
-                <Text style={styles.paginationButtonText}>Next</Text>
-                <Ionicons name="chevron-forward" size={14} color="#ffffff" />
+                <Ionicons name="close" size={28} color="#1a1a1a" />
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-      </Modal>
-    </View>
+            <TouchableOpacity
+              style={styles.newChatButton}
+              onPress={startNewChat}
+              accessible
+              accessibilityLabel="Start new chat"
+              accessibilityRole="button"
+              accessibilityHint="Begin a new chat session"
+            >
+              <Text style={styles.newChatButtonText}>New Chat</Text>
+            </TouchableOpacity>
+            {chatHistory.length === 0 ? (
+              <Text style={styles.emptyHistoryMessage}>No history yet.</Text>
+            ) : (
+              <FlatList
+                data={currentChats}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => (
+                  <Animatable.View
+                    animation="fadeInUp"
+                    duration={300}
+                    style={[styles.historyItem, selectedChatId === item.id && styles.historyItemSelected]}
+                  >
+                    <Pressable
+                      style={styles.historyContent}
+                      onPress={() => loadChatHistory(item.id)}
+                      accessible
+                      accessibilityLabel={`Chat: ${item.question || 'New Chat'}`}
+                      accessibilityRole="button"
+                      accessibilityHint="Load this chat session"
+                    >
+                      <Text style={styles.historySender}>
+                        {item.question || 'New Chat'}:
+                      </Text>
+                      <Text style={styles.historyText}>
+                        {item.messages.length > 0 ? item.messages[item.messages.length - 1].text.slice(0, 50) + '...' : 'No messages yet'}
+                      </Text>
+                      <Text style={styles.historyTimestamp}>
+                        {item.messages.length > 0
+                          ? item.messages[item.messages.length - 1].time
+                          : new Date(item.id).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                      </Text>
+                    </Pressable>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => deleteChat(item.id)}
+                      accessible
+                      accessibilityLabel="Delete chat"
+                      accessibilityRole="button"
+                      accessibilityHint="Remove this chat from history"
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                  </Animatable.View>
+                )}
+              />
+            )}
+            {totalPages > 1 && (
+              <View style={styles.pagination}>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                  onPress={goToPreviousPage}
+                  disabled={currentPage === 1}
+                  accessible
+                  accessibilityLabel="Previous page"
+                  accessibilityRole="button"
+                  accessibilityHint="Go to previous chat history page"
+                >
+                  <Ionicons name="chevron-back" size={16} color="#ffffff" />
+                  <Text style={styles.paginationButtonText}>Prev</Text>
+                </TouchableOpacity>
+                <Text style={styles.paginationInfo}>
+                  {currentPage}/{totalPages}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                  onPress={goToNextPage}
+                  disabled={currentPage === totalPages}
+                  accessible
+                  accessibilityLabel="Next page"
+                  accessibilityRole="button"
+                  accessibilityHint="Go to next chat history page"
+                >
+                  <Text style={styles.paginationButtonText}>Next</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </SafeAreaView>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -757,8 +753,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -766,66 +762,86 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  backButton: {
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44, // iOS HIG: minimum tap target
+  },
+  historyButton: {
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
+  },
+  title: {
+    fontSize: width < 360 ? 18 : width < 480 ? 20 : 22,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  description: {
+    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
+    color: '#666666',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    marginVertical: 12,
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  modeNav: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  modeButton: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    minWidth: 120,
+    minHeight: 44, // iOS HIG: minimum tap target
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
       },
       android: {
         elevation: 2,
       },
     }),
   },
-  backButton: {
-    padding: 8,
-  },
-  historyButton: {
-    padding: 8,
-  },
-  title: {
-    fontSize: width < 480 ? 20 : 24,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  description: {
-    fontSize: width < 480 ? 14 : 16,
-    color: '#666666',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  modeNav: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    gap: 12,
-  },
-  modeButton: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
   modeButtonActive: {
-    backgroundColor: '#0084ff',
-    borderColor: '#0084ff',
-  },
-  modeButtonDisabled: {
-    backgroundColor: '#f0f0f0',
-    borderColor: '#d1d5db',
+    backgroundColor: '#007aff',
+    borderColor: '#007aff',
+    shadowOpacity: 0.2, // Enhanced shadow for active state on iOS
   },
   modeButtonText: {
-    fontSize: width < 480 ? 12 : 14,
-    fontWeight: '500',
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    fontWeight: '600',
     color: '#333333',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   modeButtonTextActive: {
     color: '#ffffff',
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 20,
+    flexGrow: 1,
   },
   chatContainer: {
     backgroundColor: '#ffffff',
@@ -838,20 +854,21 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   emptyMessage: {
     textAlign: 'center',
     color: '#888888',
-    fontSize: width < 480 ? 12 : 14,
+    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
     padding: 20,
     opacity: 0.7,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   message: {
     marginBottom: 12,
@@ -868,20 +885,31 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#0084ff', // Placeholder for avatar image
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#007aff',
     marginRight: 8,
   },
   messageContent: {
     maxWidth: '75%',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 18,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   bgUser: {
-    backgroundColor: '#0084ff',
+    backgroundColor: '#007aff',
     borderBottomRightRadius: 4,
   },
   bgAI: {
@@ -893,31 +921,34 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
   },
   messageText: {
-    fontSize: width < 480 ? 12 : 14,
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
     color: '#1a1a1a',
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   messageTextUser: {
     color: '#ffffff',
   },
   messageTimestamp: {
-    fontSize: width < 480 ? 10 : 12,
+    fontSize: width < 360 ? 10 : width < 480 ? 12 : 14,
     color: '#999999',
-    marginTop: 4,
+    marginTop: 8,
     opacity: 0.8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   messageTimestampUser: {
     color: '#ffffff',
   },
   typing: {
     flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 8,
+    gap: 8,
+    paddingVertical: 10,
   },
   dot: {
-    width: 6,
-    height: 6,
+    width: 8,
+    height: 8,
     backgroundColor: '#666666',
-    borderRadius: 3,
+    borderRadius: 4,
   },
   inputForm: {
     flexDirection: 'row',
@@ -927,32 +958,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     padding: 8,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   input: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    fontSize: width < 480 ? 12 : 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
     color: '#1a1a1a',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    minHeight: 48,
+    maxHeight: 120,
   },
   sendButton: {
-    backgroundColor: '#0084ff',
+    backgroundColor: '#007aff',
     borderRadius: 50,
-    width: 36,
-    height: 36,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -960,15 +994,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#cccccc',
   },
   footerNote: {
-    fontSize: width < 480 ? 12 : 14,
+    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
     color: '#666666',
     textAlign: 'center',
-    marginHorizontal: 20,
-    marginTop: 12,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   linkText: {
-    color: '#0084ff',
-    fontWeight: '500',
+    color: '#007aff',
+    fontWeight: '600',
   },
   overlay: {
     flex: 1,
@@ -976,45 +1012,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loginPopup: {
-    backgroundColor: '#ffffff',
-    padding: 20,
-    borderRadius: 12,
-    width: '90%',
-    maxWidth: 400,
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  popupText: {
-    fontSize: width < 480 ? 14 : 16,
-    color: '#333333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  closeButton: {
-    backgroundColor: '#0084ff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  closeButtonText: {
-    color: '#ffffff',
-    fontSize: width < 480 ? 12 : 14,
-    fontWeight: '500',
-  },
   staffTypePopup: {
     backgroundColor: '#ffffff',
-    padding: 20,
+    padding: 24,
     borderRadius: 16,
     width: '90%',
     maxWidth: 400,
@@ -1032,113 +1032,192 @@ const styles = StyleSheet.create({
     }),
   },
   staffTypeTitle: {
-    fontSize: width < 480 ? 18 : 20,
-    fontWeight: '600',
+    fontSize: width < 360 ? 20 : width < 480 ? 22 : 24,
+    fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 8,
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   staffTypeMessage: {
-    fontSize: width < 480 ? 14 : 16,
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
     color: '#333333',
-    marginBottom: 20,
+    marginBottom: 24,
     textAlign: 'center',
+    lineHeight: 28,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   staffTypeButtons: {
-    flexDirection: width < 480 ? 'column' : 'row',
-    gap: 12,
-    marginBottom: 20,
+    flexDirection: width < 360 ? 'column' : 'row',
+    gap: 16,
+    marginBottom: 24,
+    width: '100%',
   },
   staffTypeButton: {
-    backgroundColor: '#0084ff',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    backgroundColor: '#007aff',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 14,
     flex: 1,
-  },
-  staffTypeButtonText: {
-    color: '#ffffff',
-    fontSize: width < 480 ? 14 : 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  staffTypeCancel: {
-    backgroundColor: '#e5e7eb',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  staffTypeCancelText: {
-    color: '#333333',
-    fontSize: width < 480 ? 12 : 14,
-    fontWeight: '500',
-  },
-  compareButton: {
-    backgroundColor: '#0084ff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    alignSelf: 'center',
-    marginVertical: 12,
-  },
-  compareButtonDisabled: {
-    backgroundColor: '#cccccc',
-  },
-  compareButtonText: {
-    color: '#ffffff',
-    fontSize: width < 480 ? 12 : 14,
-    fontWeight: '500',
-  },
-  comparisonContainer: {
-    backgroundColor: '#f9f9f9',
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginBottom: 12,
+    minHeight: 48,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.2,
         shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  staffTypeButtonText: {
+    color: '#ffffff',
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  staffTypeCancel: {
+    backgroundColor: '#e5e7eb',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    minWidth: 120,
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
       },
       android: {
         elevation: 2,
       },
     }),
   },
-  comparisonTitle: {
-    fontSize: width < 480 ? 16 : 18,
+  staffTypeCancelText: {
+    color: '#333333',
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
     fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  compareButton: {
+    backgroundColor: '#007aff',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    alignSelf: 'center',
+    marginVertical: 16,
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  compareButtonDisabled: {
+    backgroundColor: '#cccccc',
+    opacity: 0.6,
+    shadowOpacity: 0,
+  },
+  compareButtonText: {
+    color: '#ffffff',
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  comparisonContainer: {
+    backgroundColor: '#ffffff',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  comparisonTitle: {
+    fontSize: width < 360 ? 18 : width < 480 ? 20 : 22,
+    fontWeight: '700',
     color: '#1a1a1a',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   comparisonQuestion: {
-    fontSize: width < 480 ? 14 : 16,
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
     color: '#333333',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   comparisonQuestionLabel: {
     fontWeight: '600',
   },
   comparisonTable: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    marginBottom: 16,
   },
   comparisonRow: {
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
   comparisonHeader: {
-    fontSize: width < 480 ? 14 : 16,
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 8,
+    marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  closeButton: {
+    backgroundColor: '#ff3b30',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    alignSelf: 'center',
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  closeButtonText: {
+    color: '#ffffff',
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   historyModal: {
     backgroundColor: '#ffffff',
@@ -1148,7 +1227,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: '100%',
-    padding: 20,
+    padding: 16,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1168,40 +1247,68 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   historyTitle: {
-    fontSize: width < 480 ? 18 : 20,
-    fontWeight: '600',
+    fontSize: width < 360 ? 20 : width < 480 ? 22 : 24,
+    fontWeight: '700',
     color: '#1a1a1a',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   closeHistoryButton: {
-    padding: 8,
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
   },
   newChatButton: {
-    backgroundColor: '#0084ff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    backgroundColor: '#007aff',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
     marginBottom: 12,
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   newChatButtonText: {
     color: '#ffffff',
-    fontSize: width < 480 ? 12 : 14,
-    fontWeight: '500',
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: '600',
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   emptyHistoryMessage: {
     textAlign: 'center',
     color: '#888888',
-    fontSize: width < 480 ? 12 : 14,
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
     padding: 20,
     opacity: 0.7,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   historyItem: {
     backgroundColor: '#f9f9f9',
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
-    padding: 12,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   historyItemSelected: {
     backgroundColor: '#e0e0e0',
@@ -1211,30 +1318,45 @@ const styles = StyleSheet.create({
     paddingRight: 40,
   },
   historySender: {
-    fontSize: width < 480 ? 14 : 16,
-    fontWeight: '500',
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 4,
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   historyText: {
-    fontSize: width < 480 ? 12 : 14,
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
     color: '#333333',
-    marginBottom: 4,
+    marginBottom: 8,
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   historyTimestamp: {
-    fontSize: width < 480 ? 10 : 12,
+    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
     color: '#999999',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   deleteButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#ff4d4f',
-    borderRadius: 14,
-    width: 28,
-    height: 28,
+    backgroundColor: '#ff3b30',
+    borderRadius: 16,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   pagination: {
     flexDirection: 'row',
@@ -1244,30 +1366,45 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   paginationButton: {
-    backgroundColor: '#ff4d4f',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    backgroundColor: '#ff3b30',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   paginationButtonDisabled: {
     backgroundColor: '#d1d5db',
+    opacity: 0.6,
+    shadowOpacity: 0,
   },
   paginationButtonText: {
     color: '#ffffff',
-    fontSize: width < 480 ? 10 : 12,
-    fontWeight: '500',
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   paginationInfo: {
-    fontSize: width < 480 ? 10 : 12,
-    fontWeight: '500',
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    fontWeight: '600',
     color: '#1a1a1a',
     backgroundColor: '#ffffff',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

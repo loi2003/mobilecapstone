@@ -1,8 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  KeyboardAvoidingView,
+  Keyboard,
+  Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Animatable from 'react-native-animatable';
 import { register, verifyOtp } from '../../api/auth';
 import { Svg, Circle, Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 
 const RegisterScreen = ({ navigation }) => {
@@ -25,8 +38,15 @@ const RegisterScreen = ({ navigation }) => {
     otp: '',
     server: '',
   });
-  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef(null);
+  const usernameInputRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const phoneNoInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
+  const otpInputRef = useRef(null);
 
   useEffect(() => {
     let interval;
@@ -37,6 +57,7 @@ const RegisterScreen = ({ navigation }) => {
             clearInterval(interval);
             setShowOtpForm(false);
             setErrors({ ...errors, server: 'OTP has expired. Please register again.' });
+            Alert.alert('OTP Error', 'OTP has expired. Please register again.', [{ text: 'OK' }]);
             return 0;
           }
           return prev - 1;
@@ -47,18 +68,29 @@ const RegisterScreen = ({ navigation }) => {
   }, [showOtpForm, timer]);
 
   useEffect(() => {
-    if (errors.server || successMessage) {
-      const timeout = setTimeout(() => {
-        setErrors({ ...errors, server: '' });
-        setSuccessMessage('');
-      }, 5000);
-      return () => clearTimeout(timeout);
-    }
-  }, [errors.server, successMessage]);
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
 
   const validateUsername = (value) => {
     if (!value) return 'Please enter your username';
     if (value.length < 3) return 'Username must be at least 3 characters';
+    if (/\s/.test(value)) return 'Username cannot contain spaces';
     return '';
   };
 
@@ -69,13 +101,19 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   const validatePhoneNo = (value) => {
-    if (value && !/^\d{10,15}$/.test(value)) return 'Invalid phone number';
+    if (value) {
+      // Vietnamese phone number: starts with 0, followed by 9 digits, with valid mobile prefixes
+      const vnPhoneRegex = /^0(3[2-9]|5[689]|7[0|6-9]|8[1-9]|9[0-9])[0-9]{7}$/;
+      if (!vnPhoneRegex.test(value)) return 'Invalid Vietnamese phone number (e.g., 09xxxxxxxx)';
+    }
     return '';
   };
 
   const validatePassword = (value) => {
     if (!value) return 'Please enter a password';
-    if (value.length < 6) return 'Password must be at least 6 characters';
+    if (value.length < 8) return 'Password must be at least 8 characters';
+    if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter';
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) return 'Password must contain at least one special character';
     return '';
   };
 
@@ -96,12 +134,18 @@ const RegisterScreen = ({ navigation }) => {
       server: '',
     };
     setErrors(newErrors);
-    return !Object.values(newErrors).some((error) => error);
+    const errorMessages = Object.values(newErrors)
+      .filter((error) => error)
+      .join('\n');
+    if (errorMessages) {
+      Alert.alert('Validation Error', errorMessages, [{ text: 'OK' }]);
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async () => {
-    setErrors({ ...errors, server: '' });
-    setSuccessMessage('');
+    setErrors({ ...errors, server: '', email: '' });
     setIsLoading(true);
     if (!validateForm()) {
       setIsLoading(false);
@@ -114,14 +158,21 @@ const RegisterScreen = ({ navigation }) => {
     formData.append('PasswordHash', password);
     try {
       await register(formData);
-      setSuccessMessage('Registration successful! Please enter the OTP sent to your email.');
+      Alert.alert('Success', 'Registration successful! Please enter the OTP sent to your email.', [{ text: 'OK' }]);
       setShowOtpForm(true);
       setTimer(120);
     } catch (error) {
-      setErrors({
-        ...errors,
-        server: error.response?.data?.message || 'Registration failed. Please try again.',
-      });
+      if (error.response?.status === 400) {
+        setErrors({ ...errors, server: 'Something wrong, please check your email and input data', email: '' });
+        Alert.alert('Registration Error', 'Something wrong, please check your email and input data', [{ text: 'OK' }]);
+      } else if (error.response?.data?.message?.toLowerCase().includes('email already exists')) {
+        setErrors({ ...errors, email: 'Email already exists', server: '' });
+        Alert.alert('Registration Error', 'Email already exists', [{ text: 'OK' }]);
+      } else {
+        const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
+        setErrors({ ...errors, server: errorMessage, email: '' });
+        Alert.alert('Registration Error', errorMessage, [{ text: 'OK' }]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -129,16 +180,17 @@ const RegisterScreen = ({ navigation }) => {
 
   const handleOtpSubmit = async () => {
     setErrors({ ...errors, otp: '', server: '' });
-    setSuccessMessage('');
     setIsLoading(true);
     if (!otp || otp.length !== 6) {
-      setErrors({ ...errors, otp: 'Please enter a 6-digit OTP' });
+      const otpError = 'Please enter a 6-digit OTP';
+      setErrors({ ...errors, otp: otpError });
+      Alert.alert('OTP Error', otpError, [{ text: 'OK' }]);
       setIsLoading(false);
       return;
     }
     try {
       await verifyOtp({ email, otp });
-      setSuccessMessage('OTP verification successful! Your account has been activated.');
+      Alert.alert('Success', 'OTP verification successful! Your account has been activated.', [{ text: 'OK' }]);
       setShowOtpForm(false);
       setOtp('');
       setTimer(0);
@@ -146,182 +198,245 @@ const RegisterScreen = ({ navigation }) => {
         navigation.replace('Login');
       }, 2000);
     } catch (error) {
-      setErrors({
-        ...errors,
-        otp: error.response?.data?.message || 'Invalid OTP',
-      });
+      if (error.response?.status === 400) {
+        setErrors({ ...errors, otp: 'Something wrong, please check your email and input data', server: '' });
+        Alert.alert('OTP Error', 'Something wrong, please check your email and input data', [{ text: 'OK' }]);
+      } else {
+        const otpError = error.response?.data?.message || 'Invalid OTP';
+        setErrors({ ...errors, otp: otpError });
+        Alert.alert('OTP Error', otpError, [{ text: 'OK' }]);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleInputFocus = (inputRef) => {
+    if (scrollViewRef.current && inputRef.current) {
+      inputRef.current.measure((x, y, width, height, pageX, pageY) => {
+        const keyboardGap = 10; // Small gap between keyboard and input
+        const offset = pageY + height + keyboardGap - keyboardHeight / 2;
+        scrollViewRef.current.scrollTo({ y: offset, animated: true });
+      });
+    }
+  };
+
   return (
     <LinearGradient
-      colors={['#ff9cbb', '#ffffff']}
-      style={styles.section}
+      colors={['#1E40AF', '#10B981']}
+      style={styles.gradientBackground}
     >
-      <View style={styles.container}>
-        <View style={styles.formContainer}>
-          <TouchableOpacity
-            style={styles.logoContainer}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Svg width={80} height={80} viewBox="0 0 64 64">
-              <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
-              <Circle cx="32" cy="32" r="20" fill="#FFD6E7" stroke="#FFFFFF" strokeWidth={1.5} />
-              <Circle cx="26" cy="28" r="3" fill="#333" />
-              <Circle cx="38" cy="28" r="3" fill="#333" />
-              <Circle cx="22" cy="32" r="2.5" fill="#FFB6C1" fillOpacity={0.8} />
-              <Circle cx="42" cy="32" r="2.5" fill="#FFB6C1" fillOpacity={0.8} />
-              <Path d="M26 38 Q32 42 38 38" stroke="#333" strokeWidth={2} fill="none" strokeLinecap="round" />
-              <Path d="M32 12 Q34 8 36 12" stroke="#333" strokeWidth={1.5} fill="none" />
-            </Svg>
-          </TouchableOpacity>
-          <Text style={styles.formTitle}>{showOtpForm ? 'Verify OTP' : 'Sign Up'}</Text>
-          {showOtpForm ? (
-            <>
-              <View style={styles.inputGroup}>
-                <TextInput
-                  style={[styles.input, errors.otp && styles.inputError]}
-                  placeholder="Enter 6-digit OTP"
-                  placeholderTextColor="#4b5563"
-                  value={otp}
-                  onChangeText={setOtp}
-                  keyboardType="numeric"
-                  maxLength={6}
-                />
-                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-              </View>
-              <Text style={styles.timer}>
-                Time remaining: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
-              </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingContainer}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Animatable.View
+              animation={{
+                from: { opacity: 0, translateX: -30 },
+                to: { opacity: 1, translateX: 0 },
+              }}
+              duration={800}
+              easing="ease-out"
+              style={styles.formContainer}
+            >
               <TouchableOpacity
-                style={[styles.button, isLoading && styles.buttonDisabled]}
-                onPress={handleOtpSubmit}
-                disabled={isLoading}
+                style={styles.logoContainer}
+                onPress={() => navigation.navigate('Home')}
               >
-                <Text style={styles.buttonText}>{isLoading ? 'Verifying...' : 'Verify OTP'}</Text>
+                <Svg width={80} height={80} viewBox="0 0 64 64">
+                  <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
+                  <Circle cx="32" cy="32" r="20" fill="#FFD6E7" stroke="#FFFFFF" strokeWidth={1.5} />
+                  <Circle cx="26" cy="28" r="3" fill="#333" />
+                  <Circle cx="38" cy="28" r="3" fill="#333" />
+                  <Circle cx="22" cy="32" r="2.5" fill="#FFB6C1" fillOpacity={0.8} />
+                  <Circle cx="42" cy="32" r="2.5" fill="#FFB6C1" fillOpacity={0.8} />
+                  <Path d="M26 38 Q32 42 38 38" stroke="#333" strokeWidth={2} fill="none" strokeLinecap="round" />
+                  <Path d="M32 12 Q34 8 36 12" stroke="#333" strokeWidth={1.5} fill="none" />
+                </Svg>
               </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Username</Text>
-                <TextInput
-                  style={[styles.input, errors.username && styles.inputError]}
-                  placeholder="Enter your username"
-                  placeholderTextColor="#4b5563"
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-                {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={[styles.input, errors.email && styles.inputError]}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#4b5563"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Phone Number (Optional)</Text>
-                <TextInput
-                  style={[styles.input, errors.phoneNo && styles.inputError]}
-                  placeholder="Enter your phone number"
-                  placeholderTextColor="#4b5563"
-                  value={phoneNo}
-                  onChangeText={setPhoneNo}
-                  keyboardType="phone-pad"
-                />
-                {errors.phoneNo && <Text style={styles.errorText}>{errors.phoneNo}</Text>}
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={styles.passwordContainer}>
-                  <TextInput
-                    style={[styles.input, errors.password && styles.inputError, { paddingRight: 40 }]}
-                    placeholder="Enter your password"
-                    placeholderTextColor="#4b5563"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeIcon}
-                  >
-                    <Feather
-                      name={showPassword ? 'eye' : 'eye-off'}
-                      size={20}
-                      color="#4b5563"
+              <Text style={styles.formTitle}>{showOtpForm ? 'Verify OTP' : 'Sign Up'}</Text>
+              {showOtpForm ? (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>OTP</Text>
+                    <TextInput
+                      ref={otpInputRef}
+                      style={[styles.input, errors.otp && styles.inputError]}
+                      placeholder="Enter 6-digit OTP"
+                      placeholderTextColor="#4b5563"
+                      value={otp}
+                      onChangeText={setOtp}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      onFocus={() => handleInputFocus(otpInputRef)}
                     />
-                  </TouchableOpacity>
-                </View>
-                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <View style={styles.passwordContainer}>
-                  <TextInput
-                    style={[styles.input, errors.confirmPassword && styles.inputError, { paddingRight: 40 }]}
-                    placeholder="Confirm your password"
-                    placeholderTextColor="#4b5563"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showConfirmPassword}
-                  />
+                    {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+                  </View>
+                  <Text style={styles.timer}>
+                    Time remaining: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+                  </Text>
                   <TouchableOpacity
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    style={styles.eyeIcon}
+                    style={[styles.button, isLoading && styles.buttonDisabled]}
+                    onPress={handleOtpSubmit}
+                    disabled={isLoading}
                   >
-                    <Feather
-                      name={showConfirmPassword ? 'eye' : 'eye-off'}
-                      size={20}
-                      color="#4b5563"
-                    />
+                    <LinearGradient
+                      colors={['#1E40AF', '#10B981']}
+                      style={styles.buttonGradient}
+                    >
+                      <Text style={styles.buttonText}>{isLoading ? 'Verifying...' : 'Verify OTP'}</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
-                </View>
-                {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
-              </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Username</Text>
+                    <TextInput
+                      ref={usernameInputRef}
+                      style={[styles.input, errors.username && styles.inputError]}
+                      placeholder="Enter your username"
+                      placeholderTextColor="#4b5563"
+                      value={username}
+                      onChangeText={setUsername}
+                      autoCapitalize="none"
+                      onFocus={() => handleInputFocus(usernameInputRef)}
+                    />
+                    {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      ref={emailInputRef}
+                      style={[styles.input, errors.email && styles.inputError]}
+                      placeholder="Enter your email"
+                      placeholderTextColor="#4b5563"
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      onFocus={() => handleInputFocus(emailInputRef)}
+                    />
+                    {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Phone Number (Optional)</Text>
+                    <TextInput
+                      ref={phoneNoInputRef}
+                      style={[styles.input, errors.phoneNo && styles.inputError]}
+                      placeholder="Enter your phone number (e.g., 09xxxxxxxx)"
+                      placeholderTextColor="#4b5563"
+                      value={phoneNo}
+                      onChangeText={setPhoneNo}
+                      keyboardType="phone-pad"
+                      onFocus={() => handleInputFocus(phoneNoInputRef)}
+                    />
+                    {errors.phoneNo && <Text style={styles.errorText}>{errors.phoneNo}</Text>}
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Password</Text>
+                    <View style={styles.passwordContainer}>
+                      <TextInput
+                        ref={passwordInputRef}
+                        style={[styles.input, errors.password && styles.inputError, { paddingRight: 40 }]}
+                        placeholder="Enter your password"
+                        placeholderTextColor="#4b5563"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        onFocus={() => handleInputFocus(passwordInputRef)}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowPassword(!showPassword)}
+                        style={styles.eyeIcon}
+                      >
+                        <Feather
+                          name={showPassword ? 'eye' : 'eye-off'}
+                          size={20}
+                          color="#4b5563"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Confirm Password</Text>
+                    <View style={styles.passwordContainer}>
+                      <TextInput
+                        ref={confirmPasswordInputRef}
+                        style={[styles.input, errors.confirmPassword && styles.inputError, { paddingRight: 40 }]}
+                        placeholder="Confirm your password"
+                        placeholderTextColor="#4b5563"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry={!showConfirmPassword}
+                        onFocus={() => handleInputFocus(confirmPasswordInputRef)}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={styles.eyeIcon}
+                      >
+                        <Feather
+                          name={showConfirmPassword ? 'eye' : 'eye-off'}
+                          size={20}
+                          color="#4b5563"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.button, isLoading && styles.buttonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={isLoading}
+                  >
+                    <LinearGradient
+                      colors={['#1E40AF', '#10B981']}
+                      style={styles.buttonGradient}
+                    >
+                      <Text style={styles.buttonText}>{isLoading ? 'Registering...' : 'Sign Up'}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              )}
               <TouchableOpacity
-                style={[styles.button, isLoading && styles.buttonDisabled]}
-                onPress={handleSubmit}
-                disabled={isLoading}
+                style={styles.linkContainer}
+                onPress={() => navigation.navigate('Login')}
               >
-                <Text style={styles.buttonText}>{isLoading ? 'Registering...' : 'Sign Up'}</Text>
+                <Text style={styles.linkText}>Already have an account? Sign In</Text>
               </TouchableOpacity>
-            </>
-          )}
-          {(errors.server || successMessage) && (
-            <View style={[styles.notification, errors.server ? styles.notificationError : styles.notificationSuccess]}>
-              <Text style={styles.notificationText}>{errors.server || successMessage}</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.linkContainer}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.linkText}>Already have an account? Sign In</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            </Animatable.View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  section: {
+  gradientBackground: {
     flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  keyboardAvoidingContainer: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    minHeight: '100%',
   },
   container: {
     width: '100%',
@@ -371,7 +486,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   inputError: {
-    borderColor: '#ff7aa2',
+    borderColor: '#EF4444',
   },
   passwordContainer: {
     position: 'relative',
@@ -383,14 +498,17 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -12 }],
   },
   button: {
-    backgroundColor: '#ff9cbb',
-    padding: 12,
     borderRadius: 12,
-    alignItems: 'center',
+    overflow: 'hidden',
     marginTop: 8,
+    padding: 4,
+  },
+  buttonGradient: {
+    padding: 12,
+    alignItems: 'center',
   },
   buttonDisabled: {
-    backgroundColor: '#ffb8cc',
+    opacity: 0.7,
   },
   buttonText: {
     color: '#ffffff',
@@ -403,44 +521,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginVertical: 10,
   },
-  notification: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    left: 10,
-    padding: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 5,
-  },
-  notificationSuccess: {
-    backgroundColor: '#fff0f5',
-    borderWidth: 1,
-    borderColor: '#ff9cbb',
-  },
-  notificationError: {
-    backgroundColor: '#ffe6e6',
-    borderWidth: 1,
-    borderColor: '#ff7aa2',
-  },
-  notificationText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
-    textAlign: 'center',
-    flex: 1,
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 4,
   },
   linkContainer: {
     marginTop: 20,
     alignItems: 'center',
   },
   linkText: {
-    color: '#ff7aa2',
+    color: '#1E40AF',
     fontSize: 14,
     fontWeight: '600',
   },

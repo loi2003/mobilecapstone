@@ -10,7 +10,6 @@ export const viewNotificationsByUserId = async (userId, token) => {
         Accept: "text/plain",
       },
     });
-    console.log("View notifications by user ID response:", response.data);
     return response.data;
   } catch (error) {
     console.error(
@@ -31,7 +30,6 @@ export const viewNotificationById = async (notificationId, token) => {
         Accept: "text/plain",
       },
     });
-    console.log("View notification by ID response:", response.data);
     return response.data;
   } catch (error) {
     console.error(
@@ -50,7 +48,6 @@ export const markNotificationAsRead = async (notificationId, token) => {
         Accept: "text/plain",
       },
     });
-    console.log("Mark notification as read response:", response.data);
     return response.data;
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message;
@@ -68,7 +65,6 @@ export const deleteNotification = async (notificationId, token) => {
         Accept: "text/plain",
       },
     });
-    console.log("Delete notification response:", response.data);
     return response.data;
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message;

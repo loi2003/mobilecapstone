@@ -16,11 +16,15 @@ export const getAllClinics = async (token) => {
   }
 };
 
-// Fetch view all clinics by name from the API
-export const getClinicsByName = async (name, token) => {
+// Fetch view all clinics by name, specialization, and insurance from the API
+export const getClinicsByName = async ({ name, specialization, isInsuranceAccepted }, token) => {
   try {
     const response = await apiClient.get('/api/clinic/view-all-clinics-by-name', {
-      params: { name },
+      params: {
+        name: name || undefined,
+        specialization: specialization || undefined,
+        isInsuranceAccepted: isInsuranceAccepted || false,
+      },
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
