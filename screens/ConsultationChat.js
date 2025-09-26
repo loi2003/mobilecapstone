@@ -12,23 +12,31 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
   Dimensions,
+  Modal,
+  SafeAreaView,
+  Animated,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import BottomSheet from '@gorhom/bottom-sheet';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as signalR from '@microsoft/signalr';
+import * as ImagePicker from 'expo-image-picker';
 import {
   startChatThread,
   sendMessage,
   getChatThreadByUserId,
   getChatThreadById,
-} from "../api/message-api";
-import { viewConsultantByUserId } from "../api/consultant-api";
-import { getCurrentUser } from "../api/auth";
-import { getAllClinics } from "../api/clinic-api";
-import { useMessages } from '../contexts/MessageContext'; // Adjust path as needed
+} from '../api/message-api';
+import { viewConsultantByUserId } from '../api/consultant-api';
+import { getCurrentUser } from '../api/auth';
+import { getAllClinics } from '../api/clinic-api';
+import { useMessages } from '../contexts/MessageContext';
+
+if (!globalThis.document) {
+  globalThis.document = undefined;
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -36,8 +44,7 @@ const ConsultationChat = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const messagesEndRef = useRef(null);
-  const bottomSheetRef = useRef(null);
-  const { connection, messages, addMessage } = useMessages();
+  const { connection, messages, addMessage, connectionError } = useMessages();
   const {
     selectedConsultant: preSelectedConsultant,
     currentUserId: passedUserId,
@@ -56,16 +63,23 @@ const ConsultationChat = () => {
   const [startingChat, setStartingChat] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
-  const fileInputRef = useRef(null);
+  const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
-  // Scroll to bottom
+  // Animation for sidebar
+  useEffect(() => {
+    Animated.timing(sidebarAnim, {
+      toValue: isSidebarOpen ? 0 : -width * 0.8,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isSidebarOpen]);
+
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollToEnd({ animated: true });
     });
   };
 
-  // Format file size
   const formatBytes = (bytes) => {
     if (!bytes && bytes !== 0) return '';
     const units = ['B', 'KB', 'MB', 'GB'];
@@ -77,7 +91,6 @@ const ConsultationChat = () => {
     return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
   };
 
-  // Map mime/extension to icon
   const getFileIcon = (fileName, fileType) => {
     const name = (fileName || '').toLowerCase();
     const type = (fileType || '').toLowerCase();
@@ -88,10 +101,10 @@ const ConsultationChat = () => {
     return 'file';
   };
 
-  // Supported file types
   const supportedImageTypes = ['.jpg', '.jpeg', '.png'];
-  const supportedDocTypes = ['.docx', '.xls', '.xlsx', '.pdf'];
-  const allSupportedTypes = [...supportedImageTypes, ...supportedDocTypes];
+  // const supportedDocTypes = ['.docx', '.xls', '.xlsx', '.pdf'];
+  // const allSupportedTypes = [...supportedImageTypes, ...supportedDocTypes];
+  const allSupportedTypes = [...supportedImageTypes];
 
   useEffect(() => {
     initializePage();
@@ -101,24 +114,26 @@ const ConsultationChat = () => {
     try {
       let userId = passedUserId;
       if (!userId) {
-        const token = await AsyncStorage.getItem('token'); // Use AsyncStorage for React Native
+        const token = await AsyncStorage.getItem('authToken');
         if (!token) {
-          navigation.navigate('SignIn');
+          navigation.navigate('SignIn', { redirectTo: 'Consultation', params: route.params });
           return;
         }
         const userRes = await getCurrentUser(token);
         userId = userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || '';
         if (!userId) {
-          navigation.navigate('SignIn');
+          await AsyncStorage.removeItem('authToken');
+          navigation.navigate('SignIn', { redirectTo: 'Consultation', params: route.params });
           return;
         }
+        await AsyncStorage.setItem('userId', userId);
       }
       setCurrentUserId(userId);
       await loadAllConsultants();
       await loadExistingThreads(userId);
     } catch (error) {
       console.error('Failed to initialize consultation chat:', error);
-      navigation.navigate('SignIn');
+      navigation.navigate('SignIn', { redirectTo: 'Consultation', params: route.params });
     } finally {
       setLoading(false);
     }
@@ -130,11 +145,7 @@ const ConsultationChat = () => {
       if (consultantId && !chatThreads[consultantId]) {
         setChatThreads((prevThreads) => ({
           ...prevThreads,
-          [consultantId]: {
-            thread: null,
-            messages: [],
-            consultant: preSelectedConsultant,
-          },
+          [consultantId]: { thread: null, messages: [], consultant: preSelectedConsultant },
         }));
         setSelectedConsultant(preSelectedConsultant);
       }
@@ -143,7 +154,7 @@ const ConsultationChat = () => {
 
   const loadExistingThreads = async (userId) => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) return;
       const threadsResponse = await getChatThreadByUserId(userId, token);
       let threads = [];
@@ -203,6 +214,7 @@ const ConsultationChat = () => {
       }
     } catch (error) {
       console.error('Failed to load existing threads:', error);
+      alert('Failed to load chat threads. Please try again.');
     }
   };
 
@@ -228,6 +240,7 @@ const ConsultationChat = () => {
       setConsultants(allConsultants);
     } catch (error) {
       console.error('Failed to load consultants:', error);
+      alert('Failed to load consultants. Please try again.');
     }
   };
 
@@ -242,19 +255,11 @@ const ConsultationChat = () => {
       ...consultant,
       clinic: consultant.clinic?.address && consultant.clinic?.name
         ? consultant.clinic
-        : {
-            id: clinicInfo?.id,
-            name: clinicInfo?.name,
-            address: clinicInfo?.address,
-          },
+        : { id: clinicInfo?.id, name: clinicInfo?.name, address: clinicInfo?.address },
     };
     setChatThreads((prevThreads) => ({
       ...prevThreads,
-      [consultantId]: {
-        thread: null,
-        messages: [],
-        consultant: enhancedConsultant,
-      },
+      [consultantId]: { thread: null, messages: [], consultant: enhancedConsultant },
     }));
     setNewMessage('');
   };
@@ -267,39 +272,69 @@ const ConsultationChat = () => {
     }
     try {
       setStartingChat(true);
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const threadData = { userId: currentUserId, consultantId };
       const createdThread = await startChatThread(threadData, token);
       const threadId = createdThread?.data?.id || createdThread?.data?.chatThreadId || createdThread?.chatThreadId;
       if (!threadId) {
         console.error('No threadId found in response:', createdThread);
+        alert('Failed to start chat thread. Please try again.');
         return;
       }
       const threadWithMessages = await getChatThreadById(threadId, token);
       setChatThreads((prevThreads) => ({
         ...prevThreads,
         [consultantId]: {
-          thread: threadWithMessages?.data || {
-            id: threadId,
-            consultantId,
-            userId: currentUserId,
-          },
+          thread: threadWithMessages?.data || { id: threadId, consultantId, userId: currentUserId },
           messages: threadWithMessages?.data?.messages || [],
           consultant: selectedConsultant,
         },
       }));
     } catch (error) {
       console.error('Failed to start chat thread:', error);
+      alert('Failed to start chat: ' + (error.response?.data?.message || error.message));
     } finally {
       setStartingChat(false);
     }
   };
 
   const handleFileSelect = async () => {
-    // Implement file picker logic (e.g., using react-native-document-picker)
-    // For simplicity, we'll assume a similar file selection mechanism
-    // This is a placeholder; you'll need to integrate a file picker library
-    alert('File picker not implemented in this example. Please integrate a file picker library.');
+    try {
+      // Request permission to access media library
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Sorry, we need media library permissions to make this work!');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selected = result.assets[0];
+        const isImage = supportedImageTypes.includes('.' + selected.uri.split('.').pop().toLowerCase());
+        if (!isImage) {
+          alert('Only image files (.jpg, .jpeg, .png) are supported.');
+          return;
+        }
+        setSelectedFile({
+          uri: selected.uri,
+          name: selected.fileName || `image_${Date.now()}.jpg`,
+          type: selected.mimeType || 'image/jpeg',
+          size: selected.fileSize || 0,
+        });
+        setFilePreview(selected.uri);
+      } else {
+        console.log('Image picker cancelled');
+      }
+    } catch (err) {
+      console.error('Image picker error:', err);
+      alert('Failed to pick image: ' + err.message);
+    }
   };
 
   const clearSelectedFile = () => {
@@ -315,7 +350,11 @@ const ConsultationChat = () => {
 
   const handleSendMessage = async () => {
     if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
-      alert('Connection lost. Please refresh the app.');
+      alert('Connection lost. Please restart the app.');
+      return;
+    }
+    if (connectionError) {
+      alert(`Cannot send message: ${connectionError}`);
       return;
     }
     const consultantId = selectedConsultant?.user?.id;
@@ -323,7 +362,7 @@ const ConsultationChat = () => {
     if ((!newMessage.trim() && !selectedFile) || !activeThread || sendingMessage) return;
     try {
       setSendingMessage(true);
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const formData = new FormData();
       formData.append('ChatThreadId', activeThread.id);
       formData.append('SenderId', currentUserId);
@@ -331,7 +370,11 @@ const ConsultationChat = () => {
         formData.append('MessageText', newMessage.trim());
       }
       if (selectedFile) {
-        formData.append('Attachments', selectedFile);
+        formData.append('Attachments', {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.type,
+        });
         formData.append('AttachmentFileName', selectedFile.name);
         formData.append('AttachmentFileType', selectedFile.type);
         formData.append('AttachmentFileSize', selectedFile.size.toString());
@@ -347,13 +390,15 @@ const ConsultationChat = () => {
           createdAt: response.data?.sentAt || new Date().toISOString(),
           messageType: selectedFile ? 'attachment' : 'text',
           isRead: false,
-          attachment: selectedFile ? {
-            fileName: selectedFile.name,
-            fileSize: selectedFile.size,
-            fileType: selectedFile.type,
-            isImage: isImageFile(selectedFile.name),
-            url: attachmentUrl || filePreview,
-          } : null,
+          attachment: selectedFile
+            ? {
+                fileName: selectedFile.name,
+                fileSize: selectedFile.size,
+                fileType: selectedFile.type,
+                isImage: isImageFile(selectedFile.name),
+                url: attachmentUrl || filePreview,
+              }
+            : null,
         };
         setChatThreads((prevThreads) => ({
           ...prevThreads,
@@ -362,13 +407,28 @@ const ConsultationChat = () => {
             messages: [...(prevThreads[consultantId]?.messages || []), newMsg],
           },
         }));
+        try {
+          await connection.invoke('sendMessage', newMsg);
+          addMessage(newMsg);
+        } catch (signalRError) {
+          console.error('SignalR invoke error:', signalRError);
+          alert('Message sent but failed to notify via SignalR.');
+          try {
+            await connection.invoke('SendMessage', newMsg);
+            addMessage(newMsg);
+          } catch (fallbackError) {
+            console.error('Fallback SignalR invoke error:', fallbackError);
+          }
+        }
         setNewMessage('');
         clearSelectedFile();
         setTimeout(() => scrollToBottom(), 100);
+      } else {
+        alert('Failed to send message: ' + (response.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message. Please try again.');
+      alert('Failed to send message: ' + (error.response?.data?.message || error.message));
     } finally {
       setSendingMessage(false);
     }
@@ -391,10 +451,7 @@ const ConsultationChat = () => {
         console.warn('Invalid timestamp:', timestamp);
         return '';
       }
-      return utcDate.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      return utcDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch (error) {
       console.warn('Error formatting timestamp:', error);
       return '';
@@ -414,16 +471,18 @@ const ConsultationChat = () => {
           )}
           {hasAttachment && (
             hasAttachment.isImage ? (
-              <TouchableOpacity onPress={() => { /* Open image in browser or viewer */ }}>
+              <TouchableOpacity onPress={() => {}}>
                 <Image
                   source={{ uri: hasAttachment.url }}
                   style={styles.attachmentImage}
+                  accessibilityLabel={`Image attachment: ${hasAttachment.fileName}`}
                 />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.attachmentDocument}>
-                <Icon name={getFileIcon(hasAttachment.fileName, hasAttachment.fileType)} size={18} color={isSent ? '#fff' : '#1e293b'} />
+                <Icon name={getFileIcon(hasAttachment.fileName, hasAttachment.fileType)} size={20} color={isSent ? '#fff' : '#1e293b'} />
                 <Text style={styles.attachmentName}>{hasAttachment.fileName}</Text>
+                <Text style={styles.attachmentSize}>{formatBytes(hasAttachment.fileSize)}</Text>
               </TouchableOpacity>
             )
           )}
@@ -448,6 +507,13 @@ const ConsultationChat = () => {
         return chatThreads[consultantId];
       });
 
+  if (searchTerm) {
+    filteredConsultants = filteredConsultants.filter((c) =>
+      c.user?.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
+
   const activeThread = selectedConsultant && chatThreads[selectedConsultant.user.id]
     ? chatThreads[selectedConsultant.user.id].thread
     : null;
@@ -458,257 +524,299 @@ const ConsultationChat = () => {
     ? chatThreads[selectedConsultant.user.id].consultant
     : null;
 
- 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading Consultation...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
-    >
-      <View style={styles.content}>
-        {/* Consultant Header */}
-        {selectedConsultant ? (
-          <LinearGradient
-            colors={['#1c80a2', '#167995']}
-            style={styles.consultantHeader}
-          >
-            <View style={styles.consultantDetails}>
-              <TouchableOpacity onPress={() => setIsSidebarOpen(true)}>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      >
+        <View style={styles.content}>
+          {/* Consultant Header */}
+          {selectedConsultant ? (
+            <View style={styles.consultantHeader}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => setIsSidebarOpen(true)}
+                accessibilityLabel="Open consultant list"
+              >
                 <Icon name="bars" size={24} color="#fff" />
               </TouchableOpacity>
-              <Image
-                source={{
-                  uri: consultantProfile?.user?.avatar?.fileUrl ||
-                    'https://www.placeholderimage.online/placeholder/420/310/ffffff/ededed?text=image&font=Lato.png',
-                }}
-                style={styles.consultantAvatarLarge}
-              />
-              <View style={styles.consultantMeta}>
-                <Text style={styles.consultantName}>{consultantProfile?.user?.userName}</Text>
-                <Text style={styles.consultantSpecialization}>{consultantProfile?.specialization}</Text>
-                <View style={styles.clinicInfo}>
-                  <Icon name="hospital-o" size={14} color="#fff" />
-                  <Text style={styles.clinicName}>
-                    {consultantProfile?.clinic?.user?.userName || consultantProfile?.clinic?.name}
-                  </Text>
+              <View style={styles.consultantDetails}>
+                <Image
+                  source={{
+                    uri: consultantProfile?.user?.avatar?.fileUrl || 'https://via.placeholder.com/150',
+                  }}
+                  style={styles.consultantAvatarLarge}
+                  accessibilityLabel={`Avatar of ${consultantProfile?.user?.userName}`}
+                />
+                <View style={styles.consultantMeta}>
+                  <Text style={styles.consultantName}>{consultantProfile?.user?.userName}</Text>
+                  <Text style={styles.consultantSpecialization}>{consultantProfile?.specialization}</Text>
+                  <View style={styles.clinicInfo}>
+                    <Icon name="hospital-o" size={14} color="#fff" />
+                    <Text style={styles.clinicName}>
+                      {consultantProfile?.clinic?.user?.userName || consultantProfile?.clinic?.name}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.clinicAddress}>{consultantProfile?.clinic?.address}</Text>
               </View>
-            </View>
-            <View style={styles.actions}>
-              {!activeThread ? (
+              {!activeThread && (
                 <TouchableOpacity
                   style={[styles.startButton, startingChat && styles.disabledButton]}
                   onPress={handleStartChat}
                   disabled={startingChat}
+                  accessibilityLabel="Start consultation"
                 >
                   <Text style={styles.startButtonText}>
-                    {startingChat ? 'Starting Chat...' : 'Start Consultation'}
+                    {startingChat ? 'Starting...' : 'Start Chat'}
                   </Text>
                 </TouchableOpacity>
-              ) : null}
-            </View>
-          </LinearGradient>
-        ) : (
-          <View style={styles.noSelection}>
-            <Icon name="user" size={80} color="#94a3b8" />
-            <Text style={styles.noSelectionTitle}>Select a Consultant</Text>
-            <Text style={styles.noSelectionText}>
-              Choose a consultant from the list to view or start a consultation chat.
-            </Text>
-            <TouchableOpacity style={styles.selectConsultantButton} onPress={() => setIsSidebarOpen(true)}>
-              <Text style={styles.selectConsultantButtonText}>Open Consultant List</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Messages Area */}
-        {selectedConsultant && activeThread ? (
-          <>
-            <ScrollView
-              style={styles.messages}
-              contentContainerStyle={styles.messagesContent}
-              ref={messagesEndRef}
-              onContentSizeChange={() => scrollToBottom()}
-            >
-              {activeMessages.length === 0 ? (
-                <View style={styles.emptyMessages}>
-                  <Icon name="comments" size={60} color="#94a3b8" />
-                  <Text style={styles.emptyMessagesTitle}>Start your conversation</Text>
-                  <Text style={styles.emptyMessagesText}>
-                    Send a message to begin your consultation with {consultantProfile?.user?.userName}
-                  </Text>
-                </View>
-              ) : (
-                activeMessages.map((msg, idx) => renderMessage(msg, idx))
               )}
-            </ScrollView>
-            <View style={styles.inputArea}>
-              <View style={styles.inputContainer}>
-                {selectedFile && (
-                  <View style={styles.filePreview}>
-                    {filePreview ? (
-                      <Image source={{ uri: filePreview }} style={styles.filePreviewImage} />
-                    ) : (
-                      <View style={styles.filePreviewDocument}>
-                        <Icon name="file" size={14} color="#167995" />
-                        <Text style={styles.filePreviewText}>{selectedFile.name}</Text>
-                      </View>
-                    )}
-                    <TouchableOpacity style={styles.filePreviewRemove} onPress={clearSelectedFile}>
-                      <Icon name="times" size={12} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                <View style={styles.inputRow}>
-                  <TouchableOpacity style={styles.attachmentButton} onPress={handleFileSelect}>
-                    <Icon name="paperclip" size={24} color="#167995" />
-                  </TouchableOpacity>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Type your message..."
-                    value={newMessage}
-                    onChangeText={setNewMessage}
-                    multiline
-                    placeholderTextColor="#94a3b8"
-                  />
-                  <TouchableOpacity
-                    style={[styles.sendButton, (!newMessage.trim() && !selectedFile) || sendingMessage ? styles.disabledButton : {}]}
-                    onPress={handleSendMessage}
-                    disabled={(!newMessage.trim() && !selectedFile) || sendingMessage}
-                  >
-                    <MaterialIcons name="send" size={24} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
-          </>
-        ) : selectedConsultant && !activeThread ? (
-          <View style={styles.noThread}>
-            <Icon name="user" size={80} color="#94a3b8" />
-            <Text style={styles.noThreadTitle}>No Active Thread</Text>
-            <Text style={styles.noThreadText}>
-              Start a consultation to begin messaging this consultant.
-            </Text>
-          </View>
-        ) : null}
+          ) : (
+            <View style={styles.noSelection}>
+              <Icon name="user" size={60} color="#8E8E93" />
+              <Text style={styles.noSelectionTitle}>Select a Consultant</Text>
+              <Text style={styles.noSelectionText}>
+                Choose a consultant to start a conversation
+              </Text>
+              <TouchableOpacity
+                style={styles.selectConsultantButton}
+                onPress={() => setIsSidebarOpen(true)}
+                accessibilityLabel="Open consultant list"
+              >
+                <Text style={styles.selectConsultantButtonText}>View Consultants</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {/* Consultant List Bottom Sheet */}
-        <BottomSheet
-          ref={bottomSheetRef}
-          index={isSidebarOpen ? 1 : -1}
-          snapPoints={['25%', '75%']}
-          onChange={(index) => setIsSidebarOpen(index >= 0)}
-        >
-          <View style={styles.sidebar}>
-            <LinearGradient colors={['#1c80a2', '#167995']} style={styles.sidebarHeader}>
-              <Text style={styles.sidebarHeaderText}>Available Consultants</Text>
-            </LinearGradient>
-            <View style={styles.searchSection}>
-              <View style={styles.searchBar}>
-                <Icon name="search" size={16} color="#64748b" style={styles.searchIcon} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search consultants..."
-                  value={searchTerm}
-                  onChangeText={setSearchTerm}
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-            </View>
-            <FlatList
-              data={filteredConsultants}
-              keyExtractor={(item) => `consultant-${item.user.id}`}
-              renderItem={({ item }) => {
-                const profile = chatThreads[item.user.id]?.consultant || item;
-                const thread = chatThreads[item.user.id];
-                return (
-                  <TouchableOpacity
-                    style={[styles.consultantItem, selectedConsultant?.user.id === item.user.id && styles.activeConsultantItem]}
-                    onPress={() => handleSelectConsultant(item)}
-                  >
-                    <Image
-                      source={{
-                        uri: profile?.user?.avatar?.fileUrl ||
-                          'https://www.placeholderimage.online/placeholder/420/310/ffffff/ededed?text=image&font=Lato.png',
-                      }}
-                      style={styles.consultantAvatar}
-                    />
-                    <View style={styles.consultantInfo}>
-                      <Text style={styles.consultantInfoName}>{profile?.user?.userName}</Text>
-                      <Text style={styles.consultantSpecialization}>{profile?.specialization}</Text>
-                      <View style={styles.consultantClinic}>
-                        <Icon name="hospital-o" size={12} color="#1c7d98" />
-                        <Text style={styles.consultantClinicName}>
-                          {profile?.clinic?.user?.userName || profile?.clinic?.name}
-                        </Text>
-                      </View>
-                      {thread?.thread?.updatedAt && (
-                        <View style={styles.lastActivity}>
-                          <Icon name="clock-o" size={12} color="#666" />
-                          <Text style={styles.lastActivityText}>
-                            {new Date(thread.thread.updatedAt).toLocaleDateString()}
-                          </Text>
+          {/* Messages Area */}
+          {selectedConsultant && activeThread ? (
+            <>
+              <ScrollView
+                style={styles.messages}
+                contentContainerStyle={styles.messagesContent}
+                ref={messagesEndRef}
+                onContentSizeChange={() => scrollToBottom()}
+              >
+                {activeMessages.length === 0 ? (
+                  <View style={styles.emptyMessages}>
+                    <Icon name="comments" size={50} color="#8E8E93" />
+                    <Text style={styles.emptyMessagesTitle}>No Messages Yet</Text>
+                    <Text style={styles.emptyMessagesText}>
+                      Start your conversation with {consultantProfile?.user?.userName}
+                    </Text>
+                  </View>
+                ) : (
+                  activeMessages.map((msg, idx) => renderMessage(msg, idx))
+                )}
+              </ScrollView>
+              <View style={styles.inputArea}>
+                <View style={styles.inputContainer}>
+                  {selectedFile && (
+                    <View style={styles.filePreview}>
+                      {filePreview ? (
+                        <Image source={{ uri: filePreview }} style={styles.filePreviewImage} />
+                      ) : (
+                        <View style={styles.filePreviewDocument}>
+                          <Icon name="file" size={16} color="#007AFF" />
+                          <Text style={styles.filePreviewText}>{selectedFile.name}</Text>
                         </View>
                       )}
+                      <TouchableOpacity
+                        style={styles.filePreviewRemove}
+                        onPress={clearSelectedFile}
+                        accessibilityLabel="Remove attachment"
+                      >
+                        <Icon name="times" size={16} color="#fff" />
+                      </TouchableOpacity>
                     </View>
-                    <View style={[styles.statusIndicator, thread && styles.activeStatusIndicator]} />
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={styles.emptyThreadList}>
-                  <Icon name="comments" size={60} color="#94a3b8" />
-                  <Text style={styles.emptyThreadListTitle}>No Chat History</Text>
-                  <Text style={styles.emptyThreadListText}>
-                    {searchTerm
-                      ? 'No consultants match your search criteria.'
-                      : 'You haven\'t started any consultations yet. Visit a clinic\'s page and click \'Start Consultation\' with a consultant to begin.'}
-                  </Text>
+                  )}
+                  <View style={styles.inputRow}>
+                    <TouchableOpacity
+                      style={styles.attachmentButton}
+                      onPress={handleFileSelect}
+                      accessibilityLabel="Attach image"
+                    >
+                      <Icon name="paperclip" size={24} color="#007AFF" />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChangeText={setNewMessage}
+                      multiline
+                      placeholderTextColor="#8E8E93"
+                      accessibilityLabel="Message input"
+                    />
+                    <TouchableOpacity
+                      style={[styles.sendButton, (!newMessage.trim() && !selectedFile) || sendingMessage ? styles.disabledButton : {}]}
+                      onPress={handleSendMessage}
+                      disabled={(!newMessage.trim() && !selectedFile) || sendingMessage}
+                      accessibilityLabel="Send message"
+                    >
+                      <MaterialIcons name="send" size={24} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              }
-            />
-          </View>
-        </BottomSheet>
-      </View>
-    </KeyboardAvoidingView>
+              </View>
+            </>
+          ) : selectedConsultant && !activeThread ? (
+            <View style={styles.noThread}>
+              <Icon name="chat" size={60} color="#8E8E93" />
+              <Text style={styles.noThreadTitle}>No Active Chat</Text>
+              <Text style={styles.noThreadText}>
+                Start a consultation to message this consultant.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Consultant List Sidebar (Modal) */}
+          <Modal
+            visible={isSidebarOpen}
+            animationType="none"
+            transparent={true}
+            onRequestClose={() => setIsSidebarOpen(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
+              <View style={styles.modalOverlay}>
+                <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+                  <SafeAreaView>
+                    <View style={styles.sidebarHeader}>
+                      <Text style={styles.sidebarHeaderText}>Consultants</Text>
+                      <TouchableOpacity
+                        onPress={() => setIsSidebarOpen(false)}
+                        accessibilityLabel="Close consultant list"
+                      >
+                        <Icon name="times" size={24} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.searchSection}>
+                      <View style={styles.searchBar}>
+                        <Icon name="search" size={16} color="#8E8E93" style={styles.searchIcon} />
+                        <TextInput
+                          style={styles.searchInput}
+                          placeholder="Search consultants..."
+                          value={searchTerm}
+                          onChangeText={setSearchTerm}
+                          placeholderTextColor="#8E8E93"
+                          accessibilityLabel="Search consultants"
+                        />
+                      </View>
+                    </View>
+                    <FlatList
+                      data={filteredConsultants}
+                      keyExtractor={(item) => `consultant-${item.user.id}`}
+                      renderItem={({ item }) => {
+                        const profile = chatThreads[item.user.id]?.consultant || item;
+                        const thread = chatThreads[item.user.id];
+                        return (
+                          <TouchableOpacity
+                            style={[styles.consultantItem, selectedConsultant?.user.id === item.user.id && styles.activeConsultantItem]}
+                            onPress={() => handleSelectConsultant(item)}
+                            accessibilityLabel={`Select consultant ${profile?.user?.userName}`}
+                          >
+                            <Image
+                              source={{
+                                uri: profile?.user?.avatar?.fileUrl || 'https://via.placeholder.com/150',
+                              }}
+                              style={styles.consultantAvatar}
+                            />
+                            <View style={styles.consultantInfo}>
+                              <Text style={styles.consultantInfoName}>{profile?.user?.userName}</Text>
+                              <Text style={styles.consultantSpecialization}>{profile?.specialization}</Text>
+                              <View style={styles.consultantClinic}>
+                                <Icon name="hospital-o" size={12} color="#007AFF" />
+                                <Text style={styles.consultantClinicName}>
+                                  {profile?.clinic?.user?.userName || profile?.clinic?.name}
+                                </Text>
+                              </View>
+                              {thread?.thread?.updatedAt && (
+                                <View style={styles.lastActivity}>
+                                  <Icon name="clock-o" size={12} color="#8E8E93" />
+                                  <Text style={styles.lastActivityText}>
+                                    {new Date(thread.thread.updatedAt).toLocaleDateString()}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <View style={[styles.statusIndicator, thread && styles.activeStatusIndicator]} />
+                          </TouchableOpacity>
+                        );
+                      }}
+                      ListEmptyComponent={
+                        <View style={styles.emptyThreadList}>
+                          <Icon name="comments" size={50} color="#8E8E93" />
+                          <Text style={styles.emptyThreadListTitle}>No Conversations</Text>
+                          <Text style={styles.emptyThreadListText}>
+                            {searchTerm
+                              ? 'No consultants match your search.'
+                              : 'Start a consultation from a clinic page.'}
+                          </Text>
+                        </View>
+                      }
+                    />
+                  </SafeAreaView>
+                </Animated.View>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F2F2F7',
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   content: {
     flex: 1,
-    padding: 10,
   },
   consultantHeader: {
-    padding: 20,
+    backgroundColor: '#007AFF',
+    padding: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    elevation: 4,
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    margin: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerButton: {
+    padding: 10,
   },
   consultantDetails: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
+    gap: 12,
+    flex: 1,
   },
   consultantAvatarLarge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   consultantMeta: {
     flex: 1,
@@ -716,59 +824,50 @@ const styles = StyleSheet.create({
   consultantName: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   consultantSpecialization: {
     color: '#fff',
-    fontSize: 12,
-    opacity: 0.8,
+    fontSize: 14,
+    opacity: 0.9,
   },
   clinicInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginVertical: 6,
+    gap: 6,
+    marginTop: 4,
   },
   clinicName: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '500',
   },
-  clinicAddress: {
-    color: '#fff',
-    fontSize: 12,
-    opacity: 0.8,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
   startButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#fff',
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    minWidth: 100,
+    alignItems: 'center',
   },
   startButtonText: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#007AFF',
+    fontSize: 15,
     fontWeight: '600',
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   messages: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F2F2F7',
   },
   messagesContent: {
-    padding: 20,
-    paddingBottom: 100,
+    padding: 16,
+    paddingBottom: 120,
   },
   message: {
-    marginBottom: 15,
+    marginBottom: 12,
     width: '100%',
   },
   sentMessage: {
@@ -778,128 +877,120 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageContent: {
-    maxWidth: '75%',
-    padding: 15,
-    borderRadius: 20,
-    elevation: 2,
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sentMessageContent: {
-    backgroundColor: '#167995',
-    borderBottomRightRadius: 6,
+    backgroundColor: '#007AFF',
+    borderBottomRightRadius: 4,
   },
   receivedMessageContent: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#E5E5EA',
   },
   messageText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#000',
   },
   sentMessageText: {
     color: '#fff',
   },
   receivedMessageText: {
-    color: '#1e293b',
+    color: '#000',
   },
   messageTime: {
-    fontSize: 11,
+    fontSize: 12,
     opacity: 0.7,
-    marginTop: 8,
+    marginTop: 6,
   },
   sentMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#fff',
     textAlign: 'right',
   },
   receivedMessageTime: {
-    color: 'rgba(30, 41, 59, 0.7)',
+    color: '#8E8E93',
     textAlign: 'left',
   },
   attachmentImage: {
-    maxWidth: 200,
-    maxHeight: 150,
-    borderRadius: 8,
+    width: 200,
+    height: 150,
+    borderRadius: 10,
     marginTop: 8,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   attachmentDocument: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     padding: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
     marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   attachmentName: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
     color: '#fff',
   },
+  attachmentSize: {
+    fontSize: 12,
+    color: '#fff',
+    opacity: 0.7,
+  },
   inputArea: {
-    padding: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 12,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+    borderTopColor: '#E5E5EA',
   },
   inputContainer: {
-    backgroundColor: '#fdfdfd',
+    backgroundColor: '#F2F2F7',
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(22, 121, 149, 0.1)',
     padding: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
   },
   filePreview: {
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 8,
     marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   filePreviewImage: {
-    width: 60,
-    height: 60,
+    width: 50,
+    height: 50,
     borderRadius: 8,
-    borderWidth: 2,
-    borderColor: 'rgba(22, 121, 149, 0.1)',
   },
   filePreviewDocument: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     padding: 8,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(22, 121, 149, 0.2)',
   },
   filePreviewText: {
-    fontSize: 13,
-    color: '#1e293b',
+    fontSize: 14,
+    color: '#000',
   },
   filePreviewRemove: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#ef4444',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF3B30',
     borderRadius: 12,
     width: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
   },
   inputRow: {
     flexDirection: 'row',
@@ -907,60 +998,55 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachmentButton: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 16,
     padding: 12,
     borderRadius: 20,
-    backgroundColor: '#fdfdfd',
-    maxHeight: 100,
-    color: '#1e293b',
+    backgroundColor: '#fff',
+    maxHeight: 120,
+    color: '#000',
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#0d7aa5',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#007AFF',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
-  },
-  disabledButton: {
-    opacity: 0.5,
   },
   noSelection: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'rgba(248, 249, 250, 0.5)',
   },
   noSelectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#1e293b',
-    marginVertical: 10,
+    color: '#000',
+    marginVertical: 12,
   },
   noSelectionText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
+    color: '#8E8E93',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   selectConsultantButton: {
-    backgroundColor: '#167995',
+    backgroundColor: '#007AFF',
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    paddingHorizontal: 24,
+    borderRadius: 10,
   },
   selectConsultantButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   noThread: {
@@ -968,100 +1054,100 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'rgba(248, 249, 250, 0.5)',
   },
   noThreadTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#1e293b',
-    marginVertical: 10,
+    color: '#000',
+    marginVertical: 12,
   },
   noThreadText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
+    color: '#8E8E93',
     textAlign: 'center',
   },
-  sidebar: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  sidebar: {
+    width: width * 0.8,
+    height: '100%',
     backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
   sidebarHeader: {
-    padding: 20,
-    borderTopLeftRadius: 16,
+    backgroundColor: '#007AFF',
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderTopRightRadius: 16,
   },
   sidebarHeaderText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
   },
   searchSection: {
-    padding: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+    padding: 12,
+    backgroundColor: '#fff',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: 'rgba(22, 121, 149, 0.1)',
-    paddingHorizontal: 15,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    paddingHorizontal: 12,
   },
   searchIcon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    paddingVertical: 12,
-    color: '#1e293b',
+    fontSize: 16,
+    paddingVertical: 10,
+    color: '#000',
   },
   consultantItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
+    padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.03)',
+    borderBottomColor: '#E5E5EA',
   },
   activeConsultantItem: {
-    backgroundColor: 'rgba(22, 121, 149, 0.1)',
-    borderLeftWidth: 4,
-    borderLeftColor: '#167995',
+    backgroundColor: '#F2F2F7',
   },
   consultantAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
-    borderWidth: 3,
-    borderColor: 'rgba(22, 121, 149, 0.1)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
   },
   consultantInfo: {
     flex: 1,
   },
   consultantInfoName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
+    color: '#000',
   },
   consultantSpecialization: {
-    fontSize: 12,
-    color: '#64748b',
-    marginVertical: 4,
+    fontSize: 14,
+    color: '#8E8E93',
+    marginVertical: 2,
   },
   consultantClinic: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginTop: 2,
   },
   consultantClinicName: {
-    fontSize: 12,
-    color: '#1c7d98',
+    fontSize: 13,
+    color: '#007AFF',
   },
   lastActivity: {
     flexDirection: 'row',
@@ -1071,18 +1157,16 @@ const styles = StyleSheet.create({
   },
   lastActivityText: {
     fontSize: 12,
-    color: '#666',
+    color: '#8E8E93',
   },
   statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#fe6b6a',
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF3B30',
   },
   activeStatusIndicator: {
-    backgroundColor: '#00c851',
+    backgroundColor: '#34C759',
   },
   emptyThreadList: {
     flex: 1,
@@ -1091,16 +1175,27 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyThreadListTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#1e293b',
-    marginVertical: 10,
+    color: '#000',
+    marginVertical: 12,
   },
   emptyThreadListText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
+    color: '#8E8E93',
     textAlign: 'center',
     maxWidth: 300,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#007AFF',
+    marginTop: 8,
   },
 });
 
