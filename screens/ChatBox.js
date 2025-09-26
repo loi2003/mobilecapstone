@@ -187,6 +187,7 @@ const ChatBox = ({ isOpen, onClose, navigation }) => {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Adjusted for iOS header and safe area
       >
         <Animated.View
           style={[
@@ -235,7 +236,7 @@ const ChatBox = ({ isOpen, onClose, navigation }) => {
             <TouchableWithoutFeedback onPress={() => setIsChatPickerOpen(false)}>
               <View style={styles.modalOverlay}>
                 <View style={styles.chatPickerModal}>
-                  <ScrollView>
+                  <ScrollView contentContainerStyle={styles.chatPickerContent}>
                     {chatHistory.map((chat) => (
                       <TouchableOpacity
                         key={chat.id}
@@ -267,6 +268,7 @@ const ChatBox = ({ isOpen, onClose, navigation }) => {
             style={styles.chatboxArea}
             ref={chatAreaRef}
             contentContainerStyle={styles.chatboxAreaContent}
+            keyboardShouldPersistTaps="handled"
           >
             {messages.length === 0 && selectedChatId === null && chatHistory.length === 0 && (
               <View style={styles.chatboxWelcome}>
@@ -438,6 +440,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 16,
     padding: 16,
     maxHeight: '50%',
+  },
+  chatPickerContent: {
+    paddingBottom: 16,
   },
   chatPickerItem: {
     padding: 16,
