@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/FontAwesome';
-import { Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import Icon from 'react-native-vector-icons/FontAwesome';
 import { getClinicById } from '../api/clinic-api';
 import { startChatThread } from '../api/message-api';
 import { createFeedback } from '../api/feedback-api';
@@ -182,80 +180,14 @@ const ConsultantCard = ({ consultant, onSendMessage, chatLoading, onImageError, 
         onPress={() => onSendMessage(consultant)}
         disabled={chatLoading}
         accessibilityRole="button"
-        accessibilityLabel={`Message ${consultant.user?.userName}`}
-        accessibilityHint="Opens a chat with this consultant"
+        accessibilityLabel={`Chat with ${consultant.user?.userName}`}
+        accessibilityHint="Navigates to the chat screen with this consultant"
       >
         <Icon name="send" size={16} color="#007AFF" style={styles.consultantSendMessageIcon} />
         <Text style={styles.consultantSendMessageText}>
-          {chatLoading ? 'Starting...' : 'Send Message'}
+          {chatLoading ? 'Starting...' : 'Start Chat'}
         </Text>
       </TouchableOpacity>
-    </View>
-  </View>
-);
-
-// Chat Box Component
-const ChatBox = ({ consultant, onClose, userId, chatThread, onImageError, onImageLoad, imageErrors, imageLoading }) => (
-  <View style={styles.floatingChatboxContainer}>
-    <View style={styles.floatingChatboxWindow}>
-      <LinearGradient
-        colors={['#007AFF', '#005BB5']}
-        style={styles.floatingChatboxHeader}
-      >
-        <View style={styles.floatingChatboxHeaderLeft}>
-          <View style={styles.floatingChatboxAvatarContainer}>
-            {imageLoading[`chat-${consultant.user.id}`] && (
-              <View style={styles.imageLoadingOverlay}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              </View>
-            )}
-            <Image
-              source={{
-                uri: imageErrors[`chat-${consultant.user.id}`] || !consultant.user.avatar?.fileUrl
-                  ? 'https://via.placeholder.com/40'
-                  : consultant.user.avatar.fileUrl,
-              }}
-              style={styles.floatingChatboxAvatar}
-              onError={() => onImageError(`chat-${consultant.user.id}`)}
-              onLoad={() => onImageLoad(`chat-${consultant.user.id}`)}
-            />
-            {(imageErrors[`chat-${consultant.user.id}`] || !consultant.user.avatar?.fileUrl) && (
-              <View style={styles.placeholderOverlay}>
-                <Icon name="user" size={20} color="rgba(255, 255, 255, 0.4)" />
-              </View>
-            )}
-          </View>
-          <Text style={styles.floatingChatboxUsername}>{consultant.user.userName}</Text>
-        </View>
-        <TouchableOpacity
-          onPress={onClose}
-          style={styles.floatingChatboxActionBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Close chat"
-          accessibilityHint="Closes the chat window"
-        >
-          <Ionicons name="close" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </LinearGradient>
-      <View style={styles.floatingChatboxBody}>
-        <View style={styles.floatingChatboxLoading}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.floatingChatboxLoadingText}>Loading chat...</Text>
-        </View>
-      </View>
-      <View style={styles.floatingChatboxFooter}>
-        <TouchableOpacity style={styles.floatingChatboxFooterBtn} accessibilityRole="button" accessibilityLabel="Attach image">
-          <Ionicons name="image" size={22} color="#007AFF" />
-        </TouchableOpacity>
-        <TextInput
-          style={styles.floatingChatboxInput}
-          placeholder="Type a message..."
-          placeholderTextColor="#8E8E93"
-        />
-        <TouchableOpacity style={styles.floatingChatboxSendBtn} accessibilityRole="button" accessibilityLabel="Send message">
-          <Ionicons name="send" size={22} color="#007AFF" />
-        </TouchableOpacity>
-      </View>
     </View>
   </View>
 );
@@ -277,13 +209,10 @@ const ClinicDetailScreen = () => {
   const [feedbackSuccess, setFeedbackSuccess] = useState('');
   const [showAllDoctors, setShowAllDoctors] = useState(false);
   const [showAllConsultants, setShowAllConsultants] = useState(false);
-  const [chatConsultant, setChatConsultant] = useState(null);
-  const [chatThread, setChatThread] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Fetch clinic details
   useEffect(() => {
@@ -292,12 +221,6 @@ const ClinicDetailScreen = () => {
         const token = await AsyncStorage.getItem('authToken');
         const data = await getClinicById(clinicId, token);
         setClinic(data.data || data);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }).start();
       } catch (err) {
         setError(`Failed to fetch clinic details: ${err.message}`);
       } finally {
@@ -364,15 +287,23 @@ const ClinicDetailScreen = () => {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         setShowLoginModal(true);
-        setChatLoading(false);
         return;
       }
       const thread = await startChatThread({
         userId: currentUserId,
         consultantId: consultant.user.id,
       });
-      setChatThread(thread);
-      setChatConsultant(consultant);
+      // Navigate to ConsultationChat screen with the consultant and user details
+      navigation.navigate('ConsultationChat', {
+        selectedConsultant: consultant,
+        currentUserId: currentUserId,
+        clinicInfo: {
+          id: clinic.id,
+          name: clinic.name || clinic.user?.userName || 'Unnamed Clinic',
+          address: clinic.address,
+        },
+        clinicConsultants: clinic.consultants || [],
+      });
     } catch (err) {
       alert('Failed to start chat: ' + (err.response?.data?.message || err.message));
     }
@@ -549,77 +480,60 @@ const ClinicDetailScreen = () => {
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
         {/* Header Banner */}
-        <Animated.View
-          style={[
-            styles.clinicHeaderBanner,
-            {
-              opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <LinearGradient colors={['#FFFFFF', '#F2F2F7']} style={styles.clinicHeaderBanner}>
-            <View style={styles.clinicHeaderLogo}>
-              {imageLoading['clinic-main'] && (
-                <View style={styles.imageLoadingOverlay}>
-                  <ActivityIndicator size="small" color="#007AFF" />
-                </View>
-              )}
-              <Image
-                source={{
-                  uri: imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl
-                    ? 'https://via.placeholder.com/150'
-                    : clinic.imageUrl.fileUrl,
-                }}
-                style={styles.clinicHeaderLogoImage}
-                onError={() => handleImageError('clinic-main')}
-                onLoad={() => handleImageLoad('clinic-main')}
-                onLoadStart={() => handleImageLoadStart('clinic-main')}
-              />
-              {(imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl) && (
-                <View style={styles.placeholderOverlay}>
-                  <Ionicons name="medkit" size={40} color="rgba(0, 122, 255, 0.4)" />
-                </View>
-              )}
-            </View>
-            <View style={styles.clinicHeaderMeta}>
-              <Text style={styles.clinicHeaderTitle}>{clinicName}</Text>
+        <View style={styles.clinicHeaderBanner}>
+          <View style={styles.clinicHeaderLogo}>
+            {imageLoading['clinic-main'] && (
+              <View style={styles.imageLoadingOverlay}>
+                <ActivityIndicator size="small" color="#007AFF" />
+              </View>
+            )}
+            <Image
+              source={{
+                uri: imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl
+                  ? 'https://via.placeholder.com/150'
+                  : clinic.imageUrl.fileUrl,
+              }}
+              style={styles.clinicHeaderLogoImage}
+              onError={() => handleImageError('clinic-main')}
+              onLoad={() => handleImageLoad('clinic-main')}
+              onLoadStart={() => handleImageLoadStart('clinic-main')}
+            />
+            {(imageErrors['clinic-main'] || !clinic.imageUrl?.fileUrl) && (
+              <View style={styles.placeholderOverlay}>
+                <Ionicons name="medkit" size={40} color="rgba(0, 122, 255, 0.4)" />
+              </View>
+            )}
+          </View>
+          <View style={styles.clinicHeaderMeta}>
+            <Text style={styles.clinicHeaderTitle}>{clinicName}</Text>
+            <TouchableOpacity
+              style={styles.clinicHeaderAddress}
+              onPress={openMap}
+              accessibilityRole="button"
+              accessibilityLabel="View clinic location on map"
+              accessibilityHint="Opens the clinic address in Google Maps"
+            >
+              <Ionicons name="location" size={18} color="#8E8E93" style={styles.clinicHeaderLocationIcon} />
+              <Text style={styles.clinicHeaderLocation}>{clinic.address || 'Address not available'}</Text>
+            </TouchableOpacity>
+            <View style={styles.clinicHeaderContactRow}>
               <TouchableOpacity
-                style={styles.clinicHeaderAddress}
-                onPress={openMap}
+                style={styles.clinicHeaderContactItem}
+                onPress={() => initiatePhoneCall(clinic.user.phoneNo)}
                 accessibilityRole="button"
-                accessibilityLabel="View clinic location on map"
-                accessibilityHint="Opens the clinic address in Google Maps"
+                accessibilityLabel="Call clinic"
+                accessibilityHint="Initiates a phone call to the clinic"
               >
-                <Ionicons name="location" size={18} color="#8E8E93" style={styles.clinicHeaderLocationIcon} />
-                <Text style={styles.clinicHeaderLocation}>{clinic.address || 'Address not available'}</Text>
+                <Ionicons name="call" size={18} color="#007AFF" style={styles.clinicHeaderContactIcon} />
+                <Text style={styles.clinicHeaderContactText}>{clinic.user.phoneNo || 'N/A'}</Text>
               </TouchableOpacity>
-              <View style={styles.clinicHeaderContactRow}>
-                <TouchableOpacity
-                  style={styles.clinicHeaderContactItem}
-                  onPress={() => initiatePhoneCall(clinic.user.phoneNo)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Call clinic"
-                  accessibilityHint="Initiates a phone call to the clinic"
-                >
-                  <Ionicons name="call" size={18} color="#007AFF" style={styles.clinicHeaderContactIcon} />
-                  <Text style={styles.clinicHeaderContactText}>{clinic.user.phoneNo || 'N/A'}</Text>
-                </TouchableOpacity>
-                <View style={styles.clinicHeaderContactItem}>
-                  <Ionicons name="mail" size={18} color="#8E8E93" style={styles.clinicHeaderContactIcon} />
-                  <Text style={styles.clinicHeaderContactText}>{clinic.user.email || 'N/A'}</Text>
-                </View>
+              <View style={styles.clinicHeaderContactItem}>
+                <Ionicons name="mail" size={18} color="#8E8E93" style={styles.clinicHeaderContactIcon} />
+                <Text style={styles.clinicHeaderContactText}>{clinic.user.email || 'N/A'}</Text>
               </View>
             </View>
-          </LinearGradient>
-        </Animated.View>
+          </View>
+        </View>
         {/* Main Content */}
         <View style={styles.clinicMainContent}>
           <View style={styles.clinicMainLeft}>
@@ -908,22 +822,6 @@ const ClinicDetailScreen = () => {
           </View>
         </View>
       </Modal>
-      {/* Chat Box */}
-      {chatConsultant && (
-        <ChatBox
-          consultant={chatConsultant}
-          userId={currentUserId}
-          chatThread={chatThread}
-          onClose={() => {
-            setChatConsultant(null);
-            setChatThread(null);
-          }}
-          onImageError={handleImageError}
-          onImageLoad={handleImageLoad}
-          imageErrors={imageErrors}
-          imageLoading={imageLoading}
-        />
-      )}
     </SafeAreaView>
   );
 };
@@ -971,6 +869,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 16,
     marginBottom: 16,
+    backgroundColor: '#FFFFFF',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1423,120 +1322,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  floatingChatboxContainer: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    width: isSmallScreen ? '90%' : 360,
-    zIndex: 3000,
-  },
-  floatingChatboxWindow: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  floatingChatboxHeader: {
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  floatingChatboxHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  floatingChatboxAvatarContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 8,
-    position: 'relative',
-  },
-  floatingChatboxAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  floatingChatboxUsername: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  floatingChatboxActionBtn: {
-    padding: 8,
-    borderRadius: 8,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  floatingChatboxBody: {
-    height: 300,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  floatingChatboxLoading: {
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  floatingChatboxLoadingText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 8,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  floatingChatboxFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  floatingChatboxFooterBtn: {
-    padding: 8,
-    borderRadius: 8,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  floatingChatboxInput: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: '#3C3C43',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  floatingChatboxSendBtn: {
-    padding: 8,
-    borderRadius: 8,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   imageLoadingOverlay: {
     position: 'absolute',

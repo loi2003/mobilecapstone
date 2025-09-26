@@ -28,6 +28,7 @@ import SystemMealPlanner from '../screens/pregnacytracker/SystemMealPlanner';
 import CustomMealPlanner from '../screens/pregnacytracker/CustomMealPlanner';
 import ClinicDetailScreen from '../screens/ClinicDetailScreen';
 import ImagePreview from '../screens/pregnacytracker/ImagePreview';
+import ConsultationChat from '../screens/ConsultationChat';
 import { Ionicons } from '@expo/vector-icons';
 
 const Stack = createNativeStackNavigator();
@@ -44,6 +45,7 @@ const HomeStack = () => {
       <Stack.Screen name="JournalEntryForm" component={JournalEntryForm} />
       <Stack.Screen name="NutritionalGuidance" component={NutritionalGuidanceScreen} />
       <Stack.Screen name="Consultation" component={ConsultationScreen} />
+      <Stack.Screen name="ConsultationChat" component={ConsultationChat} />
       <Stack.Screen name="Blog" component={BlogScreen} />
       <Stack.Screen name="BlogPost" component={BlogDetailScreen} />
       <Stack.Screen name="AIAdvice" component={AdviceScreen} />
