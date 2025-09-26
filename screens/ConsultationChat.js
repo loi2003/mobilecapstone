@@ -102,8 +102,6 @@ const ConsultationChat = () => {
   };
 
   const supportedImageTypes = ['.jpg', '.jpeg', '.png'];
-  // const supportedDocTypes = ['.docx', '.xls', '.xlsx', '.pdf'];
-  // const allSupportedTypes = [...supportedImageTypes, ...supportedDocTypes];
   const allSupportedTypes = [...supportedImageTypes];
 
   useEffect(() => {
@@ -300,20 +298,16 @@ const ConsultationChat = () => {
 
   const handleFileSelect = async () => {
     try {
-      // Request permission to access media library
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         alert('Sorry, we need media library permissions to make this work!');
         return;
       }
-
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 1,
       });
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selected = result.assets[0];
         const isImage = supportedImageTypes.includes('.' + selected.uri.split('.').pop().toLowerCase());
@@ -544,13 +538,22 @@ const ConsultationChat = () => {
           {/* Consultant Header */}
           {selectedConsultant ? (
             <View style={styles.consultantHeader}>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => setIsSidebarOpen(true)}
-                accessibilityLabel="Open consultant list"
-              >
-                <Icon name="bars" size={24} color="#fff" />
-              </TouchableOpacity>
+              <View style={styles.headerButtonContainer}>
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={() => navigation.navigate('ClinicDetail', { clinicId: clinicInfo?.id })}
+                  accessibilityLabel="Go back to clinic details"
+                >
+                  <Icon name="arrow-left" size={24} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={() => setIsSidebarOpen(true)}
+                  accessibilityLabel="Open consultant list"
+                >
+                  <Icon name="bars" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
               <View style={styles.consultantDetails}>
                 <Image
                   source={{
@@ -691,7 +694,7 @@ const ConsultationChat = () => {
             <TouchableWithoutFeedback onPress={() => setIsSidebarOpen(false)}>
               <View style={styles.modalOverlay}>
                 <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
-                  <SafeAreaView>
+                  <SafeAreaView style={styles.sidebarContainer}>
                     <View style={styles.sidebarHeader}>
                       <Text style={styles.sidebarHeaderText}>Consultants</Text>
                       <TouchableOpacity
@@ -765,6 +768,14 @@ const ConsultationChat = () => {
                           </Text>
                         </View>
                       }
+                      ListFooterComponent={
+                        filteredConsultants.length > 0 ? (
+                          <View style={styles.listFooter}>
+                            <Text style={styles.listFooterText}>No more consultant chats here</Text>
+                          </View>
+                        ) : null
+                      }
+                      contentContainerStyle={styles.flatListContent}
                     />
                   </SafeAreaView>
                 </Animated.View>
@@ -802,8 +813,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  headerButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerButton: {
     padding: 10,
+    marginRight: 10,
   },
   consultantDetails: {
     flexDirection: 'row',
@@ -1077,6 +1093,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
   },
+  sidebarContainer: {
+    flex: 1,
+  },
   sidebarHeader: {
     backgroundColor: '#007AFF',
     padding: 16,
@@ -1196,6 +1215,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007AFF',
     marginTop: 8,
+  },
+  flatListContent: {
+    paddingBottom: 20,
+  },
+  listFooter: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  listFooterText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
   },
 });
 

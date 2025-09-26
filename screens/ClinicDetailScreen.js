@@ -470,15 +470,16 @@ const ClinicDetailScreen = () => {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel={`Go back from ${clinicName}`}
-          accessibilityHint="Navigates back to the previous screen"
-        >
-          <Ionicons name="arrow-back" size={20} color="#007AFF" />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
+      <TouchableOpacity
+  style={styles.backButton}
+  onPress={() => navigation.navigate("Consultation")} // <-- change this
+  accessibilityLabel={`Go back from ${clinicName}`}
+  accessibilityHint="Navigates back to the previous screen"
+>
+  <Ionicons name="arrow-back" size={20} color="#007AFF" />
+  <Text style={styles.backButtonText}>Back</Text>
+</TouchableOpacity>
+
         {/* Header Banner */}
         <View style={styles.clinicHeaderBanner}>
           <View style={styles.clinicHeaderLogo}>
