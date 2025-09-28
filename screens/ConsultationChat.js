@@ -343,12 +343,13 @@ const ConsultationChat = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
-      alert('Connection lost. Please restart the app.');
-      return;
-    }
-    if (connectionError) {
-      alert(`Cannot send message: ${connectionError}`);
+    if (
+      !connection ||
+      connection.state !== signalR.HubConnectionState.Connected
+    ) 
+    {
+      console.error("SignalR connection not established");
+      alert("Connection lost. Please refresh the page.");
       return;
     }
     const consultantId = selectedConsultant?.user?.id;
