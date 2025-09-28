@@ -39,15 +39,16 @@ export const getChatThreadById = async (threadId, token) => {
 };
 
 // Send a message to the API
-export const sendMessage = async (messageData, token) => {
+export const sendMessage = async (formData, token) => {
   try {
     const response = await apiClient.post(
       '/api/message/send-message',
-      messageData,
+      formData,
       {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
+          // 'Content-Type': undefined,
         },
       }
     );
