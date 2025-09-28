@@ -85,12 +85,24 @@ const LoginScreen = ({ navigation }) => {
     setErrors(newErrors);
     const errorMessages = Object.values(newErrors)
       .filter((error) => error)
-      .join('\n');
+      .join("\n");
     if (errorMessages) {
-      Alert.alert('Validation Error', errorMessages, [{ text: 'OK' }]);
+      Alert.alert("Validation Error", errorMessages, [{ text: "OK" }]);
       return false;
     }
     return true;
+  };
+
+  const decodeJWT = (token) => {
+    try {
+      const base64Payload = token.split(".")[1];
+      const payload = base64Payload.replace(/-/g, "+").replace(/_/g, "/");
+      const decodedPayload = JSON.parse(atob(payload));
+      return decodedPayload;
+    } catch (error) {
+      console.error("Failed to decode JWT:", error);
+      return null;
+    }
   };
 
   const handleLogin = async () => {
@@ -107,15 +119,113 @@ const LoginScreen = ({ navigation }) => {
         Email: email,
         PasswordHash: password,
       };
+
+      console.log("Attempting login with:", { email });
       const response = await login(payload);
-      const token = response.data.data.accessToken;
+
+      console.log("Login response received");
+      console.log("Response data structure:", {
+        hasData: !!response.data,
+        hasDataData: !!response.data?.data,
+        dataKeys: response.data ? Object.keys(response.data) : "No data",
+        dataDataKeys: response.data?.data
+          ? Object.keys(response.data.data)
+          : "No data.data",
+      });
+
+      // Extract token
+      const token =
+        response.data?.data?.accessToken || response.data?.accessToken;
+
+      if (!token) {
+        console.error("❌ No access token in response");
+        Alert.alert(
+          "Login Error",
+          "Invalid response from server. Please try again."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // 🆕 DECODE JWT TOKEN TO GET USER ID
+      console.log("Decoding JWT token to extract userId...");
+      const decodedToken = decodeJWT(token);
+
+      if (!decodedToken) {
+        console.error("Failed to decode JWT token");
+        Alert.alert("Login Error", "Invalid token format. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("🔍 Decoded token payload:", {
+        id: decodedToken.id,
+        sub: decodedToken.sub,
+        email:
+          decodedToken[
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+          ],
+        name: decodedToken[
+          "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+        ],
+        role: decodedToken[
+          "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+        ],
+      });
+
+      // Extract userId from decoded token
+      const userId = decodedToken.id;
+
+      if (!userId) {
+        console.error("No user ID found in token");
+        Alert.alert(
+          "Login Error",
+          "User ID not found in authentication token."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("Extracted auth data:", {
+        token: `Found (${token.substring(0, 20)}...)`,
+        userId: `Found (${userId})`,
+        tokenType: typeof token,
+        userIdType: typeof userId,
+      });
+
+      // Store auth data
+      console.log("Storing auth data...");
+      await AsyncStorage.setItem("userId", userId);
       await AsyncStorage.setItem("authToken", token);
-      Alert.alert('Success', 'Login successful!', [{ text: 'OK' }]);
+
+      // Verify storage
+      const storedUserId = await AsyncStorage.getItem("userId");
+      const storedToken = await AsyncStorage.getItem("authToken");
+
+      console.log("Verification - Stored data:", {
+        userId: storedUserId
+          ? `Stored (${storedUserId})`
+          : "Failed to store",
+        token: storedToken
+          ? `Stored (${storedToken.substring(0, 20)}...)`
+          : "Failed to store",
+      });
+
+      Alert.alert("Success", "Login successful!", [{ text: "OK" }]);
+
       setTimeout(() => {
         navigation.replace("HomeTabs");
       }, 2000);
     } catch (error) {
+      console.error("Login error:", error);
+      console.log("Error details:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+
       let errorMessage = "Login failed. Please check your email or password.";
+
       if (error.response?.status === 401) {
         errorMessage = "Invalid email or password.";
       } else if (error.response?.status === 404) {
@@ -123,7 +233,9 @@ const LoginScreen = ({ navigation }) => {
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
-      Alert.alert('Login Error', errorMessage, [{ text: 'OK' }]);
+
+      Alert.alert("Login Error", errorMessage, [{ text: "OK" }]);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -140,7 +252,9 @@ const LoginScreen = ({ navigation }) => {
       await promptAsync();
     } catch (error) {
       console.error("Google login error:", error);
-      Alert.alert('Google Login Error', 'Google login failed', [{ text: 'OK' }]);
+      Alert.alert("Google Login Error", "Google login failed", [
+        { text: "OK" },
+      ]);
     }
   };
 
@@ -159,16 +273,26 @@ const LoginScreen = ({ navigation }) => {
 
       if (response.ok) {
         await AsyncStorage.setItem("authToken", data.token);
-        Alert.alert('Success', 'Google authentication successful!', [{ text: 'OK' }]);
+        Alert.alert("Success", "Google authentication successful!", [
+          { text: "OK" },
+        ]);
         setTimeout(() => {
           navigation.replace("HomeTabs");
         }, 2000);
       } else {
-        Alert.alert('Google Authentication Error', data.message || "Google authentication failed", [{ text: 'OK' }]);
+        Alert.alert(
+          "Google Authentication Error",
+          data.message || "Google authentication failed",
+          [{ text: "OK" }]
+        );
       }
     } catch (error) {
       console.error("Google auth error:", error);
-      Alert.alert('Google Authentication Error', "Google authentication failed", [{ text: 'OK' }]);
+      Alert.alert(
+        "Google Authentication Error",
+        "Google authentication failed",
+        [{ text: "OK" }]
+      );
     } finally {
       setIsLoading(false);
     }
@@ -218,7 +342,12 @@ const LoginScreen = ({ navigation }) => {
               style={styles.branding}
             >
               <Svg width={80} height={80} viewBox="0 0 64 64">
-                <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />
+                <Circle
+                  cx="32"
+                  cy="32"
+                  r="30"
+                  fill="rgba(255, 255, 255, 0.1)"
+                />
                 <Circle
                   cx="32"
                   cy="32"
@@ -281,7 +410,10 @@ const LoginScreen = ({ navigation }) => {
                   <Text style={styles.label}>Email</Text>
                   <TextInput
                     ref={emailInputRef}
-                    style={[styles.input, errors.email ? styles.inputError : null]}
+                    style={[
+                      styles.input,
+                      errors.email ? styles.inputError : null,
+                    ]}
                     placeholder="Enter your email"
                     value={email}
                     onChangeText={setEmail}
@@ -326,7 +458,10 @@ const LoginScreen = ({ navigation }) => {
                   ) : null}
                 </View>
                 <TouchableOpacity
-                  style={[styles.signInButton, isLoading && styles.buttonDisabled]}
+                  style={[
+                    styles.signInButton,
+                    isLoading && styles.buttonDisabled,
+                  ]}
                   onPress={handleLogin}
                   disabled={isLoading}
                 >
@@ -345,7 +480,10 @@ const LoginScreen = ({ navigation }) => {
                   <View style={styles.dividerLine} />
                 </View>
                 <TouchableOpacity
-                  style={[styles.googleButton, isLoading && styles.buttonDisabled]}
+                  style={[
+                    styles.googleButton,
+                    isLoading && styles.buttonDisabled,
+                  ]}
                   onPress={handleGoogleLogin}
                   disabled={isLoading || !request}
                 >
