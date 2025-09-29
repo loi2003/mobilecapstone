@@ -8,6 +8,8 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  SafeAreaView,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
@@ -16,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllBlogs, deleteLike, deleteBookmark } from '../api/blog-api';
 import apiClient from '../api/url-api';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const BlogDetailScreen = ({ route, navigation }) => {
   const { blogId } = route.params;
@@ -29,8 +31,7 @@ const BlogDetailScreen = ({ route, navigation }) => {
 
   // Define placeholder images for blogs with no valid image
   const placeholderImages = [
- 
-     require('../assets/adaptive-icon.png'),
+    require('../assets/adaptive-icon.png'),
     require('../assets/adaptive-icon.png'),
     require('../assets/adaptive-icon.png'),
   ];
@@ -43,10 +44,10 @@ const BlogDetailScreen = ({ route, navigation }) => {
 
   // Validate and handle image URIs, returning placeholder if invalid
   const getValidImageSource = (uri) => {
-    console.log('BlogDetail Image URI:', uri); // Debug: Log the URI
+    console.log('BlogDetail Image URI:', uri);
     if (!uri || typeof uri !== 'string' || !uri.startsWith('http')) {
       const placeholder = getRandomPlaceholder();
-      console.log('BlogDetail Using placeholder:', placeholder); // Debug: Log placeholder
+      console.log('BlogDetail Using placeholder:', placeholder);
       return placeholder;
     }
     return { uri };
@@ -55,7 +56,7 @@ const BlogDetailScreen = ({ route, navigation }) => {
   // Generate author avatar URL
   const getAuthorImage = (authorName) => {
     const uri = `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName || 'Unknown Author')}&size=100&background=2563EB&color=fff`;
-    console.log('Author Image URI:', uri); // Debug: Log author image URI
+    console.log('Author Image URI:', uri);
     return { uri };
   };
 
@@ -71,9 +72,9 @@ const BlogDetailScreen = ({ route, navigation }) => {
     setError(null);
     try {
       const token = await AsyncStorage.getItem('authToken');
-      console.log('Auth Token:', token); // Debug: Log token
+      console.log('Auth Token:', token);
       const blogResponse = await getAllBlogs(token);
-      console.log('Raw API Response:', JSON.stringify(blogResponse.data, null, 2)); // Debug: Log raw response
+      console.log('Raw API Response:', JSON.stringify(blogResponse.data, null, 2));
       const approvedBlogs = Array.isArray(blogResponse.data?.data)
         ? blogResponse.data.data
             .filter(blog => blog.status?.toLowerCase() === 'approved')
@@ -88,12 +89,12 @@ const BlogDetailScreen = ({ route, navigation }) => {
         id: blog.id,
         image: blog.images?.[0]?.fileUrl,
         title: blog.title,
-      }))); // Debug: Log blog images
+      })));
       const selectedBlog = approvedBlogs.find(blog => blog.id === blogId);
       if (!selectedBlog) {
         setError('Blog not found.');
       } else {
-        console.log('Selected Blog:', JSON.stringify(selectedBlog, null, 2)); // Debug: Log selected blog
+        console.log('Selected Blog:', JSON.stringify(selectedBlog, null, 2));
         setBlog(selectedBlog);
       }
 
@@ -105,7 +106,7 @@ const BlogDetailScreen = ({ route, navigation }) => {
           ? likedResponse.data.data.map(blog => String(blog.blogId || blog.id))
           : [];
         setLikes(likedBlogIds);
-        console.log('Liked Blog IDs:', likedBlogIds); // Debug: Log liked blogs
+        console.log('Liked Blog IDs:', likedBlogIds);
 
         const bookmarkedResponse = await apiClient.get('/api/bookmark/view-all-bookmarked-blogs', {
           headers: { Authorization: `Bearer ${token}`, Accept: 'text/plain' },
@@ -114,7 +115,7 @@ const BlogDetailScreen = ({ route, navigation }) => {
           ? bookmarkedResponse.data.data.map(blog => String(blog.blogId || blog.id))
           : [];
         setBookmarks(bookmarkedBlogIds);
-        console.log('Bookmarked Blog IDs:', bookmarkedBlogIds); // Debug: Log bookmarked blogs
+        console.log('Bookmarked Blog IDs:', bookmarkedBlogIds);
       } else {
         setLikes([]);
         setBookmarks([]);
@@ -187,246 +188,292 @@ const BlogDetailScreen = ({ route, navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Loading Blog...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error || !blog) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.errorText}>{error || 'Blog not found.'}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchBlogDetails}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <LinearGradient colors={['#F3F4F6', '#E5E7EB']} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Animatable.View animation="fadeInUp" duration={500}>
-          {/* Blog Image */}
-          <Image
-            source={getValidImageSource(blog.images?.[0]?.fileUrl)}
-            style={styles.blogImage}
-            defaultSource={placeholderImages[0]}
-            onError={(e) => console.log('Blog Image Error:', blog.id, e.nativeEvent)}
-          />
+    <SafeAreaView style={styles.container}>
+      <LinearGradient colors={['#FFFFFF', '#F2F4F7']} style={styles.gradient}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <Animatable.View animation="fadeInUp" duration={600} easing="ease-out">
+            {/* Blog Image */}
+            <Image
+              source={getValidImageSource(blog.images?.[0]?.fileUrl)}
+              style={styles.blogImage}
+              defaultSource={placeholderImages[0]}
+              onError={(e) => console.log('Blog Image Error:', blog.id, e.nativeEvent)}
+            />
 
-          {/* Blog Content */}
-          <View style={styles.blogContent}>
-            <Text style={styles.blogTitle}>{blog.title || 'Untitled'}</Text>
-            <View style={styles.blogMeta}>
-              <Text style={styles.metaText}>
-                {new Date(blog.createdAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </Text>
-              <Text style={styles.metaText}>{blog.tags?.[0] || ''}</Text>
-              <Text style={styles.metaText}>{calculateReadingTime(blog.body)} min</Text>
-            </View>
-            <View style={styles.authorContainer}>
-              <Image
-                source={getAuthorImage(blog.createdByUser?.userName)}
-                style={styles.authorImage}
-                defaultSource={placeholderImages[0]}
-                onError={(e) => console.log('Author Image Error:', blog.createdByUser?.userName, e.nativeEvent)}
-              />
-              <Text style={styles.authorName}>{blog.createdByUser?.userName || 'Unknown Author'}</Text>
-            </View>
-            <Text style={styles.blogBody}>{blog.body || 'No content available.'}</Text>
-            {blog.tags?.length > 0 && (
-              <View style={styles.tagsContainer}>
-                {blog.tags.map((tag, index) => (
-                  <Text key={`tag-${index}`} style={styles.tag}>
-                    {tag}
+            {/* Blog Content */}
+            <View style={styles.blogContent}>
+              <Text style={styles.blogTitle}>{blog.title || 'Untitled'}</Text>
+              <View style={styles.blogMeta}>
+                <Text style={styles.metaText}>
+                  {new Date(blog.createdAt).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </Text>
+                <Text style={styles.metaText}>·</Text>
+                <Text style={styles.metaText}>{calculateReadingTime(blog.body)} min read</Text>
+                {blog.tags?.[0] && (
+                  <>
+                    <Text style={styles.metaText}>·</Text>
+                    <Text style={styles.metaTag}>{blog.tags[0]}</Text>
+                  </>
+                )}
+              </View>
+              <View style={styles.authorContainer}>
+                <Image
+                  source={getAuthorImage(blog.createdByUser?.userName)}
+                  style={styles.authorImage}
+                  defaultSource={placeholderImages[0]}
+                  onError={(e) => console.log('Author Image Error:', blog.createdByUser?.userName, e.nativeEvent)}
+                />
+                <Text style={styles.authorName}>{blog.createdByUser?.userName || 'Unknown Author'}</Text>
+              </View>
+              <Text style={styles.blogBody}>{blog.body || 'No content available.'}</Text>
+              {blog.tags?.length > 0 && (
+                <View style={styles.tagsContainer}>
+                  {blog.tags.map((tag, index) => (
+                    <Text key={`tag-${index}`} style={styles.tag}>
+                      {tag}
+                    </Text>
+                  ))}
+                </View>
+              )}
+              <View style={styles.blogActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: likes.includes(String(blog.id)) ? '#FF2D55' : '#F2F4F7' }]}
+                  onPress={() => toggleLike(blog.id)}
+                  activeOpacity={0.7}
+                >
+                  <Feather
+                    name="heart"
+                    size={24}
+                    color={likes.includes(String(blog.id)) ? '#FFFFFF' : '#3C3C4399'}
+                  />
+                  <Text style={[styles.actionText, { color: likes.includes(String(blog.id)) ? '#FFFFFF' : '#3C3C4399' }]}>
+                    {blog.likeCount || 0}
                   </Text>
-                ))}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: bookmarks.includes(String(blog.id)) ? '#007AFF' : '#F2F4F7' }]}
+                  onPress={() => toggleBookmark(blog.id)}
+                  activeOpacity={0.7}
+                >
+                  <Feather
+                    name="bookmark"
+                    size={24}
+                    color={bookmarks.includes(String(blog.id)) ? '#FFFFFF' : '#3C3C4399'}
+                  />
+                </TouchableOpacity>
               </View>
-            )}
-            <View style={styles.blogActions}>
-              <TouchableOpacity style={styles.actionButton} onPress={() => toggleLike(blog.id)}>
-                <Feather
-                  name="heart"
-                  size={24}
-                  color={likes.includes(String(blog.id)) ? '#EF4444' : '#6B7280'}
-                />
-                <Text style={styles.actionText}>{blog.likeCount || 0}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={() => toggleBookmark(blog.id)}>
-                <Feather
-                  name="bookmark"
-                  size={24}
-                  color={bookmarks.includes(String(blog.id)) ? '#2563EB' : '#6B7280'}
-                />
-              </TouchableOpacity>
             </View>
-          </View>
-        </Animatable.View>
+          </Animatable.View>
 
-        {/* Auth Popup */}
-        {showAuthPopup && (
-          <View style={styles.popup}>
-            <Animatable.View animation="fadeIn" duration={300} style={styles.popupContent}>
-              <Text style={styles.popupTitle}>Please Log In</Text>
-              <Text style={styles.popupText}>Log in to like or bookmark this post.</Text>
-              <View style={styles.popupButtons}>
-                <TouchableOpacity
-                  style={styles.popupButton}
-                  onPress={() => navigation.navigate('Login')}
-                >
-                  <Text style={styles.popupButtonText}>Sign In</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.popupButton}
-                  onPress={() => navigation.navigate('Register')}
-                >
-                  <Text style={styles.popupButtonText}>Sign Up</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.popupButton, styles.popupCloseButton]}
-                  onPress={() => setShowAuthPopup(false)}
-                >
-                  <Text style={styles.popupButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </Animatable.View>
-          </View>
-        )}
-      </ScrollView>
+          {/* Auth Popup */}
+          {showAuthPopup && (
+            <View style={styles.popup}>
+              <Animatable.View animation="zoomIn" duration={300} style={styles.popupContent}>
+                <Text style={styles.popupTitle}>Authentication Required</Text>
+                <Text style={styles.popupText}>Please sign in or create an account to like or bookmark this post.</Text>
+                <View style={styles.popupButtons}>
+                  <TouchableOpacity
+                    style={[styles.popupButton, styles.signInButton]}
+                    onPress={() => navigation.navigate('Login')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.popupButtonText}>Sign In</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.popupButton, styles.signUpButton]}
+                    onPress={() => navigation.navigate('Register')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.popupButtonText}>Sign Up</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.popupButton, styles.popupCloseButton]}
+                    onPress={() => setShowAuthPopup(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.popupButtonText, { color: '#007AFF' }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animatable.View>
+            </View>
+          )}
+        </ScrollView>
 
-      {/* Back Button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Feather name="arrow-left" size={24} color="#fff" />
-      </TouchableOpacity>
-    </LinearGradient>
+        {/* Back Button */}
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </LinearGradient>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  gradient: {
+    flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
   },
   loadingText: {
-    marginTop: 8,
-    fontSize: 16,
-    color: '#374151',
+    marginTop: 12,
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#3C3C43',
+    opacity: 0.6,
   },
   errorText: {
-    fontSize: 16,
-    color: '#EF4444',
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#FF3B30',
     textAlign: 'center',
-    marginBottom: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
   },
   blogImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 16,
-    backgroundColor: '#f0f0f0', // Debug: Add background to check visibility
+    height: height * 0.3,
+    borderRadius: 16,
+    marginBottom: 20,
+    backgroundColor: '#F2F4F7',
+    resizeMode: 'cover',
   },
   blogContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   blogTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#000000',
+    lineHeight: 34,
     marginBottom: 12,
   },
   blogMeta: {
     flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
   },
   metaText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#3C3C4399',
+    marginRight: 8,
+  },
+  metaTag: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#007AFF',
   },
   authorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 20,
   },
   authorImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 8,
-    backgroundColor: '#f0f0f0', // Debug: Add background to check visibility
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#F2F4F7',
   },
   authorName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
   },
   blogBody: {
-    fontSize: 16,
-    color: '#374151',
-    lineHeight: 24,
-    marginBottom: 16,
+    fontSize: 17,
+    fontWeight: '400',
+    color: '#3C3C43',
+    lineHeight: 26,
+    marginBottom: 20,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   tag: {
-    fontSize: 12,
-    color: '#fff',
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   blogActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
+    justifyContent: 'flex-start',
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 12,
+    minWidth: 60,
   },
   actionText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   popup: {
     position: 'absolute',
@@ -434,60 +481,71 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
   popupContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
     width: '90%',
+    maxWidth: 340,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   popupTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
+    color: '#000000',
     textAlign: 'center',
+    marginBottom: 12,
   },
   popupText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#3C3C4399',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 20,
   },
   popupButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 12,
   },
   popupButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  signInButton: {
+    backgroundColor: '#007AFF',
+  },
+  signUpButton: {
+    backgroundColor: '#34C759',
   },
   popupCloseButton: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#F2F4F7',
   },
   popupButtonText: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
   },
   backButton: {
     position: 'absolute',
-    top: 16,
+    top: Platform.OS === 'ios' ? 16 : 40,
     left: 16,
-    backgroundColor: '#2563EB',
-    borderRadius: 50,
-    width: 40,
-    height: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

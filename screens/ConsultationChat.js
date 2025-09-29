@@ -16,10 +16,12 @@ import {
   SafeAreaView,
   Animated,
   TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/FontAwesome";
-import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Animatable from "react-native-animatable";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as signalR from "@microsoft/signalr";
 import * as ImagePicker from "expo-image-picker";
@@ -57,9 +59,7 @@ const ConsultationChat = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [consultants, setConsultants] = useState([]);
   const [chatThreads, setChatThreads] = useState({});
-  const [selectedConsultant, setSelectedConsultant] = useState(
-    preSelectedConsultant || null
-  );
+  const [selectedConsultant, setSelectedConsultant] = useState(preSelectedConsultant || null);
   const [searchTerm, setSearchTerm] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -70,9 +70,10 @@ const ConsultationChat = () => {
 
   // Animation for sidebar
   useEffect(() => {
-    Animated.timing(sidebarAnim, {
+    Animated.spring(sidebarAnim, {
       toValue: isSidebarOpen ? 0 : -width * 0.8,
-      duration: 300,
+      stiffness: 120,
+      damping: 15,
       useNativeDriver: true,
     }).start();
   }, [isSidebarOpen]);
@@ -98,25 +99,13 @@ const ConsultationChat = () => {
   const getFileIcon = (fileName, fileType) => {
     const name = (fileName || "").toLowerCase();
     const type = (fileType || "").toLowerCase();
-    if (type.includes("pdf") || name.endsWith(".pdf")) return "file-pdf-o";
-    if (
-      type.includes("word") ||
-      name.endsWith(".doc") ||
-      name.endsWith(".docx")
-    )
-      return "file-word-o";
-    if (
-      type.includes("excel") ||
-      name.endsWith(".xls") ||
-      name.endsWith(".xlsx")
-    )
-      return "file-excel-o";
-    if (
-      type.startsWith("text/") ||
-      name.endsWith(".txt") ||
-      name.endsWith(".log")
-    )
-      return "file-text-o";
+    if (type.includes("pdf") || name.endsWith(".pdf")) return "file-pdf";
+    if (type.includes("word") || name.endsWith(".doc") || name.endsWith(".docx"))
+      return "file-document";
+    if (type.includes("excel") || name.endsWith(".xls") || name.endsWith(".xlsx"))
+      return "file-spreadsheet";
+    if (type.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".log"))
+      return "file-text";
     return "file";
   };
 
@@ -140,8 +129,7 @@ const ConsultationChat = () => {
           return;
         }
         const userRes = await getCurrentUser(token);
-        userId =
-          userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || "";
+        userId = userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || "";
         if (!userId) {
           await AsyncStorage.removeItem("authToken");
           navigation.navigate("SignIn", {
@@ -170,22 +158,10 @@ const ConsultationChat = () => {
     if (preSelectedConsultant && !loading) {
       const consultantId = preSelectedConsultant.user?.id;
       if (consultantId && !chatThreads[consultantId]) {
-        // This part is missing proper thread initialization
-        setChatThreads((prevThreads) => ({
-          ...prevThreads,
-          [consultantId]: {
-            thread: createdThread?.data || createdThread || null, // Should load existing thread here
-            messages: [],
-            consultant: preSelectedConsultant,
-          },
-        }));
-        setSelectedConsultant(preSelectedConsultant);
-
-        // Load existing thread if it exists
         loadExistingThreads(currentUserId);
       }
     }
-  }, [preSelectedConsultant, loading, chatThreads]);
+  }, [preSelectedConsultant, loading]);
 
   const loadExistingThreads = async (userId) => {
     try {
@@ -206,50 +182,36 @@ const ConsultationChat = () => {
           const consultantId = thread.consultantId;
           if (!consultantId) continue;
           try {
-            const consultantRes = await viewConsultantByUserId(
-              consultantId,
-              token
-            );
+            const consultantRes = await viewConsultantByUserId(consultantId, token);
             const consultantData = consultantRes?.data || null;
-            const processedMessages =
-              thread.messages?.map((msg) => {
-                if (msg.attachmentUrl || msg.attachmentPath || msg.attachment) {
-                  return {
-                    ...msg,
-                    attachment: {
-                      fileName:
-                        msg.attachmentFileName || msg.fileName || "Attachment",
-                      fileSize: msg.attachmentFileSize || msg.fileSize,
-                      fileType: msg.attachmentFileType || msg.fileType,
-                      isImage: isImageFile(
-                        msg.attachmentFileName || msg.fileName
-                      ),
-                      url:
-                        msg.attachmentUrl ||
-                        msg.attachmentPath ||
-                        msg.attachment?.url,
-                    },
-                  };
-                }
-                if (
-                  msg.media &&
-                  Array.isArray(msg.media) &&
-                  msg.media.length > 0
-                ) {
-                  const firstMedia = msg.media[0];
-                  return {
-                    ...msg,
-                    attachment: {
-                      fileName: firstMedia.fileName || "Attachment",
-                      fileSize: firstMedia.fileSize,
-                      fileType: firstMedia.fileType,
-                      isImage: isImageFile(firstMedia.fileName || ""),
-                      url: firstMedia.fileUrl || firstMedia.url,
-                    },
-                  };
-                }
-                return msg;
-              }) || [];
+            const processedMessages = thread.messages?.map((msg) => {
+              if (msg.attachmentUrl || msg.attachmentPath || msg.attachment) {
+                return {
+                  ...msg,
+                  attachment: {
+                    fileName: msg.attachmentFileName || msg.fileName || "Attachment",
+                    fileSize: msg.attachmentFileSize || msg.fileSize,
+                    fileType: msg.attachmentFileType || msg.fileType,
+                    isImage: isImageFile(msg.attachmentFileName || msg.fileName),
+                    url: msg.attachmentUrl || msg.attachmentPath || msg.attachment?.url,
+                  },
+                };
+              }
+              if (msg.media && Array.isArray(msg.media) && msg.media.length > 0) {
+                const firstMedia = msg.media[0];
+                return {
+                  ...msg,
+                  attachment: {
+                    fileName: firstMedia.fileName || "Attachment",
+                    fileSize: firstMedia.fileSize,
+                    fileType: firstMedia.fileType,
+                    isImage: isImageFile(firstMedia.fileName || ""),
+                    url: firstMedia.fileUrl || firstMedia.url,
+                  },
+                };
+              }
+              return msg;
+            }) || [];
             threadsMap[consultantId] = {
               thread,
               messages: processedMessages,
@@ -371,8 +333,7 @@ const ConsultationChat = () => {
 
   const handleFileSelect = async () => {
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         alert("Sorry, we need media library permissions to make this work!");
         return;
@@ -380,7 +341,7 @@ const ConsultationChat = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 1,
+        quality: 0.8,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selected = result.assets[0];
@@ -398,8 +359,6 @@ const ConsultationChat = () => {
           size: selected.fileSize || 0,
         });
         setFilePreview(selected.uri);
-      } else {
-        console.log("Image picker cancelled");
       }
     } catch (err) {
       console.error("Image picker error:", err);
@@ -428,7 +387,6 @@ const ConsultationChat = () => {
       return;
     }
     const consultantId = selectedConsultant?.user?.id;
-
     const activeThread =
       consultantId && chatThreads[consultantId]
         ? chatThreads[consultantId].thread
@@ -439,76 +397,68 @@ const ConsultationChat = () => {
       sendingMessage
     )
       return;
+
+    // Dismiss keyboard immediately to ensure responsiveness
+    Keyboard.dismiss();
+
     try {
-    setSendingMessage(true);
-    const token = await AsyncStorage.getItem('authToken');
-
-    // ✅ Create FormData exactly like the working curl command
-    const formData = new FormData();
-    formData.append('ChatThreadId', activeThread.id);
-    formData.append('SenderId', currentUserId);
-    formData.append('MessageText', newMessage.trim());
-
-    if (selectedFile) {
-      formData.append('Attachments', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.type,
-      });
+      setSendingMessage(true);
+      const token = await AsyncStorage.getItem("authToken");
+      const formData = new FormData();
+      formData.append("ChatThreadId", activeThread.id);
+      formData.append("SenderId", currentUserId);
+      formData.append("MessageText", newMessage.trim());
+      if (selectedFile) {
+        formData.append("Attachments", {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.type,
+        });
+      }
+      const response = await fetch(
+        "https://api.nestlycare.live/api/message/send-message",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+      const responseData = await response.json();
+      if (response.ok && responseData.error === 0) {
+        const messageData = responseData.data;
+        const newMessageObj = {
+          id: messageData.id,
+          messageText: messageData.messageText,
+          senderId: currentUserId,
+          sentAt: new Date().toISOString(),
+          isRead: false,
+          media: messageData.media || [],
+        };
+        setChatThreads((prevThreads) => ({
+          ...prevThreads,
+          [consultantId]: {
+            ...prevThreads[consultantId],
+            messages: [...(prevThreads[consultantId]?.messages || []), newMessageObj],
+          },
+        }));
+        setNewMessage("");
+        setSelectedFile(null);
+        setFilePreview(null);
+        // Delay scroll to ensure UI updates are complete
+        setTimeout(() => scrollToBottom(), 100);
+      } else {
+        console.error("API Error:", responseData);
+        alert(`Failed to send message: ${responseData.message || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Network Error:", error);
+      alert(`Failed to send message: ${error.message}`);
+    } finally {
+      setSendingMessage(false);
     }
-
-    // console.log("=== Fetch Request Debug ===");
-    // console.log("URL: https://api.nestlycare.live/api/message/send-message");
-    // console.log("FormData _parts:", formData._parts);
-
-    const response = await fetch('https://api.nestlycare.live/api/message/send-message', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: formData,
-    });
-    // const response = await sendMessage(formData, token);
-
-    const responseData = await response.json();
-    
-    console.log("=== Fetch Response Debug ===");
-    console.log("Status:", response.status);
-    console.log("Response:", responseData);
-
-    if (response.ok && responseData.error === 0) {
-      // Success handling
-      const messageData = responseData.data;
-      const newMessageObj = {
-        id: messageData.id,
-        messageText: messageData.messageText,
-        senderId: currentUserId,
-        sentAt: new Date().toISOString(),
-        isRead: false,
-        media: messageData.media || [],
-      };
-
-      setChatThreads(prevThreads => ({
-        ...prevThreads,
-        [consultantId]: {
-          ...prevThreads[consultantId],
-          messages: [...(prevThreads[consultantId]?.messages || []), newMessageObj],
-        },
-      }));
-
-      setNewMessage('');
-      setSelectedFile(null);
-    } else {
-      console.error("API Error:", responseData);
-      alert(`Failed to send message: ${responseData.message || 'Unknown error'}`);
-    }
-  } catch (error) {
-    console.error("Network Error:", error);
-    alert(`Failed to send message: ${error.message}`);
-  } finally {
-    setSendingMessage(false);
-  }
-};
+  };
 
   const formatMessageTime = (timestamp) => {
     if (!timestamp) return "";
@@ -546,8 +496,10 @@ const ConsultationChat = () => {
     const isSent = msg.senderId === currentUserId;
     const hasAttachment = msg.attachment;
     return (
-      <View
+      <Animatable.View
         key={idx}
+        animation="fadeInUp"
+        duration={300}
         style={[
           styles.message,
           isSent ? styles.sentMessage : styles.receivedMessage,
@@ -580,17 +532,12 @@ const ConsultationChat = () => {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.attachmentDocument}>
-                <Icon
-                  name={getFileIcon(
-                    hasAttachment.fileName,
-                    hasAttachment.fileType
-                  )}
+                <Ionicons
+                  name={getFileIcon(hasAttachment.fileName, hasAttachment.fileType)}
                   size={20}
                   color={isSent ? "#fff" : "#1e293b"}
                 />
-                <Text style={styles.attachmentName}>
-                  {hasAttachment.fileName}
-                </Text>
+                <Text style={styles.attachmentName}>{hasAttachment.fileName}</Text>
                 <Text style={styles.attachmentSize}>
                   {formatBytes(hasAttachment.fileSize)}
                 </Text>
@@ -607,7 +554,7 @@ const ConsultationChat = () => {
             )}
           </Text>
         </View>
-      </View>
+      </Animatable.View>
     );
   };
 
@@ -653,7 +600,7 @@ const ConsultationChat = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.loadingText}>Loading Consultation...</Text>
       </SafeAreaView>
     );
@@ -664,12 +611,17 @@ const ConsultationChat = () => {
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <View style={styles.content}>
           {/* Consultant Header */}
           {selectedConsultant ? (
-            <View style={styles.consultantHeader}>
+            <LinearGradient
+              colors={["#3B82F6", "#60A5FA"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.consultantHeader}
+            >
               <View style={styles.headerButtonContainer}>
                 <TouchableOpacity
                   style={styles.headerButton}
@@ -680,14 +632,14 @@ const ConsultationChat = () => {
                   }
                   accessibilityLabel="Go back to clinic details"
                 >
-                  <Icon name="arrow-left" size={24} color="#fff" />
+                  <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.headerButton}
                   onPress={() => setIsSidebarOpen(true)}
                   accessibilityLabel="Open consultant list"
                 >
-                  <Icon name="bars" size={24} color="#fff" />
+                  <Ionicons name="menu" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
               <View style={styles.consultantDetails}>
@@ -708,7 +660,7 @@ const ConsultationChat = () => {
                     {consultantProfile?.specialization}
                   </Text>
                   <View style={styles.clinicInfo}>
-                    <Icon name="hospital-o" size={14} color="#fff" />
+                    <Ionicons name="business" size={14} color="#fff" />
                     <Text style={styles.clinicName}>
                       {consultantProfile?.clinic?.user?.userName ||
                         consultantProfile?.clinic?.name}
@@ -731,10 +683,10 @@ const ConsultationChat = () => {
                   </Text>
                 </TouchableOpacity>
               )}
-            </View>
+            </LinearGradient>
           ) : (
             <View style={styles.noSelection}>
-              <Icon name="user" size={60} color="#8E8E93" />
+              <Ionicons name="person" size={60} color="#6B7280" />
               <Text style={styles.noSelectionTitle}>Select a Consultant</Text>
               <Text style={styles.noSelectionText}>
                 Choose a consultant to start a conversation
@@ -762,7 +714,7 @@ const ConsultationChat = () => {
               >
                 {activeMessages.length === 0 ? (
                   <View style={styles.emptyMessages}>
-                    <Icon name="comments" size={50} color="#8E8E93" />
+                    <Ionicons name="chatbubbles" size={50} color="#6B7280" />
                     <Text style={styles.emptyMessagesTitle}>
                       No Messages Yet
                     </Text>
@@ -778,7 +730,7 @@ const ConsultationChat = () => {
               <View style={styles.inputArea}>
                 <View style={styles.inputContainer}>
                   {selectedFile && (
-                    <View style={styles.filePreview}>
+                    <Animatable.View animation="fadeIn" style={styles.filePreview}>
                       {filePreview ? (
                         <Image
                           source={{ uri: filePreview }}
@@ -786,7 +738,7 @@ const ConsultationChat = () => {
                         />
                       ) : (
                         <View style={styles.filePreviewDocument}>
-                          <Icon name="file" size={16} color="#007AFF" />
+                          <Ionicons name="file" size={16} color="#3B82F6" />
                           <Text style={styles.filePreviewText}>
                             {selectedFile.name}
                           </Text>
@@ -797,17 +749,18 @@ const ConsultationChat = () => {
                         onPress={clearSelectedFile}
                         accessibilityLabel="Remove attachment"
                       >
-                        <Icon name="times" size={16} color="#fff" />
+                        <Ionicons name="close" size={16} color="#fff" />
                       </TouchableOpacity>
-                    </View>
+                    </Animatable.View>
                   )}
                   <View style={styles.inputRow}>
                     <TouchableOpacity
                       style={styles.attachmentButton}
                       onPress={handleFileSelect}
                       accessibilityLabel="Attach image"
+                      activeOpacity={0.7}
                     >
-                      <Icon name="paperclip" size={24} color="#007AFF" />
+                      <Ionicons name="attach" size={24} color="#3B82F6" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.input}
@@ -815,7 +768,7 @@ const ConsultationChat = () => {
                       value={newMessage}
                       onChangeText={setNewMessage}
                       multiline
-                      placeholderTextColor="#8E8E93"
+                      placeholderTextColor="#9CA3AF"
                       accessibilityLabel="Message input"
                     />
                     <TouchableOpacity
@@ -830,8 +783,9 @@ const ConsultationChat = () => {
                         (!newMessage.trim() && !selectedFile) || sendingMessage
                       }
                       accessibilityLabel="Send message"
+                      activeOpacity={0.7}
                     >
-                      <MaterialIcons name="send" size={24} color="#fff" />
+                      <Ionicons name="send" size={24} color="#fff" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -839,7 +793,7 @@ const ConsultationChat = () => {
             </>
           ) : selectedConsultant && !activeThread ? (
             <View style={styles.noThread}>
-              <Icon name="chat" size={60} color="#8E8E93" />
+              <Ionicons name="chatbox" size={60} color="#6B7280" />
               <Text style={styles.noThreadTitle}>No Active Chat</Text>
               <Text style={styles.noThreadText}>
                 Start a consultation to message this consultant.
@@ -863,21 +817,26 @@ const ConsultationChat = () => {
                   ]}
                 >
                   <SafeAreaView style={styles.sidebarContainer}>
-                    <View style={styles.sidebarHeader}>
+                    <LinearGradient
+                      colors={["#3B82F6", "#60A5FA"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sidebarHeader}
+                    >
                       <Text style={styles.sidebarHeaderText}>Consultants</Text>
                       <TouchableOpacity
                         onPress={() => setIsSidebarOpen(false)}
                         accessibilityLabel="Close consultant list"
                       >
-                        <Icon name="times" size={24} color="#fff" />
+                        <Ionicons name="close" size={24} color="#fff" />
                       </TouchableOpacity>
-                    </View>
+                    </LinearGradient>
                     <View style={styles.searchSection}>
                       <View style={styles.searchBar}>
-                        <Icon
+                        <Ionicons
                           name="search"
                           size={16}
-                          color="#8E8E93"
+                          color="#9CA3AF"
                           style={styles.searchIcon}
                         />
                         <TextInput
@@ -885,7 +844,7 @@ const ConsultationChat = () => {
                           placeholder="Search consultants..."
                           value={searchTerm}
                           onChangeText={setSearchTerm}
-                          placeholderTextColor="#8E8E93"
+                          placeholderTextColor="#9CA3AF"
                           accessibilityLabel="Search consultants"
                         />
                       </View>
@@ -923,10 +882,10 @@ const ConsultationChat = () => {
                                 {profile?.specialization}
                               </Text>
                               <View style={styles.consultantClinic}>
-                                <Icon
-                                  name="hospital-o"
+                                <Ionicons
+                                  name="business"
                                   size={12}
-                                  color="#007AFF"
+                                  color="#3B82F6"
                                 />
                                 <Text style={styles.consultantClinicName}>
                                   {profile?.clinic?.user?.userName ||
@@ -935,10 +894,10 @@ const ConsultationChat = () => {
                               </View>
                               {thread?.thread?.updatedAt && (
                                 <View style={styles.lastActivity}>
-                                  <Icon
-                                    name="clock-o"
+                                  <Ionicons
+                                    name="time"
                                     size={12}
-                                    color="#8E8E93"
+                                    color="#9CA3AF"
                                   />
                                   <Text style={styles.lastActivityText}>
                                     {new Date(
@@ -959,7 +918,7 @@ const ConsultationChat = () => {
                       }}
                       ListEmptyComponent={
                         <View style={styles.emptyThreadList}>
-                          <Icon name="comments" size={50} color="#8E8E93" />
+                          <Ionicons name="chatbubbles" size={50} color="#6B7280" />
                           <Text style={styles.emptyThreadListTitle}>
                             No Conversations
                           </Text>
@@ -974,7 +933,7 @@ const ConsultationChat = () => {
                         filteredConsultants.length > 0 ? (
                           <View style={styles.listFooter}>
                             <Text style={styles.listFooterText}>
-                              No more consultant chats here
+                              No more consultant chats
                             </Text>
                           </View>
                         ) : null
@@ -995,7 +954,7 @@ const ConsultationChat = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
+    backgroundColor: "#f5f7fa",
   },
   keyboardContainer: {
     flex: 1,
@@ -1004,26 +963,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   consultantHeader: {
-    backgroundColor: "#007AFF",
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 12,
-    margin: 8,
+    borderRadius: 16,
+    margin: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 5,
   },
   headerButtonContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   headerButton: {
-    padding: 10,
-    marginRight: 10,
+    padding: 12,
+    marginRight: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
   },
   consultantDetails: {
     flexDirection: "row",
@@ -1032,24 +992,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   consultantAvatarLarge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.8)",
+    borderColor: "rgba(255, 255, 255, 0.9)",
   },
   consultantMeta: {
     flex: 1,
   },
   consultantName: {
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   consultantSpecialization: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 15,
     opacity: 0.9,
+    marginVertical: 4,
   },
   clinicInfo: {
     flexDirection: "row",
@@ -1059,32 +1021,37 @@ const styles = StyleSheet.create({
   },
   clinicName: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "500",
   },
   startButton: {
     backgroundColor: "#fff",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    minWidth: 100,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    minWidth: 120,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   startButtonText: {
-    color: "#007AFF",
-    fontSize: 15,
+    color: "#3B82F6",
+    fontSize: 16,
     fontWeight: "600",
   },
   disabledButton: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   messages: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
+    backgroundColor: "#f5f7fa",
   },
   messagesContent: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 140,
   },
   message: {
     marginBottom: 12,
@@ -1097,35 +1064,35 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   messageContent: {
-    maxWidth: "80%",
+    maxWidth: "75%",
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sentMessageContent: {
-    backgroundColor: "#007AFF",
-    borderBottomRightRadius: 4,
+    backgroundColor: "#3B82F6",
+    borderBottomRightRadius: 8,
   },
   receivedMessageContent: {
     backgroundColor: "#FFFFFF",
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 8,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: "#E5E7EB",
   },
   messageText: {
     fontSize: 16,
     lineHeight: 22,
-    color: "#000",
+    color: "#1F2937",
   },
   sentMessageText: {
     color: "#fff",
   },
   receivedMessageText: {
-    color: "#000",
+    color: "#1F2937",
   },
   messageTime: {
     fontSize: 12,
@@ -1137,13 +1104,13 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   receivedMessageTime: {
-    color: "#8E8E93",
+    color: "#6B7280",
     textAlign: "left",
   },
   attachmentImage: {
-    width: 200,
-    height: 150,
-    borderRadius: 10,
+    width: 220,
+    height: 165,
+    borderRadius: 12,
     marginTop: 8,
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.1)",
@@ -1152,9 +1119,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 10,
+    padding: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 12,
     marginTop: 8,
   },
   attachmentName: {
@@ -1168,28 +1135,35 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   inputArea: {
-    padding: 12,
     backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
+    borderTopColor: "#E5E7EB",
   },
   inputContainer: {
-    backgroundColor: "#F2F2F7",
+    backgroundColor: "#F9FAFB",
     borderRadius: 20,
-    padding: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filePreview: {
     backgroundColor: "#fff",
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 8,
     marginBottom: 8,
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   filePreviewImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
+    width: 60,
+    height: 60,
+    borderRadius: 10,
   },
   filePreviewDocument: {
     flexDirection: "row",
@@ -1199,13 +1173,13 @@ const styles = StyleSheet.create({
   },
   filePreviewText: {
     fontSize: 14,
-    color: "#000",
+    color: "#1F2937",
   },
   filePreviewRemove: {
     position: "absolute",
     top: -8,
     right: -8,
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#EF4444",
     borderRadius: 12,
     width: 24,
     height: 24,
@@ -1218,10 +1192,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachmentButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 24,
+    backgroundColor: "#fff",
   },
   input: {
     flex: 1,
@@ -1230,15 +1206,22 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#fff",
     maxHeight: 120,
-    color: "#000",
+    color: "#1F2937",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#007AFF",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#3B82F6",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   noSelection: {
     flex: 1,
@@ -1247,22 +1230,27 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   noSelectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1F2937",
     marginVertical: 12,
   },
   noSelectionText: {
     fontSize: 16,
-    color: "#8E8E93",
+    color: "#6B7280",
     textAlign: "center",
     marginBottom: 16,
   },
   selectConsultantButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 12,
+    backgroundColor: "#3B82F6",
+    paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 10,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   selectConsultantButtonText: {
     color: "#fff",
@@ -1276,14 +1264,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   noThreadTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1F2937",
     marginVertical: 12,
   },
   noThreadText: {
     fontSize: 16,
-    color: "#8E8E93",
+    color: "#6B7280",
     textAlign: "center",
   },
   modalOverlay: {
@@ -1294,35 +1282,41 @@ const styles = StyleSheet.create({
     width: width * 0.8,
     height: "100%",
     backgroundColor: "#fff",
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 5,
   },
   sidebarContainer: {
     flex: 1,
   },
   sidebarHeader: {
-    backgroundColor: "#007AFF",
     padding: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderTopRightRadius: 16,
+    borderTopRightRadius: 20,
   },
   sidebarHeaderText: {
     color: "#fff",
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "700",
   },
   searchSection: {
-    padding: 12,
+    padding: 16,
     backgroundColor: "#fff",
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F2F2F7",
-    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   searchIcon: {
     marginRight: 8,
@@ -1330,66 +1324,68 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    paddingVertical: 10,
-    color: "#000",
+    paddingVertical: 12,
+    color: "#1F2937",
   },
   consultantItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: "#E5E7EB",
   },
   activeConsultantItem: {
-    backgroundColor: "#F2F2F7",
+    backgroundColor: "#F9FAFB",
   },
   consultantAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   consultantInfo: {
     flex: 1,
   },
   consultantInfoName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
-    color: "#000",
+    color: "#1F2937",
   },
   consultantSpecialization: {
     fontSize: 14,
-    color: "#8E8E93",
-    marginVertical: 2,
+    color: "#6B7280",
+    marginVertical: 4,
   },
   consultantClinic: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 2,
+    marginTop: 4,
   },
   consultantClinicName: {
     fontSize: 13,
-    color: "#007AFF",
+    color: "#3B82F6",
   },
   lastActivity: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
     marginTop: 4,
   },
   lastActivityText: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: "#6B7280",
   },
   statusIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FF3B30",
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#EF4444",
   },
   activeStatusIndicator: {
-    backgroundColor: "#34C759",
+    backgroundColor: "#10B981",
   },
   emptyThreadList: {
     flex: 1,
@@ -1399,13 +1395,13 @@ const styles = StyleSheet.create({
   },
   emptyThreadListTitle: {
     fontSize: 20,
-    fontWeight: "600",
-    color: "#000",
+    fontWeight: "700",
+    color: "#1F2937",
     marginVertical: 12,
   },
   emptyThreadListText: {
     fontSize: 16,
-    color: "#8E8E93",
+    color: "#6B7280",
     textAlign: "center",
     maxWidth: 300,
   },
@@ -1413,12 +1409,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F2F2F7",
+    backgroundColor: "#f5f7fa",
   },
   loadingText: {
     fontSize: 16,
-    color: "#007AFF",
+    color: "#3B82F6",
     marginTop: 8,
+    fontWeight: "600",
   },
   flatListContent: {
     paddingBottom: 20,
@@ -1429,7 +1426,7 @@ const styles = StyleSheet.create({
   },
   listFooterText: {
     fontSize: 14,
-    color: "#8E8E93",
+    color: "#6B7280",
     textAlign: "center",
   },
 });

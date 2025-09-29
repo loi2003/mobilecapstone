@@ -11,13 +11,13 @@ import {
   SafeAreaView,
   Animated,
   Platform,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { format, parse } from 'date-fns';
 import { getCurrentUser, logout, uploadAvatar, editUserProfile } from '../api/auth';
 import { Dimensions } from 'react-native';
@@ -34,7 +34,9 @@ const AccountScreen = ({ navigation }) => {
     DateOfBirth: '',
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [scrollDay, setScrollDay] = useState(1);
+  const [scrollMonth, setScrollMonth] = useState(1);
+  const [scrollYear, setScrollYear] = useState(new Date().getFullYear());
   const profileCardAnim = useRef(new Animated.Value(100)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -58,7 +60,10 @@ const AccountScreen = ({ navigation }) => {
         });
         if (response.data.dateOfBirth) {
           try {
-            setSelectedDate(new Date(response.data.dateOfBirth));
+            const date = new Date(response.data.dateOfBirth);
+            setScrollDay(date.getDate());
+            setScrollMonth(date.getMonth() + 1);
+            setScrollYear(date.getFullYear());
           } catch (error) {
             console.error('Invalid date format:', error);
           }
@@ -117,28 +122,23 @@ const AccountScreen = ({ navigation }) => {
       Alert.alert('Permission Denied', 'You need to grant permission to access the photo library.');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
-
     if (!result.canceled && result.assets[0].uri) {
       try {
         const token = await AsyncStorage.getItem('authToken');
         const userId = user?.data?.id;
-
         const file = {
           uri: result.assets[0].uri,
           type: 'image/jpeg',
           name: `avatar-${userId}.jpg`,
         };
-
         const response = await uploadAvatar(userId, file, token);
         console.log('Avatar uploaded:', response.data);
-
         const updatedUser = await getCurrentUser(token);
         setUser(updatedUser.data);
         Alert.alert('Success', 'Avatar uploaded successfully!');
@@ -158,10 +158,8 @@ const AccountScreen = ({ navigation }) => {
         PhoneNumber: editedProfile.PhoneNumber,
         DateOfBirth: editedProfile.DateOfBirth,
       };
-
       const response = await editUserProfile(profileData, token);
       console.log('Profile updated:', response.data);
-
       const updatedUser = await getCurrentUser(token);
       setUser(updatedUser.data);
       setIsEditing(false);
@@ -172,16 +170,28 @@ const AccountScreen = ({ navigation }) => {
     }
   };
 
-  const handleDateChange = (event, date) => {
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
+  const validateDate = () => {
+    const date = new Date(scrollYear, scrollMonth - 1, scrollDay);
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
     }
-    if (date) {
-      setSelectedDate(date);
+    if (date > new Date()) {
+      return 'Date cannot be in the future';
+    }
+    return '';
+  };
+
+  const handleDateConfirm = () => {
+    const error = validateDate();
+    if (!error) {
+      const date = new Date(scrollYear, scrollMonth - 1, scrollDay);
       setEditedProfile({
         ...editedProfile,
         DateOfBirth: format(date, 'yyyy-MM-dd'),
       });
+      setShowDatePicker(false);
+    } else {
+      Alert.alert('Error', error);
     }
   };
 
@@ -201,6 +211,24 @@ const AccountScreen = ({ navigation }) => {
         return 'Unknown';
     }
   };
+
+  // Generate arrays for days, months, and years
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  const years = Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i);
 
   if (isLoading) {
     return (
@@ -240,7 +268,6 @@ const AccountScreen = ({ navigation }) => {
               Your Account
             </Animatable.Text>
             <Text style={styles.sectionDescription}>Manage your profile and preferences</Text>
-
             <Animated.View
               style={[styles.profileCard, { transform: [{ translateY: profileCardAnim }] }]}
             >
@@ -271,7 +298,6 @@ const AccountScreen = ({ navigation }) => {
                 <Text style={styles.profileName}>{user?.data?.userName || 'User'}</Text>
                 <Text style={styles.profileRole}>{getRoleName(user?.data?.roleId)}</Text>
               </View>
-
               <View style={styles.profileDetails}>
                 {isEditing ? (
                   <>
@@ -354,17 +380,6 @@ const AccountScreen = ({ navigation }) => {
                         </Text>
                       </TouchableOpacity>
                     </Animatable.View>
-                    {showDatePicker && (
-                      <DateTimePicker
-                        value={selectedDate}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                        maximumDate={new Date()}
-                        onChange={handleDateChange}
-                        accessibilityLabel="Select date of birth"
-                        accessibilityHint="Choose your date of birth from the calendar"
-                      />
-                    )}
                   </>
                 ) : (
                   <>
@@ -434,7 +449,6 @@ const AccountScreen = ({ navigation }) => {
                   </>
                 )}
               </View>
-
               <Animatable.View animation="fadeInUp" delay={400}>
                 <TouchableOpacity
                   style={styles.editButton}
@@ -463,7 +477,10 @@ const AccountScreen = ({ navigation }) => {
                       });
                       if (user?.data?.dateOfBirth) {
                         try {
-                          setSelectedDate(new Date(user.data.dateOfBirth));
+                          const date = new Date(user.data.dateOfBirth);
+                          setScrollDay(date.getDate());
+                          setScrollMonth(date.getMonth() + 1);
+                          setScrollYear(date.getFullYear());
                         } catch (error) {
                           console.error('Invalid date format on cancel:', error);
                         }
@@ -478,7 +495,6 @@ const AccountScreen = ({ navigation }) => {
                 </Animatable.View>
               )}
             </Animated.View>
-
             <View style={styles.actionsSection}>
               <Text style={styles.sectionSubtitle}>Account Actions</Text>
               <Animatable.View animation="fadeInUp" delay={600}>
@@ -508,6 +524,92 @@ const AccountScreen = ({ navigation }) => {
             </View>
           </Animated.View>
         </ScrollView>
+
+        {/* Custom Date Picker Modal */}
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.modalContainer}>
+            <Animatable.View animation="slideInUp" duration={300} style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Date of Birth</Text>
+              <View style={styles.pickerContainer}>
+                <ScrollView
+                  style={styles.picker}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={40}
+                  decelerationRate="fast"
+                >
+                  {days.map((day) => (
+                    <TouchableOpacity
+                      key={day}
+                      style={[styles.pickerItem, scrollDay === day ? styles.pickerItemSelected : null]}
+                      onPress={() => setScrollDay(day)}
+                    >
+                      <Text style={[styles.pickerText, scrollDay === day ? styles.pickerTextSelected : null]}>
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  style={styles.picker}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={40}
+                  decelerationRate="fast"
+                >
+                  {months.map((month, index) => (
+                    <TouchableOpacity
+                      key={month}
+                      style={[styles.pickerItem, scrollMonth === index + 1 ? styles.pickerItemSelected : null]}
+                      onPress={() => setScrollMonth(index + 1)}
+                    >
+                      <Text style={[styles.pickerText, scrollMonth === index + 1 ? styles.pickerTextSelected : null]}>
+                        {month}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  style={styles.picker}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={40}
+                  decelerationRate="fast"
+                >
+                  {years.map((year) => (
+                    <TouchableOpacity
+                      key={year}
+                      style={[styles.pickerItem, scrollYear === year ? styles.pickerItemSelected : null]}
+                      onPress={() => setScrollYear(year)}
+                    >
+                      <Text style={[styles.pickerText, scrollYear === year ? styles.pickerTextSelected : null]}>
+                        {year}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setShowDatePicker(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={handleDateConfirm}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalButtonText}>Confirm</Text>
+                </TouchableOpacity>
+              </View>
+            </Animatable.View>
+          </View>
+        </Modal>
       </LinearGradient>
     </SafeAreaView>
   );
@@ -713,6 +815,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.5,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    height: 200,
+    marginBottom: 20,
+  },
+  picker: {
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  pickerItem: {
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerItemSelected: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+  },
+  pickerText: {
+    fontSize: 18,
+    color: '#333',
+  },
+  pickerTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#D1D5DB',
+  },
+  modalButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

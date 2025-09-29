@@ -13,6 +13,7 @@ import {
   Linking,
   SafeAreaView,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser, logout } from '../api/auth';
@@ -438,7 +439,7 @@ const HomeScreen = ({ navigation }) => {
                     accessibilityHint="Shows details for the selected pregnancy week"
                   >
                     <Animated.View
-                       style={[
+                      style={[
                         styles.timelineNode,
                         selectedWeek?.week === data.week && styles.selectedNode,
                         { transform: [{ scale: scaleAnims[index] }] },
@@ -632,8 +633,20 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* ChatBox Component */}
-      <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
+      {/* ChatBox Modal */}
+      <Modal
+        visible={isChatBoxOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsChatBoxOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1300,6 +1313,11 @@ const styles = StyleSheet.create({
   contactIconText: {
     fontSize: 24,
     color: '#ffffff',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
   },
   loadingContainer: {
     flex: 1,

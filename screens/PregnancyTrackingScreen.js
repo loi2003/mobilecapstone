@@ -10,11 +10,13 @@ import {
   useWindowDimensions,
   Platform,
   SafeAreaView,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import ChatBox from "./ChatBox";
+import ChatBox from "./ChatBox"; // Adjust the import path as needed
 import TrackingForm from "./pregnacytracker/TrackingForm";
 import PregnancyOverview from "./pregnacytracker/PregnancyOverview";
 import PregnancyProgressBar from "./pregnacytracker/PregnancyProgressBar";
@@ -35,7 +37,7 @@ import { createBasicBioMetric } from "../api/basic-bio-metric-api";
 import { getCurrentUser, logout } from "../api/auth";
 import { viewAllOfflineConsultation } from "../api/offline-consultation-api";
 import { getJournalByGrowthDataId } from "../api/journal-api";
-import { Header } from "./HomeScreen"; // Import the Header from HomeScreen
+import { Header } from "./HomeScreen";
 
 const PregnancyTrackingPage = () => {
   const { width } = useWindowDimensions();
@@ -58,6 +60,7 @@ const PregnancyTrackingPage = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const chatIconScale = useRef(new Animated.Value(1)).current;
 
   // Handle route params to set active tab
   useEffect(() => {
@@ -103,19 +106,16 @@ const PregnancyTrackingPage = () => {
         mealplanner: "mealplanner",
       };
 
-      // Tìm tab được truyền trong params
       const activeTabKey = Object.keys(tabParams).find(
         (key) => route.params?.[key] === "true"
       );
 
-      // Nếu có tab được truyền, đặt activeTab tương ứng, nếu không thì mặc định là 'weekly'
       if (activeTabKey) {
         setActiveTab(tabParams[activeTabKey]);
       } else {
         setActiveTab("weekly");
       }
 
-      // Cập nhật params để giữ growthDataId
       navigation.setParams({
         ...route.params,
         growthDataId: pregnancyData?.id,
@@ -492,6 +492,24 @@ const PregnancyTrackingPage = () => {
       setAppointments([]);
       navigation.replace("Login");
     }
+  };
+
+  const handleContactIconPress = () => {
+    Animated.sequence([
+      Animated.spring(chatIconScale, {
+        toValue: 1.2,
+        tension: 100,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+      Animated.spring(chatIconScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setIsChatOpen((prev) => !prev);
   };
 
   const hasValidPregnancyData =
@@ -1020,18 +1038,39 @@ const PregnancyTrackingPage = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
       />
-      <TouchableOpacity
-        style={[styles(width).contactIcon, isChatOpen && { display: "none" }]}
-        onPress={() => setIsChatOpen(!isChatOpen)}
-        activeOpacity={0.7}
+      <Animated.View
+        style={[
+          styles(width).contactIcon,
+          { transform: [{ scale: chatIconScale }] },
+          isChatOpen && { display: "none" },
+        ]}
       >
-        <Ionicons name="chatbubble-ellipses" size={30} color="#fff" />
-      </TouchableOpacity>
-      <ChatBox
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        navigation={navigation}
-      />
+        <TouchableOpacity
+          onPress={handleContactIconPress}
+          activeOpacity={0.7}
+          accessibilityLabel="Open chat"
+          accessibilityHint="Opens the chat support window"
+        >
+          <Ionicons name="chatbubble-ellipses" size={30} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
+      <Modal
+        visible={isChatOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsChatOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles(width).modalOverlay}
+        >
+          <ChatBox
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            navigation={navigation}
+          />
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1358,83 +1397,6 @@ const styles = (width) =>
       color: "#FE6B6A",
       fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
     },
-    headerSafeArea: {
-      backgroundColor: "#04668D",
-      zIndex: 1000,
-    },
-    header: {
-      backgroundColor: "#04668D",
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: "#034f70",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 5,
-    },
-    headerContainer: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      maxWidth: 1280,
-      width: "100%",
-      marginHorizontal: "auto",
-    },
-    logo: {
-      fontSize: 26,
-      fontWeight: "700",
-      color: "#fff",
-      letterSpacing: 0.5,
-    },
-    menuToggle: {
-      padding: 8,
-      borderRadius: 8,
-      backgroundColor: "rgba(255, 255, 255, 0.1)",
-    },
-    menuBackdrop: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      zIndex: 999,
-    },
-    navMenu: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: width * 0.75,
-      height: "100%",
-      backgroundColor: "#04668D",
-      zIndex: 1001,
-      paddingTop: 80,
-      shadowColor: "#000",
-      shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.2,
-      shadowRadius: 10,
-      elevation: 10,
-    },
-    navLinks: {
-      flexDirection: "column",
-      paddingHorizontal: 16,
-      paddingVertical: 20,
-    },
-    navLink: {
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderRadius: 8,
-      marginVertical: 8,
-      backgroundColor: "rgba(255, 255, 255, 0.1)",
-      alignItems: "flex-start",
-    },
-    navLinkText: {
-      color: "#fff",
-      fontSize: 18,
-      fontWeight: "500",
-    },
     contactIcon: {
       position: "absolute",
       bottom: 30,
@@ -1457,6 +1419,11 @@ const styles = (width) =>
         },
       }),
       zIndex: 2000,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.4)",
+      justifyContent: "flex-end",
     },
   });
 

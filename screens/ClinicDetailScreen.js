@@ -804,40 +804,6 @@ const ClinicDetailScreen = () => {
               </View>
             </View>
           </View>
-          {/* Booking Widget */}
-          <View style={styles.clinicMainRight}>
-            <View style={styles.clinicBookingWidget}>
-              <Text style={styles.clinicBookingTitle}>Book Appointment</Text>
-              <View style={styles.clinicBookingField}>
-                <Text style={styles.clinicBookingLabel}>Clinic</Text>
-                <TextInput
-                  style={styles.clinicBookingInput}
-                  value={clinicName}
-                  editable={false}
-                />
-              </View>
-              <View style={styles.clinicBookingField}>
-                <Text style={styles.clinicBookingLabel}>Specialization</Text>
-                <TextInput
-                  style={styles.clinicBookingInput}
-                  value={clinic.specializations || "N/A"}
-                  editable={false}
-                />
-              </View>
-              <View style={styles.clinicBookingField}>
-                <Text style={styles.clinicBookingLabel}>Doctor</Text>
-                <TextInput
-                  style={styles.clinicBookingInput}
-                  placeholder="Select doctor"
-                  placeholderTextColor="#8E8E93"
-                  editable={false}
-                />
-              </View>
-              <TouchableOpacity style={styles.clinicBookingBtn} disabled>
-                <Text style={styles.clinicBookingBtnText}>Book Now</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
       </ScrollView>
       {/* Feedback Modal */}
