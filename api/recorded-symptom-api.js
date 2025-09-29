@@ -1,5 +1,24 @@
 import apiClient from './url-api';
 
+// Utility function for exponential backoff delay
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const withRetry = async (fn, retries = 3, baseDelay = 1000) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error.response?.status === 429 && attempt < retries) {
+        const delay = baseDelay * 2 ** (attempt - 1); // Exponential backoff: 1s, 2s, 4s
+        console.warn(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt}/${retries})`);
+        await sleep(delay);
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
 // GET: /api/recorded-symptom/view-all-symptoms
 export const getAllSymptoms = async (token) => {
   try {
@@ -37,7 +56,7 @@ export const getSymptomById = async (symptomId, token) => {
 
 // GET: /api/recorded-symptom/view-all-symptoms-for-user
 export const getSymptomsForUser = async (userId, token) => {
-  try {
+  const fetchFn = async () => {
     const response = await apiClient.get('/api/recorded-symptom/view-all-symptoms-for-user', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -48,6 +67,10 @@ export const getSymptomsForUser = async (userId, token) => {
       },
     });
     return response;
+  };
+
+  try {
+    return await withRetry(fetchFn, 3, 1000);
   } catch (error) {
     console.error('Error fetching user symptoms:', error.response?.data || error.message);
     throw error;

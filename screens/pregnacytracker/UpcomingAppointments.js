@@ -148,7 +148,7 @@ const UpcomingAppointments = ({ userId, status = null, expanded = false }) => {
                                                              
         <TouchableOpacity
           style={styles(width).scheduleNewBtn}
-          onPress={() => navigation.navigate('ScheduleAppointment')}
+          onPress={() => navigation.navigate('Consultation')}
         >
           <Text style={styles(width).scheduleNewBtnIcon}>➕</Text>
           <Text style={styles(width).scheduleNewBtnText}>Schedule New Appointment</Text>

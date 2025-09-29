@@ -10,7 +10,6 @@ export const viewAllDiseases = async (token) => {
         Accept: "text/plain",
       },
     });
-    console.log("Get all diseases response:", response.data);
     return response;
   } catch (error) {
     console.error(
@@ -33,10 +32,10 @@ export const viewDiseaseById = async (diseaseId) => {
       },
     }
     );
-    console.log(
-      "View disease by id response:",
-      response.data
-    );
+    // console.log(
+    //   "View disease by id response:",
+    //   response.data
+    // );
     return response;
   } catch (error) {
     console.error(

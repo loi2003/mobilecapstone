@@ -203,7 +203,6 @@ const ConsultationScreen = ({ navigation }) => {
       } else if (params.name) {
         data = await getClinicsByName(params, token);
       } else {
-        // Client-side filtering when name is not provided
         data = await getAllClinics(token);
         let clinicData = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
         if (params.specialization) {
@@ -694,7 +693,20 @@ const ConsultationScreen = ({ navigation }) => {
           <Text style={styles.contactIconText}>💬</Text>
         </TouchableOpacity>
       </Animated.View>
-      <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} navigation={navigation} />
+      <Modal
+        visible={isChatOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsChatOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} navigation={navigation} />
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
