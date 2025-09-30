@@ -735,9 +735,9 @@ const AdviceScreen = () => {
             >
               <View style={styles.staffInfo}>
                 <Ionicons
-                  name={item.type === "health" ? "heart" : "nutrition"}
+                  name={item.type === "health" ? "heart" : "fast-food"}
                   size={24}
-                  color={item.type === "health" ? "#FF9800" : "#4CAF50"}
+                  color={item.type === "health" ? "#2e6da4" : "#2e6da4"}
                 />
                 <View style={styles.staffDetails}>
                   <Text style={styles.staffName}>{item.displayName}</Text>
@@ -762,7 +762,7 @@ const AdviceScreen = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#2e6da4" />
           <Text style={styles.loadingText}>Initializing...</Text>
         </View>
       </SafeAreaView>
@@ -791,7 +791,7 @@ const AdviceScreen = () => {
                 onPress={() => setShowStaffSelection(true)}
                 style={styles.staffSwitchButton}
               >
-                <Ionicons name="people" size={20} color="#4CAF50" />
+                <Ionicons name="people" size={20} color="#2e6da4" />
                 <Text style={styles.staffSwitchText}>Switch</Text>
               </TouchableOpacity>
             )}
@@ -805,7 +805,7 @@ const AdviceScreen = () => {
                     backgroundColor:
                       connection &&
                       connection.state === signalR.HubConnectionState.Connected
-                        ? "#4CAF50"
+                        ? "#2e6da4"
                         : "#FF9800",
                   },
                 ]}
@@ -895,7 +895,7 @@ const AdviceScreen = () => {
         {/* Loading Indicator */}
         {(isLoading || sendingMessage) && (
           <View style={styles.loadingIndicator}>
-            <ActivityIndicator color="#4CAF50" />
+            <ActivityIndicator color="#2e6da4" />
             <Text style={styles.loadingText}>
               {activeMode === "ai" ? "AI is thinking..." : "Sending message..."}
             </Text>
@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 12,
     fontWeight: "500",
-    color: "#4CAF50",
+    color: "#2e6da4",
   },
   container: {
     flex: 1,
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   activeModeButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#2e6da4",
     elevation: 3,
   },
   modeButtonText: {
@@ -1088,7 +1088,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   userMessage: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#2e6da4",
   },
   aiMessage: {
     backgroundColor: "#2196F3",
@@ -1155,7 +1155,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#2e6da4",
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
