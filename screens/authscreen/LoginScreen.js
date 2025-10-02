@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Image,
   Alert,
   Platform,
   KeyboardAvoidingView,
@@ -18,8 +17,6 @@ import { login } from "../../api/auth";
 import { Svg, Circle, Path } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -31,21 +28,6 @@ const LoginScreen = ({ navigation }) => {
   const emailInputRef = useRef(null);
   const passwordInputRef = useRef(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId:
-        "876889673753-t6c36pi4tg7fp30mdeeorqjjpi3t9010.apps.googleapis.com",
-      scopes: ["profile", "email"],
-      redirectUri: AuthSession.makeRedirectUri({
-        useProxy: true,
-      }),
-    },
-    {
-      authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-      tokenEndpoint: "https://oauth2.googleapis.com/token",
-    }
-  );
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -147,7 +129,7 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // 🆕 DECODE JWT TOKEN TO GET USER ID
+      // DECODE JWT TOKEN TO GET USER ID
       console.log("Decoding JWT token to extract userId...");
       const decodedToken = decodeJWT(token);
 
@@ -235,64 +217,6 @@ const LoginScreen = ({ navigation }) => {
       }
 
       Alert.alert("Login Error", errorMessage, [{ text: "OK" }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const { authentication } = response;
-      handleGoogleAuthSuccess(authentication.accessToken);
-    }
-  }, [response]);
-
-  const handleGoogleLogin = async () => {
-    try {
-      await promptAsync();
-    } catch (error) {
-      console.error("Google login error:", error);
-      Alert.alert("Google Login Error", "Google login failed", [
-        { text: "OK" },
-      ]);
-    }
-  };
-
-  const handleGoogleAuthSuccess = async (accessToken) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("YOUR_API_ENDPOINT/google-auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ accessToken }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        await AsyncStorage.setItem("authToken", data.token);
-        Alert.alert("Success", "Google authentication successful!", [
-          { text: "OK" },
-        ]);
-        setTimeout(() => {
-          navigation.replace("HomeTabs");
-        }, 2000);
-      } else {
-        Alert.alert(
-          "Google Authentication Error",
-          data.message || "Google authentication failed",
-          [{ text: "OK" }]
-        );
-      }
-    } catch (error) {
-      console.error("Google auth error:", error);
-      Alert.alert(
-        "Google Authentication Error",
-        "Google authentication failed",
-        [{ text: "OK" }]
-      );
     } finally {
       setIsLoading(false);
     }
@@ -473,29 +397,6 @@ const LoginScreen = ({ navigation }) => {
                       {isLoading ? "Logging in..." : "Sign In"}
                     </Text>
                   </LinearGradient>
-                </TouchableOpacity>
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.googleButton,
-                    isLoading && styles.buttonDisabled,
-                  ]}
-                  onPress={handleGoogleLogin}
-                  disabled={isLoading || !request}
-                >
-                  <Image
-                    source={{
-                      uri: "https://img.icons8.com/color/48/000000/google-logo.png",
-                    }}
-                    style={styles.googleLogo}
-                  />
-                  <Text style={styles.googleButtonText}>
-                    {isLoading ? "Signing in..." : "Sign In With Google"}
-                  </Text>
                 </TouchableOpacity>
                 <View style={styles.linksContainer}>
                   <TouchableOpacity
@@ -685,41 +586,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E5E7EB",
-  },
-  dividerText: {
-    fontSize: 14,
-    color: "#4B5563",
-    paddingHorizontal: 10,
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  googleLogo: {
-    width: 18,
-    height: 18,
-    marginRight: 10,
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
   },
   linksContainer: {
     marginTop: 20,

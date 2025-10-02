@@ -145,6 +145,7 @@ const AboutScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Added for menu state
   const fadeAnims = useRef(aboutpageData.history.milestones.map(() => new Animated.Value(0))).current;
   const slideAnims = useRef(aboutpageData.history.milestones.map(() => new Animated.Value(20))).current;
   const teamFadeAnims = useRef(aboutpageData.team.members.map(() => new Animated.Value(0))).current;
@@ -281,6 +282,10 @@ const AboutScreen = ({ navigation }) => {
     setIsChatOpen((prev) => !prev);
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen((prev) => !prev);
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -291,219 +296,241 @@ const AboutScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Hero Section */}
-          <LinearGradient colors={['#0d7aa5', '#0d7aa5']} style={styles.heroSection}>
-            <Animated.View
-              style={[
-                styles.heroText,
-                { opacity: fadeAnims[0], transform: [{ translateY: slideAnims[0] }] },
-              ]}
-            >
-              <Text style={styles.heroTitle}>{aboutpageData.hero.title}</Text>
-              <Text style={styles.heroSubtitle}>{aboutpageData.hero.subtitle}</Text>
-              <TouchableOpacity
-                style={styles.heroButton}
-                onPress={() => navigation.navigate(aboutpageData.hero.ctaLink)}
-                activeOpacity={0.7}
-                accessibilityLabel="Learn more about NestlyCare"
-                accessibilityHint="Navigates to the Explore screen"
-              >
-                <Text style={styles.buttonText}>{aboutpageData.hero.cta}</Text>
-              </TouchableOpacity>
-            </Animated.View>
-            <Animated.View
-              style={[
-                styles.heroGraphic,
-                { opacity: fadeAnims[1], transform: [{ translateY: slideAnims[1] }] },
-              ]}
-            >
-              <Image
-                source={{ uri: 'https://via.placeholder.com/320' }}
-                style={styles.heroGraphicImage}
-                accessibilityLabel="Hero graphic"
-              />
-            </Animated.View>
-          </LinearGradient>
-
-          {/* Mission Section */}
-          <Animated.View
-            style={[
-              styles.missionSection,
-              { opacity: fadeAnims[2], transform: [{ translateY: slideAnims[2] }] },
-            ]}
+      <Header
+        navigation={navigation}
+        user={user}
+        setUser={setUser}
+        handleLogout={handleLogout}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+      />
+      <View style={styles.mainContentContainer}>
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles.contentOverlay}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
+          />
+        )}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            scrollEnabled={!isMenuOpen}
           >
-            <Text style={styles.sectionTitle}>{aboutpageData.mission.title}</Text>
-            <Text style={styles.sectionDescription}>{aboutpageData.mission.description}</Text>
-            <Text style={styles.sectionVision}>{aboutpageData.mission.vision}</Text>
-          </Animated.View>
-
-          {/* History Section */}
-          <View style={styles.historySection}>
-            <Text style={styles.sectionTitle}>{aboutpageData.history.title}</Text>
-            {aboutpageData.history.milestones.map((milestone, index) => (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.historyMilestone,
-                  {
-                    opacity: fadeAnims[index],
-                    transform: [{ translateY: slideAnims[index] }],
-                  },
-                ]}
-              >
-                <View style={styles.historyMilestoneContent}>
-                  <Text style={styles.historyYear}>{milestone.year}</Text>
-                  <Text style={styles.historyEvent}>{milestone.event}</Text>
-                </View>
-                <View style={styles.historyDot} />
-              </Animated.View>
-            ))}
-          </View>
-
-          {/* Team Section */}
-          <View style={styles.teamSection}>
-            <Text style={styles.sectionTitle}>{aboutpageData.team.title}</Text>
-            <View style={styles.teamGrid}>
-              {aboutpageData.team.members.map((member, index) => (
+            <View style={{ pointerEvents: isMenuOpen ? 'none' : 'auto' }}>
+              {/* Hero Section */}
+              <LinearGradient colors={['#0d7aa5', '#0d7aa5']} style={styles.heroSection}>
                 <Animated.View
-                  key={index}
                   style={[
-                    styles.teamCard,
-                    {
-                      opacity: teamFadeAnims[index],
-                      transform: [{ translateY: teamSlideAnims[index] }],
-                    },
+                    styles.heroText,
+                    { opacity: fadeAnims[0], transform: [{ translateY: slideAnims[0] }] },
+                  ]}
+                >
+                  <Text style={styles.heroTitle}>{aboutpageData.hero.title}</Text>
+                  <Text style={styles.heroSubtitle}>{aboutpageData.hero.subtitle}</Text>
+                  <TouchableOpacity
+                    style={styles.heroButton}
+                    onPress={() => navigation.navigate(aboutpageData.hero.ctaLink)}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Learn more about NestlyCare"
+                    accessibilityHint="Navigates to the Explore screen"
+                  >
+                    <Text style={styles.buttonText}>{aboutpageData.hero.cta}</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+                <Animated.View
+                  style={[
+                    styles.heroGraphic,
+                    { opacity: fadeAnims[1], transform: [{ translateY: slideAnims[1] }] },
                   ]}
                 >
                   <Image
-                    source={{ uri: member.avatar }}
-                    style={styles.teamAvatar}
-                    onError={() => console.log(`Failed to load avatar for ${member.name}`)}
-                    accessibilityLabel={`${member.name}'s avatar`}
+                    source={{ uri: 'https://via.placeholder.com/320' }}
+                    style={styles.heroGraphicImage}
+                    accessibilityLabel="Hero graphic"
                   />
-                  <Text style={styles.teamName}>{member.name}</Text>
-                  <Text style={styles.teamRole}>{member.role}</Text>
-                  <Text style={styles.teamBio}>{member.bio}</Text>
                 </Animated.View>
-              ))}
-            </View>
-          </View>
+              </LinearGradient>
 
-          {/* Values Section */}
-          <View style={styles.valuesSection}>
-            <Text style={styles.sectionTitle}>{aboutpageData.values.title}</Text>
-            <View style={styles.valuesGrid}>
-              {aboutpageData.values.items.map((value, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.valueCard,
-                    {
-                      opacity: valueFadeAnims[index],
-                      transform: [{ translateY: valueSlideAnims[index] }],
-                    },
-                  ]}
-                >
-                  <Text style={styles.valueIcon}>{value.icon}</Text>
-                  <Text style={styles.valueTitle}>{value.title}</Text>
-                  <Text style={styles.valueDescription}>{value.description}</Text>
-                </Animated.View>
-              ))}
-            </View>
-          </View>
-
-          {/* Partners Section */}
-          <View style={styles.partnersSection}>
-            <Text style={styles.sectionTitle}>{aboutpageData.partners.title}</Text>
-            <View style={styles.partnersGrid}>
-              {aboutpageData.partners.items.map((partner, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.partnerCard,
-                    {
-                      opacity: partnerFadeAnims[index],
-                      transform: [{ translateY: partnerSlideAnims[index] }],
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    onPress={() => Linking.openURL(partner.link)}
-                    activeOpacity={0.7}
-                    accessibilityLabel={`Visit ${partner.name}`}
-                    accessibilityHint={`Opens ${partner.name} website in browser`}
-                  >
-                    <Image
-                      source={{ uri: partner.logo }}
-                      style={styles.partnerLogo}
-                      onError={() => console.log(`Failed to load logo for ${partner.name}`)}
-                      accessibilityLabel={`${partner.name} logo`}
-                    />
-                  </TouchableOpacity>
-                  <Text style={styles.partnerName}>{partner.name}</Text>
-                </Animated.View>
-              ))}
-            </View>
-          </View>
-
-          {/* Contact CTA Section */}
-          <LinearGradient colors={['#e0f2f7', '#a3c9e0']} style={styles.contactSection}>
-            <Animated.View
-              style={[
-                styles.contactContent,
-                { opacity: fadeAnims[3], transform: [{ translateY: slideAnims[3] }] },
-              ]}
-            >
-              <Text style={styles.sectionTitle}>{aboutpageData.contact.title}</Text>
-              <Text style={styles.sectionDescription}>{aboutpageData.contact.subtitle}</Text>
-              <TouchableOpacity
-                style={styles.communityButton}
-                onPress={() => navigation.navigate(aboutpageData.contact.ctaLink)}
-                activeOpacity={0.7}
-                accessibilityLabel="Send a message"
-                accessibilityHint="Navigates to the Contact screen"
+              {/* Mission Section */}
+              <Animated.View
+                style={[
+                  styles.missionSection,
+                  { opacity: fadeAnims[2], transform: [{ translateY: slideAnims[2] }] },
+                ]}
               >
-                <Text style={styles.buttonText}>{aboutpageData.contact.cta}</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </LinearGradient>
+                <Text style={styles.sectionTitle}>{aboutpageData.mission.title}</Text>
+                <Text style={styles.sectionDescription}>{aboutpageData.mission.description}</Text>
+                <Text style={styles.sectionVision}>{aboutpageData.mission.vision}</Text>
+              </Animated.View>
 
-          <Footer navigation={navigation} />
-        </ScrollView>
+              {/* History Section */}
+              <View style={styles.historySection}>
+                <Text style={styles.sectionTitle}>{aboutpageData.history.title}</Text>
+                {aboutpageData.history.milestones.map((milestone, index) => (
+                  <Animated.View
+                    key={index}
+                    style={[
+                      styles.historyMilestone,
+                      {
+                        opacity: fadeAnims[index],
+                        transform: [{ translateY: slideAnims[index] }],
+                      },
+                    ]}
+                  >
+                    <View style={styles.historyMilestoneContent}>
+                      <Text style={styles.historyYear}>{milestone.year}</Text>
+                      <Text style={styles.historyEvent}>{milestone.event}</Text>
+                    </View>
+                    <View style={styles.historyDot} />
+                  </Animated.View>
+                ))}
+              </View>
 
-        {/* Contact Icon */}
-        <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }] }]}>
-          <TouchableOpacity
-            onPress={handleContactIconPress}
-            activeOpacity={0.7}
-            accessibilityLabel="Open chat"
-            accessibilityHint="Opens the chat support window"
-          >
-            <Text style={styles.contactIconText}>💬</Text>
-          </TouchableOpacity>
-        </Animated.View>
+              {/* Team Section */}
+              <View style={styles.teamSection}>
+                <Text style={styles.sectionTitle}>{aboutpageData.team.title}</Text>
+                <View style={styles.teamGrid}>
+                  {aboutpageData.team.members.map((member, index) => (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.teamCard,
+                        {
+                          opacity: teamFadeAnims[index],
+                          transform: [{ translateY: teamSlideAnims[index] }],
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: member.avatar }}
+                        style={styles.teamAvatar}
+                        onError={() => console.log(`Failed to load avatar for ${member.name}`)}
+                        accessibilityLabel={`${member.name}'s avatar`}
+                      />
+                      <Text style={styles.teamName}>{member.name}</Text>
+                      <Text style={styles.teamRole}>{member.role}</Text>
+                      <Text style={styles.teamBio}>{member.bio}</Text>
+                    </Animated.View>
+                  ))}
+                </View>
+              </View>
 
-        {/* ChatBox Modal */}
-        <Modal
-          visible={isChatOpen}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setIsChatOpen(false)}
+              {/* Values Section */}
+              <View style={styles.valuesSection}>
+                <Text style={styles.sectionTitle}>{aboutpageData.values.title}</Text>
+                <View style={styles.valuesGrid}>
+                  {aboutpageData.values.items.map((value, index) => (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.valueCard,
+                        {
+                          opacity: valueFadeAnims[index],
+                          transform: [{ translateY: valueSlideAnims[index] }],
+                        },
+                      ]}
+                    >
+                      <Text style={styles.valueIcon}>{value.icon}</Text>
+                      <Text style={styles.valueTitle}>{value.title}</Text>
+                      <Text style={styles.valueDescription}>{value.description}</Text>
+                    </Animated.View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Partners Section */}
+              <View style={styles.partnersSection}>
+                <Text style={styles.sectionTitle}>{aboutpageData.partners.title}</Text>
+                <View style={styles.partnersGrid}>
+                  {aboutpageData.partners.items.map((partner, index) => (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.partnerCard,
+                        {
+                          opacity: partnerFadeAnims[index],
+                          transform: [{ translateY: partnerSlideAnims[index] }],
+                        },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(partner.link)}
+                        activeOpacity={0.7}
+                        accessibilityLabel={`Visit ${partner.name}`}
+                        accessibilityHint={`Opens ${partner.name} website in browser`}
+                      >
+                        <Image
+                          source={{ uri: partner.logo }}
+                          style={styles.partnerLogo}
+                          onError={() => console.log(`Failed to load logo for ${partner.name}`)}
+                          accessibilityLabel={`${partner.name} logo`}
+                        />
+                      </TouchableOpacity>
+                      <Text style={styles.partnerName}>{partner.name}</Text>
+                    </Animated.View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Contact CTA Section */}
+              <LinearGradient colors={['#e0f2f7', '#a3c9e0']} style={styles.contactSection}>
+                <Animated.View
+                  style={[
+                    styles.contactContent,
+                    { opacity: fadeAnims[3], transform: [{ translateY: slideAnims[3] }] },
+                  ]}
+                >
+                  <Text style={styles.sectionTitle}>{aboutpageData.contact.title}</Text>
+                  <Text style={styles.sectionDescription}>{aboutpageData.contact.subtitle}</Text>
+                  <TouchableOpacity
+                    style={styles.communityButton}
+                    onPress={() => navigation.navigate(aboutpageData.contact.ctaLink)}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Send a message"
+                    accessibilityHint="Navigates to the Contact screen"
+                  >
+                    <Text style={styles.buttonText}>{aboutpageData.contact.cta}</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </LinearGradient>
+
+              <Footer navigation={navigation} />
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+
+      {/* Contact Icon */}
+      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }], zIndex: 900 }]}>
+        <TouchableOpacity
+          onPress={handleContactIconPress}
+          activeOpacity={0.7}
+          accessibilityLabel="Open chat"
+          accessibilityHint="Opens the chat support window"
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
-          >
-            <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} navigation={navigation} />
-          </KeyboardAvoidingView>
-        </Modal>
-      </KeyboardAvoidingView>
+          <Text style={styles.contactIconText}>💬</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* ChatBox Modal */}
+      <Modal
+        visible={isChatOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsChatOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.modalOverlay, { zIndex: 950 }]}
+        >
+          <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} navigation={navigation} />
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -512,6 +539,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',
+  },
+  mainContentContainer: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 0, // Below header and navMenu
+  },
+  contentOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Dark overlay for main content
+    zIndex: 1000, // Above content but below navMenu
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -883,6 +924,7 @@ const styles = StyleSheet.create({
         elevation: 5,
       },
     }),
+    zIndex: 900,
   },
   contactIconText: {
     fontSize: 24,

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
@@ -67,6 +68,7 @@ const ConsultationScreen = ({ navigation }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [token, setToken] = useState(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Added for menu state
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const filterModalAnim = useRef(new Animated.Value(0)).current;
@@ -328,6 +330,10 @@ const ConsultationScreen = ({ navigation }) => {
       });
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen((prev) => !prev);
+  };
+
   const renderStars = (stars) => {
     const filled = Math.floor(stars);
     const half = stars - filled >= 0.5;
@@ -361,330 +367,357 @@ const ConsultationScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: clinics.length <= currentPage * CLINICS_PER_PAGE ? 20 : 40 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          ref={scrollViewRef}
-          contentInsetAdjustmentBehavior="automatic"
+      <Header
+        navigation={navigation}
+        user={user}
+        setUser={setUser}
+        handleLogout={handleLogout}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+      />
+      <View style={styles.mainContentContainer}>
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles.contentOverlay}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
+          />
+        )}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <Animated.View
-            style={[
-              styles.heroSection,
-              {
-                opacity: heroAnim,
-                transform: [{ translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
-              },
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: clinics.length <= currentPage * CLINICS_PER_PAGE ? 20 : 40 },
             ]}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            ref={scrollViewRef}
+            contentInsetAdjustmentBehavior="automatic"
+            scrollEnabled={!isMenuOpen}
           >
-            <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>
-                Find Your <Text style={styles.heroAccent}>Healthcare Partner</Text>
-              </Text>
-              <Text style={styles.heroDescription}>
-                Discover trusted clinics for your pregnancy journey.
-              </Text>
-              <View style={styles.searchContainer}>
-                <View style={styles.searchInputGroup}>
-                  <Icon name="search" size={18} color="#04668D" style={styles.searchIcon} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search clinics by name"
-                    placeholderTextColor="#6B7280"
-                    value={search}
-                    onChangeText={setSearch}
-                    onSubmitEditing={handleSearch}
-                    accessibilityLabel="Search clinics by name"
-                    accessibilityHint="Enter clinic name to search"
-                  />
-                </View>
-                <TouchableOpacity
-                  style={styles.filterButton}
-                  onPress={() => setShowFilterModal(true)}
-                  accessibilityLabel="Open filters"
-                  accessibilityHint="Opens the filter options for clinic search"
-                >
-                  <Ionicons name="filter" size={20} color="#04668D" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.searchButton}
-                  onPress={handleSearch}
-                  accessibilityLabel="Search clinics"
-                  accessibilityHint="Performs the clinic search with current criteria"
-                >
-                  <Text style={styles.searchButtonText}>Search</Text>
-                </TouchableOpacity>
-              </View>
-              {(search || selectedSpecializations.length > 0 || insuranceOnly) && (
-                <View style={styles.activeFilters}>
-                  {search && (
-                    <Text style={styles.activeFilterTag}>Name: {truncateText(search, 20)}</Text>
-                  )}
-                  {selectedSpecializations.length > 0 && (
-                    <Text style={styles.activeFilterTag}>
-                      Specialization: {truncateText(selectedSpecializations.join(', '), 20)}
-                    </Text>
-                  )}
-                  {insuranceOnly && (
-                    <Text style={styles.activeFilterTag}>Insurance Accepted</Text>
-                  )}
-                  <TouchableOpacity
-                    style={styles.clearFiltersButton}
-                    onPress={handleClearFilters}
-                    accessibilityLabel="Clear all filters"
-                    accessibilityHint="Resets all search and filter criteria"
-                  >
-                    <Text style={styles.clearFiltersButtonText}>Clear All</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </Animated.View>
-
-          <Modal
-            visible={showFilterModal}
-            transparent
-            animationType="none"
-            onRequestClose={() => setShowFilterModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.modalKeyboardAvoiding}
-              >
-                <Animated.View
-                  style={[
-                    styles.filterModal,
-                    {
-                      transform: [
-                        {
-                          translateY: filterModalAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [height, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={styles.filterModalHeader}>
-                    <Text style={styles.filterModalTitle}>Filter Clinics</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowFilterModal(false)}
-                      accessibilityLabel="Close filter modal"
-                      accessibilityHint="Closes the filter options"
-                    >
-                      <Ionicons name="close" size={24} color="#6B7280" />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.filterGroup}>
-                    <Text style={styles.filterLabel}>Specializations</Text>
-                    <ScrollView
-                      style={styles.specializationList}
-                      nestedScrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
-                    >
-                      {SPECIALIZATIONS.map((spec) => (
-                        <TouchableOpacity
-                          key={spec}
-                          style={styles.specializationFilter}
-                          onPress={() => toggleSpecialization(spec)}
-                          accessibilityLabel={`Toggle ${spec} specialization`}
-                          accessibilityHint={`Selects or deselects ${spec} for filtering clinics`}
-                        >
-                          <View
-                            style={[
-                              styles.checkmark,
-                              selectedSpecializations.includes(spec) && styles.checkmarkChecked,
-                            ]}
-                          >
-                            {selectedSpecializations.includes(spec) && (
-                              <Text style={styles.checkmarkText}>✓</Text>
-                            )}
-                          </View>
-                          <Text style={styles.specializationText}>{spec}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                  <View style={styles.filterGroup}>
-                    <TouchableOpacity
-                      style={styles.insuranceFilter}
-                      onPress={() => setInsuranceOnly(!insuranceOnly)}
-                      accessibilityLabel="Toggle insurance filter"
-                      accessibilityHint="Filters clinics that accept insurance"
-                    >
-                      <View style={[styles.checkmark, insuranceOnly && styles.checkmarkChecked]}>
-                        {insuranceOnly && <Text style={styles.checkmarkText}>✓</Text>}
-                      </View>
-                      <Text style={styles.insuranceFilterText}>Insurance Accepted Only</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.filterModalButtons}>
-                    <TouchableOpacity
-                      style={[styles.applyFilterButton, styles.clearFilterButton]}
-                      onPress={handleClearFilters}
-                      accessibilityLabel="Clear filters"
-                      accessibilityHint="Resets all filter criteria and fetches all clinics"
-                    >
-                      <Text style={styles.clearFilterButtonText}>Clear Filters</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.applyFilterButton}
-                      onPress={() => {
-                        handleSearch();
-                        setShowFilterModal(false);
-                      }}
-                      accessibilityLabel="Apply filters"
-                      accessibilityHint="Applies the selected filters and searches clinics"
-                    >
-                      <Text style={styles.applyFilterButtonText}>Apply Filters</Text>
-                    </TouchableOpacity>
-                  </View>
-                </Animated.View>
-              </KeyboardAvoidingView>
-            </View>
-          </Modal>
-
-          <View style={styles.resultsSection}>
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsCount}>
-                {clinics.length} {clinics.length === 1 ? 'Clinic' : 'Clinics'} Found
-              </Text>
-              <Text style={styles.resultsSubtitle}>Choose the best healthcare provider for you</Text>
-            </View>
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-            <View
+            <Animated.View
               style={[
-                styles.clinicCardsGrid,
-                { minHeight: clinics.length > 0 ? Math.ceil(clinics.length / CLINICS_PER_PAGE) * 200 : 0 },
+                styles.heroSection,
+                {
+                  opacity: heroAnim,
+                  transform: [
+                    {
+                      translateY: heroAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [30, 0],
+                      }),
+                    },
+                  ],
+                },
               ]}
             >
-              {clinics.length > 0 ? (
-                clinics.slice(0, currentPage * CLINICS_PER_PAGE).map((clinic, index) => {
-                  const { avg, count } = getStarRating(clinic.feedbacks);
-                  const anim = cardAnims.get(clinic.id) || new Animated.Value(1);
-                  return (
-                    <Animated.View
-                      key={`clinic-${clinic.id}-${index}`}
-                      style={[
-                        styles.clinicCard,
-                        {
-                          opacity: anim,
-                          transform: [
-                            {
-                              translateY: anim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [20, 0],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
+              <View style={styles.heroContent}>
+                <Text style={styles.heroTitle}>
+                  Find Your <Text style={styles.heroAccent}>Healthcare Partner</Text>
+                </Text>
+                <Text style={styles.heroDescription}>
+                  Discover trusted clinics for your pregnancy journey.
+                </Text>
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchInputGroup}>
+                    <Icon name="search" size={18} color="#04668D" style={styles.searchIcon} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search clinics by name"
+                      placeholderTextColor="#6B7280"
+                      value={search}
+                      onChangeText={setSearch}
+                      onSubmitEditing={handleSearch}
+                      accessibilityLabel="Search clinics by name"
+                      accessibilityHint="Enter clinic name to search"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={() => setShowFilterModal(true)}
+                    accessibilityLabel="Open filters"
+                    accessibilityHint="Opens the filter options for clinic search"
+                  >
+                    <Ionicons name="filter" size={20} color="#04668D" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.searchButton}
+                    onPress={handleSearch}
+                    accessibilityLabel="Search clinics"
+                    accessibilityHint="Performs the clinic search with current criteria"
+                  >
+                    <Text style={styles.searchButtonText}>Search</Text>
+                  </TouchableOpacity>
+                </View>
+                {(search || selectedSpecializations.length > 0 || insuranceOnly) && (
+                  <View style={styles.activeFilters}>
+                    {search && (
+                      <Text style={styles.activeFilterTag}>Name: {truncateText(search, 20)}</Text>
+                    )}
+                    {selectedSpecializations.length > 0 && (
+                      <Text style={styles.activeFilterTag}>
+                        Specialization: {truncateText(selectedSpecializations.join(', '), 20)}
+                      </Text>
+                    )}
+                    {insuranceOnly && (
+                      <Text style={styles.activeFilterTag}>Insurance Accepted</Text>
+                    )}
+                    <TouchableOpacity
+                      style={styles.clearFiltersButton}
+                      onPress={handleClearFilters}
+                      accessibilityLabel="Clear all filters"
+                      accessibilityHint="Resets all search and filter criteria"
                     >
+                      <Text style={styles.clearFiltersButtonText}>Clear All</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </Animated.View>
+
+            <Modal
+              visible={showFilterModal}
+              transparent
+              animationType="none"
+              onRequestClose={() => setShowFilterModal(false)}
+            >
+              <View style={[styles.modalOverlay, { zIndex: 950 }]}>
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                  style={styles.modalKeyboardAvoiding}
+                >
+                  <Animated.View
+                    style={[
+                      styles.filterModal,
+                      {
+                        transform: [
+                          {
+                            translateY: filterModalAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [height, 0],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View style={styles.filterModalHeader}>
+                      <Text style={styles.filterModalTitle}>Filter Clinics</Text>
                       <TouchableOpacity
-                        style={styles.clinicCardContent}
-                        onPress={() => navigation.navigate('ClinicDetail', { clinicId: clinic.id })}
-                        accessibilityLabel={`View details for ${clinic.name || clinic.user?.userName || 'Unnamed Clinic'}`}
-                        accessibilityHint="Navigates to the clinic details screen"
+                        onPress={() => setShowFilterModal(false)}
+                        accessibilityLabel="Close filter modal"
+                        accessibilityHint="Closes the filter options"
                       >
-                        <Image
-                          source={{
-                            uri: clinic.imageUrl?.fileUrl || 'https://via.placeholder.com/100',
-                          }}
-                          style={styles.clinicImage}
-                        />
-                        <View style={styles.clinicInfo}>
-                          <Text style={styles.clinicName}>
-                            {clinic.name || clinic.user?.userName || 'Unnamed Clinic'}
-                          </Text>
-                          <View style={styles.clinicRating}>
-                            {renderStars(avg)}
-                            <Text style={styles.ratingScore}>{avg.toFixed(1)}</Text>
-                            <Text style={styles.ratingCount}>({count} reviews)</Text>
-                          </View>
-                          <Text style={styles.clinicDescription}>
-                            {truncateText(clinic.description)}
-                          </Text>
-                          <View style={styles.clinicDetails}>
-                            <View style={styles.clinicDetailItem}>
-                              <Icon name="map-marker" size={16} color="#04668D" />
-                              <Text style={styles.clinicAddressLink}>
-                                {truncateText(clinic.address, 50)}
-                              </Text>
-                            </View>
-                            <View style={styles.clinicDetailItem}>
-                              <Icon name="phone" size={16} color="#04668D" />
-                              <TouchableOpacity
-                                onPress={() => handleCall(clinic.user?.phoneNo)}
-                                accessibilityLabel={`Call ${clinic.user?.phoneNo || 'Unnamed Clinic'}`}
-                                accessibilityHint="Initiates a phone call to the clinic"
-                                style={styles.phoneTouchable}
-                              >
-                                <Text style={styles.phoneText}>{clinic.user?.phoneNo || 'N/A'}</Text>
-                              </TouchableOpacity>
-                            </View>
-                            <View style={styles.clinicDetailItem}>
-                              <Icon name="stethoscope" size={16} color="#04668D" />
-                              <Text>{clinic.specializations || 'General Practice'}</Text>
-                            </View>
-                          </View>
-                          <View style={styles.clinicBadges}>
-                            {avg > 4 && (
-                              <Text style={[styles.clinicBadge, styles.badgePremium]}>
-                                ⭐ Top Rated
-                              </Text>
-                            )}
-                            {clinic.isInsuranceAccepted && (
-                              <Text style={[styles.clinicBadge, styles.badgeInsurance]}>
-                                ✓ Insurance
-                              </Text>
-                            )}
-                          </View>
-                        </View>
+                        <Ionicons name="close" size={24} color="#6B7280" />
                       </TouchableOpacity>
-                    </Animated.View>
-                  );
-                })
-              ) : (
-                <View style={styles.noClinicsContainer}>
-                  <Icon name="stethoscope" size={60} color="#6B7280" />
-                  <Text style={styles.noClinicsTitle}>No Clinics Found</Text>
-                  <Text style={styles.noClinicsText}>
-                    Try adjusting your search criteria or removing filters
-                  </Text>
+                    </View>
+                    <View style={styles.filterGroup}>
+                      <Text style={styles.filterLabel}>Specializations</Text>
+                      <ScrollView
+                        style={styles.specializationList}
+                        nestedScrollEnabled={true}
+                        showsVerticalScrollIndicator={true}
+                      >
+                        {SPECIALIZATIONS.map((spec) => (
+                          <TouchableOpacity
+                            key={spec}
+                            style={styles.specializationFilter}
+                            onPress={() => toggleSpecialization(spec)}
+                            accessibilityLabel={`Toggle ${spec} specialization`}
+                            accessibilityHint={`Selects or deselects ${spec} for filtering clinics`}
+                          >
+                            <View
+                              style={[
+                                styles.checkmark,
+                                selectedSpecializations.includes(spec) && styles.checkmarkChecked,
+                              ]}
+                            >
+                              {selectedSpecializations.includes(spec) && (
+                                <Text style={styles.checkmarkText}>✓</Text>
+                              )}
+                            </View>
+                            <Text style={styles.specializationText}>{spec}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                    <View style={styles.filterGroup}>
+                      <TouchableOpacity
+                        style={styles.insuranceFilter}
+                        onPress={() => setInsuranceOnly(!insuranceOnly)}
+                        accessibilityLabel="Toggle insurance filter"
+                        accessibilityHint="Filters clinics that accept insurance"
+                      >
+                        <View style={[styles.checkmark, insuranceOnly && styles.checkmarkChecked]}>
+                          {insuranceOnly && <Text style={styles.checkmarkText}>✓</Text>}
+                        </View>
+                        <Text style={styles.insuranceFilterText}>Insurance Accepted Only</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.filterModalButtons}>
+                      <TouchableOpacity
+                        style={[styles.applyFilterButton, styles.clearFilterButton]}
+                        onPress={handleClearFilters}
+                        accessibilityLabel="Clear filters"
+                        accessibilityHint="Resets all filter criteria and fetches all clinics"
+                      >
+                        <Text style={styles.clearFilterButtonText}>Clear Filters</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.applyFilterButton}
+                        onPress={() => {
+                          handleSearch();
+                          setShowFilterModal(false);
+                        }}
+                        accessibilityLabel="Apply filters"
+                        accessibilityHint="Applies the selected filters and searches clinics"
+                      >
+                        <Text style={styles.applyFilterButtonText}>Apply Filters</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </Animated.View>
+                </KeyboardAvoidingView>
+              </View>
+            </Modal>
+
+            <View style={styles.resultsSection}>
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsCount}>
+                  {clinics.length} {clinics.length === 1 ? 'Clinic' : 'Clinics'} Found
+                </Text>
+                <Text style={styles.resultsSubtitle}>Choose the best healthcare provider for you</Text>
+              </View>
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+              <View
+                style={[
+                  styles.clinicCardsGrid,
+                  { minHeight: clinics.length > 0 ? Math.ceil(clinics.length / CLINICS_PER_PAGE) * 200 : 0 },
+                ]}
+              >
+                {clinics.length > 0 ? (
+                  clinics.slice(0, currentPage * CLINICS_PER_PAGE).map((clinic, index) => {
+                    const { avg, count } = getStarRating(clinic.feedbacks);
+                    const anim = cardAnims.get(clinic.id) || new Animated.Value(1);
+                    return (
+                      <Animated.View
+                        key={`clinic-${clinic.id}-${index}`}
+                        style={[
+                          styles.clinicCard,
+                          {
+                            opacity: anim,
+                            transform: [
+                              {
+                                translateY: anim.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [20, 0],
+                                }),
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        <TouchableOpacity
+                          style={styles.clinicCardContent}
+                          onPress={() => navigation.navigate('ClinicDetail', { clinicId: clinic.id })}
+                          accessibilityLabel={`View details for ${clinic.name || clinic.user?.userName || 'Unnamed Clinic'}`}
+                          accessibilityHint="Navigates to the clinic details screen"
+                        >
+                          <Image
+                            source={{
+                              uri: clinic.imageUrl?.fileUrl || 'https://via.placeholder.com/100',
+                            }}
+                            style={styles.clinicImage}
+                          />
+                          <View style={styles.clinicInfo}>
+                            <Text style={styles.clinicName}>
+                              {clinic.name || clinic.user?.userName || 'Unnamed Clinic'}
+                            </Text>
+                            <View style={styles.clinicRating}>
+                              {renderStars(avg)}
+                              <Text style={styles.ratingScore}>{avg.toFixed(1)}</Text>
+                              <Text style={styles.ratingCount}>({count} reviews)</Text>
+                            </View>
+                            <Text style={styles.clinicDescription}>
+                              {truncateText(clinic.description)}
+                            </Text>
+                            <View style={styles.clinicDetails}>
+                              <View style={styles.clinicDetailItem}>
+                                <Icon name="map-marker" size={16} color="#04668D" />
+                                <Text style={styles.clinicAddressLink}>
+                                  {truncateText(clinic.address, 50)}
+                                </Text>
+                              </View>
+                              <View style={styles.clinicDetailItem}>
+                                <Icon name="phone" size={16} color="#04668D" />
+                                <TouchableOpacity
+                                  onPress={() => handleCall(clinic.user?.phoneNo)}
+                                  accessibilityLabel={`Call ${clinic.user?.phoneNo || 'Unnamed Clinic'}`}
+                                  accessibilityHint="Initiates a phone call to the clinic"
+                                  style={styles.phoneTouchable}
+                                >
+                                  <Text style={styles.phoneText}>{clinic.user?.phoneNo || 'N/A'}</Text>
+                                </TouchableOpacity>
+                              </View>
+                              <View style={styles.clinicDetailItem}>
+                                <Icon name="stethoscope" size={16} color="#04668D" />
+                                <Text>{clinic.specializations || 'General Practice'}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.clinicBadges}>
+                              {avg > 4 && (
+                                <Text style={[styles.clinicBadge, styles.badgePremium]}>
+                                  ⭐ Top Rated
+                                </Text>
+                              )}
+                              {clinic.isInsuranceAccepted && (
+                                <Text style={[styles.clinicBadge, styles.badgeInsurance]}>
+                                  ✓ Insurance
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      </Animated.View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.noClinicsContainer}>
+                    <Icon name="stethoscope" size={60} color="#6B7280" />
+                    <Text style={styles.noClinicsTitle}>No Clinics Found</Text>
+                    <Text style={styles.noClinicsText}>
+                      Try adjusting your search criteria or removing filters
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {clinics.length > 0 && clinics.length <= currentPage * CLINICS_PER_PAGE && !isLoadingMore && (
+                <View style={styles.noMoreClinicsContainer}>
+                  <Text style={styles.noMoreClinicsText}>No more clinics available</Text>
+                </View>
+              )}
+              {isLoadingMore && (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color="#04668D" />
+                  <Text style={styles.loadingMoreText}>Loading more clinics...</Text>
                 </View>
               )}
             </View>
-            {clinics.length > 0 && clinics.length <= currentPage * CLINICS_PER_PAGE && !isLoadingMore && (
-              <View style={styles.noMoreClinicsContainer}>
-                <Text style={styles.noMoreClinicsText}>No more clinics available</Text>
-              </View>
-            )}
-            {isLoadingMore && (
-              <View style={styles.loadingMoreContainer}>
-                <ActivityIndicator size="small" color="#04668D" />
-                <Text style={styles.loadingMoreText}>Loading more clinics...</Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }] }]}>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+      <Animated.View
+        style={[styles.contactIcon, { transform: [{ scale: contactIconScale }], zIndex: 900 }]}
+      >
         <TouchableOpacity
           onPress={handleContactIconPress}
           accessibilityLabel="Open chat"
@@ -701,10 +734,14 @@ const ConsultationScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { zIndex: 950 }]}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} navigation={navigation} />
+          <ChatBox
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            navigation={navigation}
+          />
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
@@ -715,6 +752,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F7FA',
+  },
+  mainContentContainer: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 0, // Below header and navMenu
+  },
+  contentOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Dark overlay for main content
+    zIndex: 1000, // Above content but below navMenu
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -837,6 +888,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
+    zIndex: 950,
   },
   modalKeyboardAvoiding: {
     flex: 1,
@@ -1144,6 +1196,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 15,
     elevation: 5,
+    zIndex: 900,
   },
   contactIconText: {
     fontSize: 24,

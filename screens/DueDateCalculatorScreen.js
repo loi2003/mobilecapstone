@@ -27,6 +27,7 @@ const DueDateCalculatorScreen = ({ navigation }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateError, setDateError] = useState('');
   const [isChatBoxOpen, setIsChatBoxOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Added for menu state
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const contactIconScale = useRef(new Animated.Value(1)).current;
 
@@ -126,6 +127,10 @@ const DueDateCalculatorScreen = ({ navigation }) => {
     setIsChatBoxOpen((prev) => !prev);
   }, []);
 
+  const toggleMenu = () => {
+    setIsMenuOpen((prev) => !prev);
+  };
+
   const formatDateForDisplay = (date) => {
     if (!date) return 'Select Date';
     return date.toLocaleDateString('en-US', {
@@ -154,163 +159,185 @@ const DueDateCalculatorScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={['#f5f7fa', '#f5f7fa']}
-        style={styles.gradient}
-      >
-        <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Animatable.View animation="fadeInUp" duration={600} style={styles.section}>
-            <Text style={styles.sectionTitle}>Pregnancy Due Date Calculator</Text>
-            <Text style={styles.sectionDescription}>
-              Select the first day of your last menstrual period to estimate your baby’s due date.
-            </Text>
-            <TouchableOpacity
-              style={styles.dateInput}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.7}
-            >
-              <Feather name="calendar" size={20} color="#555" />
-              <Text style={styles.dateInputText}>
-                {selectedDate ? formatDateForDisplay(selectedDate) : 'Select Date'}
-              </Text>
-            </TouchableOpacity>
-            {dateError ? (
-              <Text style={styles.errorText}>{dateError}</Text>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.button, !selectedDate && !showDatePicker ? styles.buttonDisabled : null]}
-              onPress={calculateDueDate}
-              disabled={!selectedDate && !showDatePicker}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.buttonText}>Calculate Due Date</Text>
-            </TouchableOpacity>
-            {dueDate && (
-              <Animatable.View animation="fadeIn" duration={500} style={styles.resultContainer}>
-                <Feather name="heart" size={24} color="#6b9fff" />
-                <Text style={styles.resultText}>
-                  Estimated Due Date: {'\n'}
-                  <Text style={styles.dueDate}>{dueDate}</Text>
-                </Text>
-              </Animatable.View>
-            )}
-          </Animatable.View>
-          <Footer />
-        </ScrollView>
-
-        {/* Contact Icon */}
-        <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }] }]}>
+      <Header
+        navigation={navigation}
+        user={user}
+        setUser={setUser}
+        handleLogout={handleLogout}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+      />
+      <View style={styles.mainContentContainer}>
+        {isMenuOpen && (
           <TouchableOpacity
-            onPress={handleContactIconPress}
-            accessibilityLabel="Open chat"
-            accessibilityHint="Opens the chat support window"
-          >
-            <Text style={styles.contactIconText}>💬</Text>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* ChatBox Modal */}
-        <Modal
-          visible={isChatBoxOpen}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setIsChatBoxOpen(false)}
+            style={styles.contentOverlay}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
+          />
+        )}
+        <LinearGradient
+          colors={['#f5f7fa', '#f5f7fa']}
+          style={styles.gradient}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            scrollEnabled={!isMenuOpen}
           >
-            <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
-          </KeyboardAvoidingView>
-        </Modal>
-
-        {/* Custom Date Picker Modal */}
-        <Modal
-          visible={showDatePicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowDatePicker(false)}
-        >
-          <View style={styles.modalContainer}>
-            <Animatable.View animation="slideInUp" duration={300} style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Date</Text>
-              <View style={styles.pickerContainer}>
-                <ScrollView
-                  style={styles.picker}
-                  showsVerticalScrollIndicator={false}
-                  snapToInterval={40}
-                  decelerationRate="fast"
-                >
-                  {days.map((day) => (
-                    <TouchableOpacity
-                      key={day}
-                      style={[styles.pickerItem, scrollDay === day ? styles.pickerItemSelected : null]}
-                      onPress={() => setScrollDay(day)}
-                    >
-                      <Text style={[styles.pickerText, scrollDay === day ? styles.pickerTextSelected : null]}>
-                        {day}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <ScrollView
-                  style={styles.picker}
-                  showsVerticalScrollIndicator={false}
-                  snapToInterval={40}
-                  decelerationRate="fast"
-                >
-                  {months.map((month, index) => (
-                    <TouchableOpacity
-                      key={month}
-                      style={[styles.pickerItem, scrollMonth === index + 1 ? styles.pickerItemSelected : null]}
-                      onPress={() => setScrollMonth(index + 1)}
-                    >
-                      <Text style={[styles.pickerText, scrollMonth === index + 1 ? styles.pickerTextSelected : null]}>
-                        {month}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <ScrollView
-                  style={styles.picker}
-                  showsVerticalScrollIndicator={false}
-                  snapToInterval={40}
-                  decelerationRate="fast"
-                >
-                  {years.map((year) => (
-                    <TouchableOpacity
-                      key={year}
-                      style={[styles.pickerItem, scrollYear === year ? styles.pickerItemSelected : null]}
-                      onPress={() => setScrollYear(year)}
-                    >
-                      <Text style={[styles.pickerText, scrollYear === year ? styles.pickerTextSelected : null]}>
-                        {year}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              <View style={styles.modalButtons}>
+            <View style={{ pointerEvents: isMenuOpen ? 'none' : 'auto' }}>
+              <Animatable.View animation="fadeInUp" duration={600} style={styles.section}>
+                <Text style={styles.sectionTitle}>Pregnancy Due Date Calculator</Text>
+                <Text style={styles.sectionDescription}>
+                  Select the first day of your last menstrual period to estimate your baby’s due date.
+                </Text>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => setShowDatePicker(false)}
+                  style={styles.dateInput}
+                  onPress={() => setShowDatePicker(true)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
+                  <Feather name="calendar" size={20} color="#555" />
+                  <Text style={styles.dateInputText}>
+                    {selectedDate ? formatDateForDisplay(selectedDate) : 'Select Date'}
+                  </Text>
                 </TouchableOpacity>
+                {dateError ? (
+                  <Text style={styles.errorText}>{dateError}</Text>
+                ) : null}
                 <TouchableOpacity
-                  style={styles.modalButton}
+                  style={[styles.button, !selectedDate && !showDatePicker ? styles.buttonDisabled : null]}
                   onPress={calculateDueDate}
+                  disabled={!selectedDate && !showDatePicker}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.modalButtonText}>Confirm</Text>
+                  <Text style={styles.buttonText}>Calculate Due Date</Text>
                 </TouchableOpacity>
-              </View>
-            </Animatable.View>
-          </View>
-        </Modal>
-      </LinearGradient>
+                {dueDate && (
+                  <Animatable.View animation="fadeIn" duration={500} style={styles.resultContainer}>
+                    <Feather name="heart" size={24} color="#6b9fff" />
+                    <Text style={styles.resultText}>
+                      Estimated Due Date: {'\n'}
+                      <Text style={styles.dueDate}>{dueDate}</Text>
+                    </Text>
+                  </Animatable.View>
+                )}
+              </Animatable.View>
+              <Footer />
+            </View>
+          </ScrollView>
+        </LinearGradient>
+      </View>
+
+      {/* Contact Icon */}
+      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }], zIndex: 900 }]}>
+        <TouchableOpacity
+          onPress={handleContactIconPress}
+          accessibilityLabel="Open chat"
+          accessibilityHint="Opens the chat support window"
+        >
+          <Text style={styles.contactIconText}>💬</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* ChatBox Modal */}
+      <Modal
+        visible={isChatBoxOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsChatBoxOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.modalOverlay, { zIndex: 950 }]}
+        >
+          <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Custom Date Picker Modal */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={[styles.modalContainer, { zIndex: 950 }]}>
+          <Animatable.View animation="slideInUp" duration={300} style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Date</Text>
+            <View style={styles.pickerContainer}>
+              <ScrollView
+                style={styles.picker}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={40}
+                decelerationRate="fast"
+              >
+                {days.map((day) => (
+                  <TouchableOpacity
+                    key={day}
+                    style={[styles.pickerItem, scrollDay === day ? styles.pickerItemSelected : null]}
+                    onPress={() => setScrollDay(day)}
+                  >
+                    <Text style={[styles.pickerText, scrollDay === day ? styles.pickerTextSelected : null]}>
+                      {day}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <ScrollView
+                style={styles.picker}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={40}
+                decelerationRate="fast"
+              >
+                {months.map((month, index) => (
+                  <TouchableOpacity
+                    key={month}
+                    style={[styles.pickerItem, scrollMonth === index + 1 ? styles.pickerItemSelected : null]}
+                    onPress={() => setScrollMonth(index + 1)}
+                  >
+                    <Text style={[styles.pickerText, scrollMonth === index + 1 ? styles.pickerTextSelected : null]}>
+                      {month}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <ScrollView
+                style={styles.picker}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={40}
+                decelerationRate="fast"
+              >
+                {years.map((year) => (
+                  <TouchableOpacity
+                    key={year}
+                    style={[styles.pickerItem, scrollYear === year ? styles.pickerItemSelected : null]}
+                    onPress={() => setScrollYear(year)}
+                  >
+                    <Text style={[styles.pickerText, scrollYear === year ? styles.pickerTextSelected : null]}>
+                      {year}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowDatePicker(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={calculateDueDate}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalButtonText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </Animatable.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -319,6 +346,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',
+  },
+  mainContentContainer: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 0, // Below header and navMenu
+  },
+  contentOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Dark overlay for main content
+    zIndex: 1000, // Above content but below navMenu
   },
   gradient: {
     flex: 1,
@@ -520,6 +561,7 @@ const styles = StyleSheet.create({
         elevation: 5,
       },
     }),
+    zIndex: 900,
   },
   contactIconText: {
     fontSize: 24,
