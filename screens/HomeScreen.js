@@ -21,12 +21,10 @@ import { homepageData } from '../data/homepageData';
 import { chartData } from '../data/chartData';
 import { Ionicons } from '@expo/vector-icons';
 import ChatBox from './ChatBox';
-
 const { width, height } = Dimensions.get('window');
 
 // Header Component
-export const Header = ({ navigation, user, setUser, handleLogout }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+export const Header = ({ navigation, user, setUser, handleLogout, isMenuOpen, setIsMenuOpen }) => {
   const slideAnim = useRef(new Animated.Value(-width)).current;
 
   useEffect(() => {
@@ -40,7 +38,7 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
 
   const toggleMenu = useCallback(() => {
     setIsMenuOpen((prev) => !prev);
-  }, []);
+  }, [setIsMenuOpen]);
 
   const navLinks = [
     { name: 'About', route: 'About', title: 'About Us' },
@@ -52,7 +50,7 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
   ];
 
   return (
-    <SafeAreaView style={styles.headerSafeArea}>
+    <SafeAreaView style={[styles.headerSafeArea, { zIndex: 1100 }]}>
       <View style={styles.header}>
         <View style={styles.headerContainer}>
           <TouchableOpacity
@@ -79,7 +77,7 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
       <Animated.View
         style={[
           styles.navMenu,
-          { transform: [{ translateX: slideAnim }] },
+          { transform: [{ translateX: slideAnim }], zIndex: 1001 },
         ]}
       >
         <View style={styles.navLinks}>
@@ -109,14 +107,6 @@ export const Header = ({ navigation, user, setUser, handleLogout }) => {
           )}
         </View>
       </Animated.View>
-      {isMenuOpen && (
-        <TouchableOpacity
-          style={styles.menuBackdrop}
-          onPress={toggleMenu}
-          accessibilityLabel="Close menu"
-          accessibilityHint="Closes the navigation menu"
-        />
-      )}
     </SafeAreaView>
   );
 };
@@ -129,15 +119,12 @@ export const Footer = ({ navigation }) => {
     { name: 'Terms of Service', route: 'Terms' },
     { name: 'Contact Us', route: 'Contact' },
   ];
-
   const socialLinks = [
     { name: 'Twitter', url: 'https://twitter.com', icon: 'logo-twitter' },
     { name: 'Facebook', url: 'https://facebook.com', icon: 'logo-facebook' },
     { name: 'LinkedIn', url: 'https://linkedin.com', icon: 'logo-linkedin' },
   ];
-
   const [email, setEmail] = useState('');
-
   const handleNewsletterSubmit = useCallback(() => {
     console.log('Newsletter subscription:', email);
     setEmail('');
@@ -213,11 +200,11 @@ const HomeScreen = ({ navigation }) => {
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isChatBoxOpen, setIsChatBoxOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // State to track menu
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const contactIconScale = useRef(new Animated.Value(1)).current;
   const scrollRef = useRef(null);
   const prevIndexRef = useRef(-1);
-
   const pregnancyData = chartData.weeks;
   const itemWidth = 80;
   const scaleAnims = useRef(pregnancyData.map(() => new Animated.Value(1))).current;
@@ -238,7 +225,6 @@ const HomeScreen = ({ navigation }) => {
       }
     };
     fetchUser();
-
     Animated.timing(fadeAnim, {
       toValue: isChatBoxOpen ? 1 : 0,
       duration: 300,
@@ -287,14 +273,12 @@ const HomeScreen = ({ navigation }) => {
     try {
       const userId = user?.data?.id;
       const token = await AsyncStorage.getItem('authToken');
-
       if (!token) {
         console.error('No auth token found');
         await AsyncStorage.removeItem('authToken');
         navigation.replace('Login');
         return;
       }
-
       await logout(userId, token);
       await AsyncStorage.removeItem('authToken');
       navigation.replace('Login');
@@ -341,6 +325,10 @@ const HomeScreen = ({ navigation }) => {
     setIsChatBoxOpen((prev) => !prev);
   }, []);
 
+  const toggleMenu = useCallback(() => {
+    setIsMenuOpen((prev) => !prev);
+  }, [setIsMenuOpen]);
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -351,279 +339,296 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
-      >
-        {/* Hero Section */}
-        <View style={styles.heroSection}>
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>{homepageData.hero.title}</Text>
-            <Text style={styles.heroTagline}>{homepageData.hero.tagline}</Text>
-            <Text style={styles.heroSubtitle}>{homepageData.hero.subtitle}</Text>
-            <Text style={styles.heroQuote}>{homepageData.hero.quote}</Text>
-            <View style={styles.heroButtons}>
-              <TouchableOpacity
-                style={[styles.heroButton, styles.primaryButton]}
-                onPress={() => navigation.navigate('HomeMain')}
-                accessibilityLabel="Explore NestlyCare"
-                accessibilityHint="Navigates to the main exploration screen"
-              >
-                <Text style={styles.buttonText}>{homepageData.hero.cta}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.heroButton, styles.secondaryButton]}
-                onPress={() => navigateToScreen(homepageData.hero.secondaryCtaLink)}
-                accessibilityLabel={homepageData.hero.secondaryCta}
-                accessibilityHint="Navigates to the secondary call-to-action screen"
-              >
-                <Text style={styles.buttonText}>{homepageData.hero.secondaryCta}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <Text style={styles.sectionTitle}>Pregnancy Features</Text>
-          <Text style={styles.sectionDescription}>Discover the tools and support we offer for your pregnancy journey.</Text>
-          <View style={styles.featuresContainer}>
-            {homepageData.features.map((feature, index) => (
-              <View key={index} style={styles.featureItem}>
-                <Text style={styles.featureIcon}>{feature.icon}</Text>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Pregnancy Tracker Section */}
-        <View style={styles.pregnancyTrackerSection}>
-          <Text style={styles.sectionTitle}>{homepageData.pregnancyTracker.title}</Text>
-          <Text style={styles.sectionDescription}>{homepageData.pregnancyTracker.description}</Text>
-          <View style={styles.trackerChartContainer}>
-            <TouchableOpacity
-              style={[styles.navButton, styles.leftButton, selectedIndex === 0 && styles.disabledButton]}
-              onPress={handlePrevWeek}
-              disabled={selectedIndex === 0}
-              accessibilityLabel="Previous week"
-              accessibilityHint="Navigates to the previous week in the pregnancy tracker"
-            >
-              <Text style={styles.navButtonText}>←</Text>
-            </TouchableOpacity>
-            <ScrollView
-              horizontal
-              style={styles.chartWrapper}
-              ref={scrollRef}
-              showsHorizontalScrollIndicator={false}
-            >
-              <View style={styles.timeline}>
-                <View
-                  style={[
-                    styles.timelineFullLine,
-                    { width: (pregnancyData.length - 1) * itemWidth, left: itemWidth / 2 },
-                  ]}
-                />
-                {pregnancyData.map((data, index) => (
+      <Header
+        navigation={navigation}
+        user={user}
+        setUser={setUser}
+        handleLogout={handleLogout}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+      />
+      <View style={styles.mainContentContainer}>
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles.contentOverlay}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
+          />
+        )}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          scrollEnabled={!isMenuOpen}
+        >
+          <View style={{ pointerEvents: isMenuOpen ? 'none' : 'auto' }}>
+            {/* Hero Section */}
+            <View style={styles.heroSection}>
+              <View style={styles.heroContent}>
+                <Text style={styles.heroTitle}>{homepageData.hero.title}</Text>
+                <Text style={styles.heroTagline}>{homepageData.hero.tagline}</Text>
+                <Text style={styles.heroSubtitle}>{homepageData.hero.subtitle}</Text>
+                <Text style={styles.heroQuote}>{homepageData.hero.quote}</Text>
+                <View style={styles.heroButtons}>
                   <TouchableOpacity
-                    key={index}
-                    style={styles.timelineItem}
-                    onPress={() => {
-                      setSelectedWeek(data);
-                      setSelectedIndex(index);
-                    }}
-                    accessibilityLabel={`Select week ${data.week}`}
-                    accessibilityHint="Shows details for the selected pregnancy week"
+                    style={[styles.heroButton, styles.primaryButton]}
+                    onPress={() => navigation.navigate('HomeMain')}
+                    accessibilityLabel="Explore NestlyCare"
+                    accessibilityHint="Navigates to the main exploration screen"
                   >
-                    <Animated.View
+                    <Text style={styles.buttonText}>{homepageData.hero.cta}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.heroButton, styles.secondaryButton]}
+                    onPress={() => navigateToScreen(homepageData.hero.secondaryCtaLink)}
+                    accessibilityLabel={homepageData.hero.secondaryCta}
+                    accessibilityHint="Navigates to the secondary call-to-action screen"
+                  >
+                    <Text style={styles.buttonText}>{homepageData.hero.secondaryCta}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+            {/* Features Section */}
+            <View style={styles.featuresSection}>
+              <Text style={styles.sectionTitle}>Pregnancy Features</Text>
+              <Text style={styles.sectionDescription}>Discover the tools and support we offer for your pregnancy journey.</Text>
+              <View style={styles.featuresContainer}>
+                {homepageData.features.map((feature, index) => (
+                  <View key={index} style={styles.featureItem}>
+                    <Text style={styles.featureIcon}>{feature.icon}</Text>
+                    <Text style={styles.featureTitle}>{feature.title}</Text>
+                    <Text style={styles.featureDescription}>{feature.description}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            {/* Pregnancy Tracker Section */}
+            <View style={styles.pregnancyTrackerSection}>
+              <Text style={styles.sectionTitle}>{homepageData.pregnancyTracker.title}</Text>
+              <Text style={styles.sectionDescription}>{homepageData.pregnancyTracker.description}</Text>
+              <View style={styles.trackerChartContainer}>
+                <TouchableOpacity
+                  style={[styles.navButton, styles.leftButton, selectedIndex === 0 && styles.disabledButton]}
+                  onPress={handlePrevWeek}
+                  disabled={selectedIndex === 0}
+                  accessibilityLabel="Previous week"
+                  accessibilityHint="Navigates to the previous week in the pregnancy tracker"
+                >
+                  <Text style={styles.navButtonText}>←</Text>
+                </TouchableOpacity>
+                <ScrollView
+                  horizontal
+                  style={styles.chartWrapper}
+                  ref={scrollRef}
+                  showsHorizontalScrollIndicator={false}
+                  scrollEnabled={!isMenuOpen}
+                >
+                  <View style={styles.timeline}>
+                    <View
                       style={[
-                        styles.timelineNode,
-                        selectedWeek?.week === data.week && styles.selectedNode,
-                        { transform: [{ scale: scaleAnims[index] }] },
+                        styles.timelineFullLine,
+                        { width: (pregnancyData.length - 1) * itemWidth, left: itemWidth / 2 },
                       ]}
                     />
-                    <Text style={styles.timelineWeek}>{data.week}</Text>
+                    {pregnancyData.map((data, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.timelineItem}
+                        onPress={() => {
+                          setSelectedWeek(data);
+                          setSelectedIndex(index);
+                        }}
+                        accessibilityLabel={`Select week ${data.week}`}
+                        accessibilityHint="Shows details for the selected pregnancy week"
+                      >
+                        <Animated.View
+                          style={[
+                            styles.timelineNode,
+                            selectedWeek?.week === data.week && styles.selectedNode,
+                            { transform: [{ scale: scaleAnims[index] }] },
+                          ]}
+                        />
+                        <Text style={styles.timelineWeek}>{data.week}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+                <TouchableOpacity
+                  style={[
+                    styles.navButton,
+                    styles.rightButton,
+                    selectedIndex === pregnancyData.length - 1 && styles.disabledButton,
+                  ]}
+                  onPress={handleNextWeek}
+                  disabled={selectedIndex === pregnancyData.length - 1}
+                  accessibilityLabel="Next week"
+                  accessibilityHint="Navigates to the next week in the pregnancy tracker"
+                >
+                  <Text style={styles.navButtonText}>→</Text>
+                </TouchableOpacity>
+              </View>
+              {selectedWeek && (
+                <View style={styles.weekPopup}>
+                  <Text style={styles.weekPopupTitle}>{selectedWeek.week}</Text>
+                  <Text style={styles.weekPopupSubtitle}>{selectedWeek.title}</Text>
+                  <Text style={styles.weekPopupDescription}>{selectedWeek.description}</Text>
+                  <Text style={styles.weekPopupTip}>
+                    <Text style={styles.bold}>Tip:</Text> {selectedWeek.tip}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.weekPopupButton}
+                    onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
+                    accessibilityLabel="View more details"
+                    accessibilityHint="Navigates to detailed pregnancy tracking information"
+                  >
+                    <Text style={styles.buttonText}>More Details</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.weekPopupClose}
+                    onPress={() => {
+                      setSelectedWeek(null);
+                      setSelectedIndex(-1);
+                    }}
+                    accessibilityLabel="Close week details"
+                    accessibilityHint="Closes the pregnancy week details popup"
+                  >
+                    <Text style={styles.buttonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.trackerButton}
+                onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
+                accessibilityLabel={homepageData.pregnancyTracker.cta}
+                accessibilityHint="Navigates to the pregnancy tracking screen"
+              >
+                <Text style={styles.buttonText}>{homepageData.pregnancyTracker.cta}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Testimonials Section */}
+            <View style={styles.testimonialsSection}>
+              <Text style={styles.sectionTitle}>What Our Community Says</Text>
+              <Text style={styles.sectionDescription}>Hear from other moms about their experiences.</Text>
+              <ScrollView
+                horizontal
+                style={styles.testimonialsContainer}
+                showsHorizontalScrollIndicator={false}
+                scrollEnabled={!isMenuOpen}
+              >
+                {homepageData.testimonials.map((testimonial, index) => (
+                  <View key={index} style={styles.testimonialItem}>
+                    <Image source={{ uri: testimonial.avatar }} style={styles.testimonialAvatar} />
+                    <Text style={styles.testimonialName}>{testimonial.name}</Text>
+                    <Text style={styles.testimonialFeedback}>{testimonial.feedback}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+            {/* Community Section */}
+            <View style={styles.communitySection}>
+              <Text style={styles.sectionTitle}>{homepageData.community.title}</Text>
+              <Text style={styles.sectionDescription}>{homepageData.community.description}</Text>
+              <Text style={styles.communityHighlight}>{homepageData.community.highlight}</Text>
+              <TouchableOpacity
+                style={styles.communityButton}
+                onPress={() => navigateToScreen(homepageData.community.ctaLink)}
+                accessibilityLabel={homepageData.community.cta}
+                accessibilityHint="Navigates to the community screen"
+              >
+                <Text style={styles.buttonText}>{homepageData.community.cta}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Pregnancy Tools Section */}
+            <View style={styles.pregnancyToolSection}>
+              <Text style={styles.sectionTitle}>{homepageData.pregnancyTool.title}</Text>
+              <Text style={styles.sectionDescription}>{homepageData.pregnancyTool.description}</Text>
+              {homepageData.pregnancyTool.items.map((tool, index) => (
+                <View key={index} style={styles.toolItem}>
+                  <TouchableOpacity
+                    style={styles.toolButton}
+                    onPress={() => navigateToScreen(tool.link)}
+                    accessibilityLabel={tool.title}
+                    accessibilityHint={`Navigates to ${tool.title} tool`}
+                  >
+                    <Text style={styles.toolTitle}>{tool.title}</Text>
+                    <Text style={styles.toolDescription}>{tool.description}</Text>
+                  </TouchableOpacity>
+                  {tool.subItems && (
+                    <View style={styles.subToolContainer}>
+                      {tool.subItems.map((subItem, subIndex) => (
+                        <TouchableOpacity
+                          key={subIndex}
+                          style={styles.subToolButton}
+                          onPress={() => navigateToScreen(subItem.link)}
+                          accessibilityLabel={subItem.title}
+                          accessibilityHint={`Navigates to ${subItem.title} tool`}
+                        >
+                          <Text style={styles.subToolTitle}>{subItem.title}</Text>
+                          <Text style={styles.subToolDescription}>{subItem.description}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.toolsButton}
+                onPress={() => navigateToScreen(homepageData.pregnancyTool.ctaLink)}
+                accessibilityLabel={homepageData.pregnancyTool.cta}
+                accessibilityHint="Navigates to the pregnancy tools screen"
+              >
+                <Text style={styles.buttonText}>{homepageData.pregnancyTool.cta}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Health Tips Section */}
+            <View style={styles.healthTipsSection}>
+              <Text style={styles.sectionTitle}>{homepageData.healthTips.title}</Text>
+              <Text style={styles.sectionDescription}>{homepageData.healthTips.description}</Text>
+              {homepageData.healthTips.items.map((tip, index) => (
+                <View key={index} style={styles.healthTipItem}>
+                  <Text style={styles.healthTipTitle}>{tip.trimester}</Text>
+                  {tip.tips.map((item, idx) => (
+                    <Text key={idx} style={styles.healthTipText}>• {item}</Text>
+                  ))}
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.healthTipsButton}
+                onPress={() => navigateToScreen(homepageData.healthTips.ctaLink)}
+                accessibilityLabel={homepageData.healthTips.cta}
+                accessibilityHint="Navigates to the health tips screen"
+              >
+                <Text style={styles.buttonText}>{homepageData.healthTips.cta}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Partners Section */}
+            <View style={styles.partnersSection}>
+              <Text style={styles.sectionTitle}>{homepageData.partners.title}</Text>
+              <Text style={styles.sectionDescription}>{homepageData.partners.description}</Text>
+              <View style={styles.partnersContainer}>
+                {homepageData.partners.items.map((partner, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.partnerItem}
+                    onPress={() => Linking.openURL(partner.link)}
+                    accessibilityLabel={`Visit ${partner.name}`}
+                    accessibilityHint={`Opens ${partner.name} website in browser`}
+                  >
+                    <Image source={{ uri: partner.link }} style={styles.partnerLogo} />
+                    <Text style={styles.partnerName}>{partner.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </ScrollView>
-            <TouchableOpacity
-              style={[
-                styles.navButton,
-                styles.rightButton,
-                selectedIndex === pregnancyData.length - 1 && styles.disabledButton,
-              ]}
-              onPress={handleNextWeek}
-              disabled={selectedIndex === pregnancyData.length - 1}
-              accessibilityLabel="Next week"
-              accessibilityHint="Navigates to the next week in the pregnancy tracker"
-            >
-              <Text style={styles.navButtonText}>→</Text>
-            </TouchableOpacity>
+            </View>
+            {/* Footer */}
+            <Footer navigation={navigation} />
           </View>
-          {selectedWeek && (
-            <View style={styles.weekPopup}>
-              <Text style={styles.weekPopupTitle}>{selectedWeek.week}</Text>
-              <Text style={styles.weekPopupSubtitle}>{selectedWeek.title}</Text>
-              <Text style={styles.weekPopupDescription}>{selectedWeek.description}</Text>
-              <Text style={styles.weekPopupTip}>
-                <Text style={styles.bold}>Tip:</Text> {selectedWeek.tip}
-              </Text>
-              <TouchableOpacity
-                style={styles.weekPopupButton}
-                onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
-                accessibilityLabel="View more details"
-                accessibilityHint="Navigates to detailed pregnancy tracking information"
-              >
-                <Text style={styles.buttonText}>More Details</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.weekPopupClose}
-                onPress={() => {
-                  setSelectedWeek(null);
-                  setSelectedIndex(-1);
-                }}
-                accessibilityLabel="Close week details"
-                accessibilityHint="Closes the pregnancy week details popup"
-              >
-                <Text style={styles.buttonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.trackerButton}
-            onPress={() => navigateToScreen(homepageData.pregnancyTracker.ctaLink)}
-            accessibilityLabel={homepageData.pregnancyTracker.cta}
-            accessibilityHint="Navigates to the pregnancy tracking screen"
-          >
-            <Text style={styles.buttonText}>{homepageData.pregnancyTracker.cta}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Testimonials Section */}
-        <View style={styles.testimonialsSection}>
-          <Text style={styles.sectionTitle}>What Our Community Says</Text>
-          <Text style={styles.sectionDescription}>Hear from other moms about their experiences.</Text>
-          <ScrollView horizontal style={styles.testimonialsContainer} showsHorizontalScrollIndicator={false}>
-            {homepageData.testimonials.map((testimonial, index) => (
-              <View key={index} style={styles.testimonialItem}>
-                <Image source={{ uri: testimonial.avatar }} style={styles.testimonialAvatar} />
-                <Text style={styles.testimonialName}>{testimonial.name}</Text>
-                <Text style={styles.testimonialFeedback}>{testimonial.feedback}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Community Section */}
-        <View style={styles.communitySection}>
-          <Text style={styles.sectionTitle}>{homepageData.community.title}</Text>
-          <Text style={styles.sectionDescription}>{homepageData.community.description}</Text>
-          <Text style={styles.communityHighlight}>{homepageData.community.highlight}</Text>
-          <TouchableOpacity
-            style={styles.communityButton}
-            onPress={() => navigateToScreen(homepageData.community.ctaLink)}
-            accessibilityLabel={homepageData.community.cta}
-            accessibilityHint="Navigates to the community screen"
-          >
-            <Text style={styles.buttonText}>{homepageData.community.cta}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Pregnancy Tools Section */}
-        <View style={styles.pregnancyToolSection}>
-          <Text style={styles.sectionTitle}>{homepageData.pregnancyTool.title}</Text>
-          <Text style={styles.sectionDescription}>{homepageData.pregnancyTool.description}</Text>
-          {homepageData.pregnancyTool.items.map((tool, index) => (
-            <View key={index} style={styles.toolItem}>
-              <TouchableOpacity
-                style={styles.toolButton}
-                onPress={() => navigateToScreen(tool.link)}
-                accessibilityLabel={tool.title}
-                accessibilityHint={`Navigates to ${tool.title} tool`}
-              >
-                <Text style={styles.toolTitle}>{tool.title}</Text>
-                <Text style={styles.toolDescription}>{tool.description}</Text>
-              </TouchableOpacity>
-              {tool.subItems && (
-                <View style={styles.subToolContainer}>
-                  {tool.subItems.map((subItem, subIndex) => (
-                    <TouchableOpacity
-                      key={subIndex}
-                      style={styles.subToolButton}
-                      onPress={() => navigateToScreen(subItem.link)}
-                      accessibilityLabel={subItem.title}
-                      accessibilityHint={`Navigates to ${subItem.title} tool`}
-                    >
-                      <Text style={styles.subToolTitle}>{subItem.title}</Text>
-                      <Text style={styles.subToolDescription}>{subItem.description}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          ))}
-          <TouchableOpacity
-            style={styles.toolsButton}
-            onPress={() => navigateToScreen(homepageData.pregnancyTool.ctaLink)}
-            accessibilityLabel={homepageData.pregnancyTool.cta}
-            accessibilityHint="Navigates to the pregnancy tools screen"
-          >
-            <Text style={styles.buttonText}>{homepageData.pregnancyTool.cta}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Health Tips Section */}
-        <View style={styles.healthTipsSection}>
-          <Text style={styles.sectionTitle}>{homepageData.healthTips.title}</Text>
-          <Text style={styles.sectionDescription}>{homepageData.healthTips.description}</Text>
-          {homepageData.healthTips.items.map((tip, index) => (
-            <View key={index} style={styles.healthTipItem}>
-              <Text style={styles.healthTipTitle}>{tip.trimester}</Text>
-              {tip.tips.map((item, idx) => (
-                <Text key={idx} style={styles.healthTipText}>• {item}</Text>
-              ))}
-            </View>
-          ))}
-          <TouchableOpacity
-            style={styles.healthTipsButton}
-            onPress={() => navigateToScreen(homepageData.healthTips.ctaLink)}
-            accessibilityLabel={homepageData.healthTips.cta}
-            accessibilityHint="Navigates to the health tips screen"
-          >
-            <Text style={styles.buttonText}>{homepageData.healthTips.cta}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Partners Section */}
-        <View style={styles.partnersSection}>
-          <Text style={styles.sectionTitle}>{homepageData.partners.title}</Text>
-          <Text style={styles.sectionDescription}>{homepageData.partners.description}</Text>
-          <View style={styles.partnersContainer}>
-            {homepageData.partners.items.map((partner, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.partnerItem}
-                onPress={() => Linking.openURL(partner.link)}
-                accessibilityLabel={`Visit ${partner.name}`}
-                accessibilityHint={`Opens ${partner.name} website in browser`}
-              >
-                <Image source={{ uri: partner.link }} style={styles.partnerLogo} />
-                <Text style={styles.partnerName}>{partner.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Footer */}
-        <Footer navigation={navigation} />
-      </ScrollView>
-
+        </ScrollView>
+      </View>
       {/* Contact Icon */}
-      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }] }]}>
+      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }], zIndex: 900 }]}>
         <TouchableOpacity
           onPress={handleContactIconPress}
           accessibilityLabel="Open chat"
@@ -632,7 +637,6 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.contactIconText}>💬</Text>
         </TouchableOpacity>
       </Animated.View>
-
       {/* ChatBox Modal */}
       <Modal
         visible={isChatBoxOpen}
@@ -642,7 +646,7 @@ const HomeScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { zIndex: 950 }]}
         >
           <ChatBox isOpen={isChatBoxOpen} onClose={() => setIsChatBoxOpen(false)} navigation={navigation} />
         </KeyboardAvoidingView>
@@ -659,7 +663,7 @@ const styles = StyleSheet.create({
   },
   headerSafeArea: {
     backgroundColor: '#04668D',
-    zIndex: 1000,
+    zIndex: 1100,
   },
   header: {
     backgroundColor: '#04668D',
@@ -690,16 +694,8 @@ const styles = StyleSheet.create({
   menuToggle: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  menuBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    zIndex: 1101,
   },
   navMenu: {
     position: 'absolute',
@@ -708,13 +704,13 @@ const styles = StyleSheet.create({
     width: width * 0.75,
     height: height,
     backgroundColor: '#04668D',
-    zIndex: 1001,
     paddingTop: 80,
     shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
+    zIndex: 1001,
   },
   navLinks: {
     flexDirection: 'column',
@@ -733,6 +729,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '500',
+  },
+  mainContentContainer: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 0, // Below header and navMenu
+  },
+  contentOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Dark overlay for main content
+    zIndex: 1000, // Above content but below navMenu
   },
   footerKeyboardAvoiding: {
     backgroundColor: '#f5f7fa',
@@ -1309,6 +1319,7 @@ const styles = StyleSheet.create({
         elevation: 5,
       },
     }),
+    zIndex: 900,
   },
   contactIconText: {
     fontSize: 24,

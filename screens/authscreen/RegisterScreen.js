@@ -249,7 +249,7 @@ const RegisterScreen = ({ navigation }) => {
             >
               <TouchableOpacity
                 style={styles.logoContainer}
-                onPress={() => navigation.navigate('Home')}
+                onPress={() => navigation.navigate('Login')}
               >
                 <Svg width={80} height={80} viewBox="0 0 64 64">
                   <Circle cx="32" cy="32" r="30" fill="rgba(255, 255, 255, 0.1)" />

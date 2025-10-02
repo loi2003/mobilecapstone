@@ -16,7 +16,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import ChatBox from "./ChatBox"; // Adjust the import path as needed
+import ChatBox from "./ChatBox";
 import TrackingForm from "./pregnacytracker/TrackingForm";
 import PregnancyOverview from "./pregnacytracker/PregnancyOverview";
 import PregnancyProgressBar from "./pregnacytracker/PregnancyProgressBar";
@@ -57,6 +57,7 @@ const PregnancyTrackingPage = () => {
   const [token, setToken] = useState(null);
   const [journals, setJournals] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Added for menu state
   const navigation = useNavigation();
   const route = useRoute();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -512,6 +513,10 @@ const PregnancyTrackingPage = () => {
     setIsChatOpen((prev) => !prev);
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen((prev) => !prev);
+  };
+
   const hasValidPregnancyData =
     pregnancyData &&
     !!pregnancyData.firstDayOfLastMenstrualPeriod &&
@@ -547,12 +552,6 @@ const PregnancyTrackingPage = () => {
     if (isLoading) {
       return (
         <View style={styles(width).mainContent}>
-          <Header
-            navigation={navigation}
-            user={user}
-            setUser={setUser}
-            handleLogout={handleLogout}
-          />
           <View style={styles(width).loadingContainer}>
             <ActivityIndicator size="large" color="#067DAD" />
             <Text style={styles(width).loadingText}>
@@ -570,12 +569,6 @@ const PregnancyTrackingPage = () => {
     ) {
       return (
         <View style={styles(width).mainContent}>
-          <Header
-            navigation={navigation}
-            user={user}
-            setUser={setUser}
-            handleLogout={handleLogout}
-          />
           <View style={styles(width).pregnancyTrackingContainer}>
             <View style={styles(width).trackingWelcomeSection}>
               <View style={styles(width).trackingWelcomeHeader}>
@@ -600,12 +593,6 @@ const PregnancyTrackingPage = () => {
     if (error) {
       return (
         <View style={styles(width).mainContent}>
-          <Header
-            navigation={navigation}
-            user={user}
-            setUser={setUser}
-            handleLogout={handleLogout}
-          />
           <View style={styles(width).errorContainer}>
             <Text style={styles(width).errorIcon}>⚠️</Text>
             <Text style={styles(width).errorTitle}>Something Went Wrong</Text>
@@ -629,12 +616,6 @@ const PregnancyTrackingPage = () => {
 
     return (
       <Animated.View style={[styles(width).mainContent, { opacity: fadeAnim }]}>
-        <Header
-          navigation={navigation}
-          user={user}
-          setUser={setUser}
-          handleLogout={handleLogout}
-        />
         <View style={styles(width).pregnancyTrackingContainer}>
           {!hasValidPregnancyData ? (
             <View style={styles(width).trackingWelcomeSection}>
@@ -1031,17 +1012,40 @@ const PregnancyTrackingPage = () => {
 
   return (
     <SafeAreaView style={styles(width).pregnancyTrackingPage}>
-      <FlatList
-        data={[{}]}
-        renderItem={renderContent}
-        keyExtractor={() => "main-content"}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
+      <Header
+        navigation={navigation}
+        user={user}
+        setUser={setUser}
+        handleLogout={handleLogout}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
       />
+      <View style={styles(width).mainContentContainer}>
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles(width).contentOverlay}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
+          />
+        )}
+        <FlatList
+          data={[{}]}
+          renderItem={() => (
+            <View style={{ pointerEvents: isMenuOpen ? 'none' : 'auto' }}>
+              {renderContent()}
+            </View>
+          )}
+          keyExtractor={() => "main-content"}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+          scrollEnabled={!isMenuOpen}
+        />
+      </View>
       <Animated.View
         style={[
           styles(width).contactIcon,
-          { transform: [{ scale: chatIconScale }] },
+          { transform: [{ scale: chatIconScale }], zIndex: 900 },
           isChatOpen && { display: "none" },
         ]}
       >
@@ -1062,7 +1066,7 @@ const PregnancyTrackingPage = () => {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles(width).modalOverlay}
+          style={[styles(width).modalOverlay, { zIndex: 950 }]}
         >
           <ChatBox
             isOpen={isChatOpen}
@@ -1081,8 +1085,22 @@ const styles = (width) =>
       flex: 1,
       backgroundColor: "#f5f7fa",
     },
+    mainContentContainer: {
+      flex: 1,
+      position: 'relative',
+      zIndex: 0, // Below header and navMenu
+    },
+    contentOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)', // Dark overlay for main content
+      zIndex: 1000, // Above content but below navMenu
+    },
     mainContent: {
-      paddingTop: Platform.OS === "ios" ? 10 : 20,
+      paddingTop: 0, // Removed paddingTop since Header is now outside
       paddingBottom: 20,
     },
     pregnancyTrackingContainer: {
@@ -1418,7 +1436,7 @@ const styles = (width) =>
           elevation: 6,
         },
       }),
-      zIndex: 2000,
+      zIndex: 900,
     },
     modalOverlay: {
       flex: 1,

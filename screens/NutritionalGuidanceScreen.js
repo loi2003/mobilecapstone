@@ -24,6 +24,7 @@ const NutritionalGuidanceScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTrimester, setSelectedTrimester] = useState('first');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Added for menu state
 
   // Animation refs
   const headingAnim = useRef(new Animated.Value(0)).current;
@@ -56,7 +57,7 @@ const NutritionalGuidanceScreen = ({ navigation }) => {
         },
         {
           name: 'Protein',
-          description: 'Building blocks for your baby\'s cells, especially for brain development.',
+          description: "Building blocks for your baby's cells, especially for brain development.",
           sources: 'Lean meats, eggs, dairy, legumes, nuts, quinoa, tofu',
           icon: 'apple',
         },
@@ -98,7 +99,7 @@ const NutritionalGuidanceScreen = ({ navigation }) => {
         },
         {
           name: 'Calcium',
-          description: 'Your baby\'s bones are hardening, requiring more calcium.',
+          description: "Your baby's bones are hardening, requiring more calcium.",
           sources: 'Milk, yogurt, cheese, fortified foods, sardines, broccoli',
           icon: 'check-circle',
         },
@@ -282,6 +283,10 @@ const NutritionalGuidanceScreen = ({ navigation }) => {
     setIsChatOpen((prev) => !prev);
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen((prev) => !prev);
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -292,132 +297,236 @@ const NutritionalGuidanceScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} user={user} setUser={setUser} handleLogout={handleLogout} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Animated.View
-          style={[
-            styles.headingSection,
-            {
-              opacity: headingAnim,
-              transform: [{ translateY: headingAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
-            },
-          ]}
+      <Header
+        navigation={navigation}
+        user={user}
+        setUser={setUser}
+        handleLogout={handleLogout}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+      />
+      <View style={styles.mainContentContainer}>
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles.contentOverlay}
+            onPress={toggleMenu}
+            accessibilityLabel="Close menu"
+            accessibilityHint="Closes the navigation menu"
+          />
+        )}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          scrollEnabled={!isMenuOpen}
         >
-          <Text style={styles.headingTitle}>Nutritional Guidance During Pregnancy</Text>
-          <Text style={styles.headingDescription}>
-            Proper nutrition during pregnancy is essential for both you and your baby's health. Each trimester brings unique nutritional needs.
-          </Text>
-        </Animated.View>
-
-        <View style={styles.layout}>
           <Animated.View
             style={[
-              styles.sidebar,
+              styles.headingSection,
               {
-                opacity: sidebarAnim,
-                transform: [{ translateY: sidebarAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+                opacity: headingAnim,
+                transform: [
+                  {
+                    translateY: headingAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [30, 0],
+                    }),
+                  },
+                ],
               },
             ]}
           >
-            <Text style={styles.sidebarTitle}>Select Trimester</Text>
-            {trimesterOptions.map((option) => (
-              <TouchableOpacity
-                key={option.key}
-                style={[
-                  styles.trimesterButton,
-                  selectedTrimester === option.key && styles.trimesterButtonActive,
-                ]}
-                onPress={() => setSelectedTrimester(option.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: selectedTrimester === option.key }}
-              >
-                <Text style={styles.trimesterLabel}>{option.label}</Text>
-                <Text style={styles.trimesterWeeks}>{option.weeks}</Text>
-              </TouchableOpacity>
-            ))}
-            <View style={styles.consultCard}>
-              <Text style={styles.consultTitle}>Need Personalized Advice?</Text>
-              <Text style={styles.consultDescription}>
-                Connect with our certified nutritionists for tailored meal plans.
-              </Text>
-              <TouchableOpacity
-                style={styles.consultButton}
-                onPress={() => navigation.navigate('Consultation')}
-                accessibilityRole="button"
-                accessibilityLabel="Consult Expert"
-              >
-                <Icon name="info-circle" size={18} color="#fff" style={styles.consultIcon} />
-                <Text style={styles.consultButtonText}>Consult Expert</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.headingTitle}>
+              Nutritional Guidance During Pregnancy
+            </Text>
+            <Text style={styles.headingDescription}>
+              Proper nutrition during pregnancy is essential for both you and your
+              baby's health. Each trimester brings unique nutritional needs.
+            </Text>
           </Animated.View>
 
-          <Animated.View
-            style={[
-              styles.mainContent,
-              {
-                opacity: contentAnim,
-                transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
-              },
-            ]}
-          >
-            <Text style={styles.contentTitle}>{currentData.title} Nutrition Guide</Text>
-            <View style={styles.highlightBox}>
-              <Icon name="info-circle" size={18} color="#0D7AA5" style={styles.highlightIcon} />
-              <Text style={styles.highlightText}>
-                <Text style={styles.highlightSubtitle}>{currentData.subtitle}: </Text>
-                {currentData.title === 'First Trimester'
-                  ? 'Focus on foundational nutrients like folic acid and managing morning sickness.'
-                  : currentData.title === 'Second Trimester'
-                  ? 'Your energy returns - focus on balanced nutrition and steady weight gain.'
-                  : 'Support rapid growth and prepare for breastfeeding with increased nutrients.'}
-              </Text>
-            </View>
+          <View style={styles.layout}>
+            <Animated.View
+              style={[
+                styles.sidebar,
+                {
+                  opacity: sidebarAnim,
+                  transform: [
+                    {
+                      translateY: sidebarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.sidebarTitle}>Select Trimester</Text>
+              {trimesterOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.trimesterButton,
+                    selectedTrimester === option.key &&
+                      styles.trimesterButtonActive,
+                  ]}
+                  onPress={() => setSelectedTrimester(option.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedTrimester === option.key }}
+                >
+                  <Text
+                    style={[
+                      styles.trimesterLabel,
+                      selectedTrimester === option.key &&
+                        styles.trimesterButtonActiveText,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.trimesterWeeks,
+                      selectedTrimester === option.key &&
+                        styles.trimesterButtonActiveText,
+                    ]}
+                  >
+                    {option.weeks}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <View style={styles.consultCard}>
+                <Text style={styles.consultTitle}>
+                  Need Personalized Advice?
+                </Text>
+                <Text style={styles.consultDescription}>
+                  Connect with our certified nutritionists for tailored meal plans.
+                </Text>
+                <TouchableOpacity
+                  style={styles.consultButton}
+                  onPress={() => navigation.navigate('Consultation')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Consult Expert"
+                >
+                  <Icon
+                    name="info-circle"
+                    size={18}
+                    color="#fff"
+                    style={styles.consultIcon}
+                  />
+                  <Text style={styles.consultButtonText}>Consult Expert</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
 
-            <Text style={styles.sectionTitle}>Key Nutrients</Text>
-            {currentData.nutrients.map((nutrient, index) => (
-              <View key={index} style={styles.nutrientCard}>
-                <View style={styles.nutrientHeader}>
-                  <Icon name={nutrient.icon} size={24} color="#0D7AA5" style={styles.nutrientIcon} />
-                  <Text style={styles.nutrientName}>{nutrient.name}</Text>
-                </View>
-                <Text style={styles.nutrientDescription}>{nutrient.description}</Text>
-                <Text style={styles.nutrientSources}>
-                  <Text style={styles.nutrientSourcesLabel}>Best Sources: </Text>
-                  {nutrient.sources}
+            <Animated.View
+              style={[
+                styles.mainContent,
+                {
+                  opacity: contentAnim,
+                  transform: [
+                    {
+                      translateY: contentAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.contentTitle}>
+                {currentData.title} Nutrition Guide
+              </Text>
+              <View style={styles.highlightBox}>
+                <Icon
+                  name="info-circle"
+                  size={18}
+                  color="#0D7AA5"
+                  style={styles.highlightIcon}
+                />
+                <Text style={styles.highlightText}>
+                  <Text style={styles.highlightSubtitle}>
+                    {currentData.subtitle}:{" "}
+                  </Text>
+                  {currentData.title === 'First Trimester'
+                    ? 'Focus on foundational nutrients like folic acid and managing morning sickness.'
+                    : currentData.title === 'Second Trimester'
+                    ? 'Your energy returns - focus on balanced nutrition and steady weight gain.'
+                    : 'Support rapid growth and prepare for breastfeeding with increased nutrients.'}
                 </Text>
               </View>
-            ))}
 
-            <Text style={styles.sectionTitle}>Foods to Embrace</Text>
-            {currentData.embrace.map((food, index) => (
-              <View key={index} style={styles.listItem}>
-                <Icon name="check-circle" size={18} color="#4fc86b" style={styles.listIcon} />
-                <Text style={styles.listText}>{food}</Text>
-              </View>
-            ))}
+              <Text style={styles.sectionTitle}>Key Nutrients</Text>
+              {currentData.nutrients.map((nutrient, index) => (
+                <View key={index} style={styles.nutrientCard}>
+                  <View style={styles.nutrientHeader}>
+                    <Icon
+                      name={nutrient.icon}
+                      size={24}
+                      color="#0D7AA5"
+                      style={styles.nutrientIcon}
+                    />
+                    <Text style={styles.nutrientName}>{nutrient.name}</Text>
+                  </View>
+                  <Text style={styles.nutrientDescription}>
+                    {nutrient.description}
+                  </Text>
+                  <Text style={styles.nutrientSources}>
+                    <Text style={styles.nutrientSourcesLabel}>Best Sources: </Text>
+                    {nutrient.sources}
+                  </Text>
+                </View>
+              ))}
 
-            <Text style={styles.sectionTitle}>Foods to Avoid</Text>
-            {currentData.avoid.map((food, index) => (
-              <View key={index} style={styles.listItem}>
-                <Icon name="times-circle" size={18} color="#d9534f" style={styles.listIcon} />
-                <Text style={styles.listText}>{food}</Text>
-              </View>
-            ))}
+              <Text style={styles.sectionTitle}>Foods to Embrace</Text>
+              {currentData.embrace.map((food, index) => (
+                <View key={index} style={styles.listItem}>
+                  <Icon
+                    name="check-circle"
+                    size={18}
+                    color="#4fc86b"
+                    style={styles.listIcon}
+                  />
+                  <Text style={styles.listText}>{food}</Text>
+                </View>
+              ))}
 
-            <Text style={styles.sectionTitle}>Helpful Tips</Text>
-            {currentData.tips.map((tip, index) => (
-              <View key={index} style={styles.listItem}>
-                <Icon name="check" size= {18} color="#72a7db" style={styles.listIcon} />
-                <Text style={styles.listText}>{tip}</Text>
-              </View>
-            ))}
-          </Animated.View>
-        </View>
-        <Footer />
-      </ScrollView>
+              <Text style={styles.sectionTitle}>Foods to Avoid</Text>
+              {currentData.avoid.map((food, index) => (
+                <View key={index} style={styles.listItem}>
+                  <Icon
+                    name="times-circle"
+                    size={18}
+                    color="#d9534f"
+                    style={styles.listIcon}
+                  />
+                  <Text style={styles.listText}>{food}</Text>
+                </View>
+              ))}
 
-      <Animated.View style={[styles.contactIcon, { transform: [{ scale: contactIconScale }] }]}>
+              <Text style={styles.sectionTitle}>Helpful Tips</Text>
+              {currentData.tips.map((tip, index) => (
+                <View key={index} style={styles.listItem}>
+                  <Icon
+                    name="check"
+                    size={18}
+                    color="#72a7db"
+                    style={styles.listIcon}
+                  />
+                  <Text style={styles.listText}>{tip}</Text>
+                </View>
+              ))}
+            </Animated.View>
+          </View>
+          <Footer />
+        </ScrollView>
+      </View>
+
+      <Animated.View
+        style={[
+          styles.contactIcon,
+          { transform: [{ scale: contactIconScale }], zIndex: 900 },
+        ]}
+      >
         <TouchableOpacity
           onPress={handleContactIconPress}
           accessibilityRole="button"
@@ -435,10 +544,14 @@ const NutritionalGuidanceScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { zIndex: 950 }]}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} navigation={navigation} />
+          <ChatBox
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            navigation={navigation}
+          />
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -449,6 +562,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',
+  },
+  mainContentContainer: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 0, // Below header and navMenu
+  },
+  contentOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Dark overlay for main content
+    zIndex: 1000, // Above content but below navMenu
   },
   scrollContent: {
     paddingBottom: 20,
@@ -707,11 +834,13 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    zIndex: 900,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
+    zIndex: 950,
   },
   loadingContainer: {
     flex: 1,
