@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,1410 +12,1218 @@ import {
   FlatList,
   Pressable,
   KeyboardAvoidingView,
-  Keyboard, // Added Keyboard import
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Animatable from 'react-native-animatable';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAIChatResponse } from '../api/aiadvise-api'; // Adjust path as needed
+  Keyboard,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Animatable from "react-native-animatable";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const { width, height } = Dimensions.get('window');
+// ✅ SignalR import (same as ConsultationChat.js)
+import * as signalR from "@microsoft/signalr";
+
+// API imports
+import { getAIChatResponse } from "../api/aiadvise-api";
+import {
+  startChatThread,
+  getChatThreadByUserId,
+  getChatThreadById,
+} from "../api/message-api";
+import { getAllUsers } from "../api/user-api";
+import { getCurrentUser } from "../api/auth";
+
+// ✅ Message Context (same as ConsultationChat.js)
+import { useMessages } from "../contexts/MessageContext";
+
+// Polyfill for SignalR compatibility (same as ConsultationChat.js)
+if (!globalThis.document) {
+  globalThis.document = undefined;
+}
+
+const { width, height } = Dimensions.get("window");
 
 const AdviceScreen = () => {
+  // ✅ Use MessageContext (same as ConsultationChat.js)
+  const {
+    connection,
+    messages: contextMessages,
+    addMessage,
+    connectionError,
+  } = useMessages();
+
+  // ========== EXISTING STATES (Enhanced) ==========
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [activeMode, setActiveMode] = useState('ai'); // 'ai' or 'staff'
+  const [input, setInput] = useState("");
+  const [activeMode, setActiveMode] = useState("ai"); // 'ai' or 'staff'
   const [isLoading, setIsLoading] = useState(false);
-  const [showStaffTypePrompt, setShowStaffTypePrompt] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [selectedStaffType, setSelectedStaffType] = useState(null);
-  const [chatHistory, setChatHistory] = useState([]);
-  const [aiComparison, setAiComparison] = useState(null);
-  const [selectedChatId, setSelectedChatId] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const chatsPerPage = 3;
+
+  // ========== NEW STATES (From Web Version + ConsultationChat.js patterns) ==========
+  // User and Authentication
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [token, setToken] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Staff Management (replaces mock system)
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [showStaffSelection, setShowStaffSelection] = useState(false);
+
+  // Thread-based Chat System
+  const [staffChatThread, setStaffChatThread] = useState(null);
+  const [staffMessages, setStaffMessages] = useState([]);
+  const [aiMessages, setAiMessages] = useState([]);
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Real-time Message Handling
+  const processedMessageIds = useRef(new Set());
   const scrollViewRef = useRef(null);
-  const staffPromptRef = useRef(null);
-  const inputFormRef = useRef(null);
+
   const navigation = useNavigation();
 
-  // Load chat history (matches AdvicePage's localStorage logic)
+  // ========== INITIALIZATION (Enhanced with ConsultationChat.js patterns) ==========
   useEffect(() => {
-    const loadChatHistory = async () => {
-      try {
-        const storedHistory = await AsyncStorage.getItem('chatHistory');
-        if (storedHistory) {
-          setChatHistory(JSON.parse(storedHistory));
-        }
-      } catch (error) {
-        console.error('Error loading chat history:', error);
-      }
-    };
-    loadChatHistory();
+    initializeApp();
   }, []);
 
-  // Auto-scroll to the latest message (equivalent to AdvicePage's scrollIntoView)
-  useEffect(() => {
-    if (scrollViewRef.current && messages.length > 0) {
-      scrollViewRef.current.scrollToEnd({ animated: true });
+  const initializeApp = async () => {
+    try {
+      // Same token retrieval pattern as ConsultationChat.js
+      const storedToken = await AsyncStorage.getItem("authToken");
+      if (!storedToken) {
+        Alert.alert("Error", "Please login first");
+        navigation.navigate("SignIn", {
+          redirectTo: "Advice",
+          params: {},
+        });
+        return;
+      }
+
+      setToken(storedToken);
+
+      // Same user retrieval pattern as ConsultationChat.js
+      const userRes = await getCurrentUser(storedToken);
+      const userId =
+        userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || "";
+
+      if (!userId) {
+        await AsyncStorage.removeItem("authToken");
+        navigation.navigate("SignIn", {
+          redirectTo: "Advice",
+          params: {},
+        });
+        return;
+      }
+
+      await AsyncStorage.setItem("userId", userId);
+      setCurrentUserId(userId);
+      setCurrentUser({ id: userId, ...userRes?.data?.data });
+
+      // Load existing messages
+      await loadExistingMessages();
+
+      // Load staff members
+      await loadStaffMembers(storedToken);
+
+      setIsInitialized(true);
+    } catch (error) {
+      console.error("Initialization error:", error);
+      Alert.alert("Error", "Failed to initialize app");
     }
-  }, [messages]);
+  };
 
-  // Handle message submission (matches AdvicePage's staff advice logic)
-  const handleSendMessage = async () => {
-    if (!input.trim()) return;
+  // ========== STAFF MANAGEMENT (Enhanced) ==========
+  const loadStaffMembers = async (authToken) => {
+    try {
+      const response = await getAllUsers(authToken);
+      const users = response.data?.data || response.data || [];
 
-    let currentChatId = selectedChatId;
-    let storedHistory = chatHistory;
+      // Filter staff members (roleId 4 = nutrition, roleId 3 = health expert)
+      const staff = users
+        .filter((user) => user.roleId === 4 || user.roleId === 3)
+        .map((user) => ({
+          ...user,
+          type: user.roleId === 4 ? "nutrition" : "health",
+          displayName: user.userName || `Staff ${user.id?.slice(0, 8)}`,
+        }));
 
-    // Create new chat if none selected (same as AdvicePage)
-    if (currentChatId === null) {
-      currentChatId = Date.now();
-      const newChat = { id: currentChatId, question: input, messages: [] };
-      storedHistory = [...chatHistory, newChat];
-      setChatHistory(storedHistory);
-      await AsyncStorage.setItem('chatHistory', JSON.stringify(storedHistory));
-      setSelectedChatId(currentChatId);
-      setCurrentPage(Math.ceil(storedHistory.length / chatsPerPage));
+      setStaffMembers(staff);
+      console.log("Loaded staff members:", staff.length);
+    } catch (error) {
+      console.error("Failed to load staff members:", error);
+    }
+  };
+
+  const selectStaff = async (staff) => {
+    try {
+      setSelectedStaff(staff);
+      setShowStaffSelection(false);
+
+      // Initialize or load chat thread with selected staff
+      await initializeStaffThread(staff);
+    } catch (error) {
+      console.error("Failed to select staff:", error);
+      Alert.alert("Error", "Failed to connect with staff member");
+    }
+  };
+
+  // ========== THREAD MANAGEMENT (Enhanced with ConsultationChat.js patterns) ==========
+  const initializeStaffThread = async (staff) => {
+    try {
+      if (!currentUserId || !token) return;
+
+      console.log("Initializing staff thread for:", staff.displayName);
+
+      // Same thread loading pattern as ConsultationChat.js
+      const threadsResponse = await getChatThreadByUserId(currentUserId, token);
+      let threads = [];
+
+      if (Array.isArray(threadsResponse)) {
+        threads = threadsResponse;
+      } else if (threadsResponse?.data && Array.isArray(threadsResponse.data)) {
+        threads = threadsResponse.data;
+      } else if (threadsResponse?.id && threadsResponse?.consultantId) {
+        threads = [threadsResponse];
+      }
+
+      // Find existing thread with this staff member
+      const existingThread = threads.find(
+        (thread) =>
+          thread.consultantId === staff.id ||
+          (thread.userId === currentUserId && thread.consultantId === staff.id)
+      );
+
+      if (existingThread) {
+        // Load existing thread
+        console.log("Loading existing thread:", existingThread.id);
+        setStaffChatThread(existingThread);
+        await loadThreadMessages(existingThread);
+
+        // Join the thread for real-time updates
+        if (
+          connection &&
+          connection.state === signalR.HubConnectionState.Connected
+        ) {
+          console.log(
+            "Joining thread for real-time updates:",
+            existingThread.id
+          );
+          try {
+            await connection.invoke("JoinThread", existingThread.id);
+          } catch (error) {
+            console.error("Failed to join thread:", error);
+          }
+        }
+      } else {
+        // Create new thread
+        console.log("Creating new thread...");
+        const threadData = { userId: currentUserId, consultantId: staff.id };
+        const createdThread = await startChatThread(threadData, token);
+
+        const threadId =
+          createdThread?.data?.id ||
+          createdThread?.data?.chatThreadId ||
+          createdThread?.chatThreadId;
+
+        if (!threadId) {
+          console.error("No threadId found in response:", createdThread);
+          Alert.alert(
+            "Error",
+            "Failed to start chat thread. Please try again."
+          );
+          return;
+        }
+
+        // Load the created thread with messages
+        const threadWithMessages = await getChatThreadById(threadId, token);
+        const thread = threadWithMessages?.data || {
+          id: threadId,
+          consultantId: staff.id,
+          userId: currentUserId,
+          messages: [],
+        };
+
+        setStaffChatThread(thread);
+        setStaffMessages(thread.messages || []);
+
+        // Join the new thread for real-time updates
+        if (
+          connection &&
+          connection.state === signalR.HubConnectionState.Connected
+        ) {
+          console.log("Joining new thread for real-time updates:", threadId);
+          try {
+            await connection.invoke("JoinThread", threadId);
+          } catch (error) {
+            console.error("Failed to join thread:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to initialize staff thread:", error);
+    }
+  };
+
+  const loadThreadMessages = (thread) => {
+    const processedMessages = (thread.messages || []).map((msg) => {
+      // Same UTC timestamp handling as ConsultationChat.js
+      let timestamp = msg.createdAt || msg.sentAt || new Date().toISOString();
+      if (typeof timestamp === "string" && !timestamp.includes("Z")) {
+        timestamp = timestamp + "Z";
+      }
+
+      return {
+        id: msg.id || Date.now().toString(),
+        text: msg.messageText || msg.message || msg.text || "",
+        sender: msg.senderId === currentUserId ? "user" : "staff",
+        timestamp: timestamp,
+        staffName: selectedStaff?.displayName || "Staff",
+        isRead: true,
+      };
+    });
+
+    setStaffMessages(processedMessages);
+
+    // Update main messages if staff mode is active
+    if (activeMode === "staff") {
+      setMessages(processedMessages);
+    }
+  };
+
+  // ========== MESSAGING FUNCTIONS (Enhanced with ConsultationChat.js patterns) ==========
+  const sendAIMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage = {
+      id: Date.now().toString(),
+      text: input.trim(),
+      sender: "user",
+      timestamp: new Date().toISOString(),
+    };
+
+    setAiMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
+
+    const currentInput = input;
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const response = await getAIChatResponse({ message: currentInput });
+
+      const aiMessage = {
+        id: (Date.now() + 1).toString(),
+        text:
+          response.data?.response || "Sorry, I could not process your request.",
+        sender: "ai",
+        timestamp: new Date().toISOString(),
+      };
+
+      setAiMessages((prev) => [...prev, aiMessage]);
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // Save to AsyncStorage
+      await saveMessagesToStorage("ai", [
+        ...aiMessages,
+        userMessage,
+        aiMessage,
+      ]);
+    } catch (error) {
+      console.error("AI response error:", error);
+
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I encountered an error. Please try again.",
+        sender: "ai",
+        timestamp: new Date().toISOString(),
+      };
+
+      setAiMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  };
+
+  const sendStaffMessage = async () => {
+    if (
+      !connection ||
+      connection.state !== signalR.HubConnectionState.Connected
+    ) {
+      console.error("SignalR connection not established");
+      Alert.alert(
+        "Connection Error",
+        "Connection lost. Please refresh the app."
+      );
+      return;
+    }
+
+    if (!input.trim() || !selectedStaff || !staffChatThread || sendingMessage) {
+      return;
     }
 
     const userMessage = {
-      id: messages.length + 1,
-      text: input,
-      sender: 'user',
-      time: new Date().toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      id: Date.now().toString(),
+      text: input.trim(),
+      sender: "user",
+      timestamp: new Date().toISOString(),
+      staffName: selectedStaff.displayName,
     };
 
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    setInput('');
-    Keyboard.dismiss(); // Close the keyboard after sending the message
-    setIsLoading(true);
-    setAiComparison(null);
+    // Add to UI immediately
+    setStaffMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
 
-    // Update chat history (matches AdvicePage's localStorage update)
-    const updatedHistory = storedHistory.map((chat) =>
-      chat.id === currentChatId
-        ? { ...chat, question: chat.question || input, messages: updatedMessages }
-        : chat
-    );
-    setChatHistory(updatedHistory);
-    await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
+    const currentInput = input;
+    setInput("");
+    setSendingMessage(true);
 
-    if (activeMode === 'ai') {
-      try {
-        const response = await getAIChatResponse(input);
-        const aiMessage = {
-          id: messages.length + 2,
-          text: response.reply || 'Sorry, I could not process your request.',
-          sender: 'ai',
-          time: new Date().toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        };
-        const finalMessages = [...updatedMessages, aiMessage];
-        setMessages(finalMessages);
-        const newHistory = updatedHistory.map((chat) =>
-          chat.id === currentChatId
-            ? { ...chat, messages: finalMessages }
-            : chat
-        );
-        setChatHistory(newHistory);
-        await AsyncStorage.setItem('chatHistory', JSON.stringify(newHistory));
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error sending message:', error.message);
-        const errorMessage = {
-          id: messages.length + 2,
-          text: 'Error: Could not get a response from the server.',
-          sender: 'ai',
-          time: new Date().toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        };
-        const finalMessages = [...updatedMessages, errorMessage];
-        setMessages(finalMessages);
-        const newHistory = updatedHistory.map((chat) =>
-          chat.id === currentChatId
-            ? { ...chat, messages: finalMessages }
-            : chat
-        );
-        setChatHistory(newHistory);
-        await AsyncStorage.setItem('chatHistory', JSON.stringify(newHistory));
-        setIsLoading(false);
-      }
-    } else {
-      // Staff advice logic (identical to AdvicePage)
-      try {
-        setTimeout(() => {
-          const staffLabel = selectedStaffType === 'nutrition' ? 'Nutrition Staff' : 'Health Staff';
-          const responseText = `${staffLabel} Response: Your question has been submitted to our team. Expect a reply soon!`;
-          const staffMessage = {
-            id: messages.length + 2,
-            text: responseText,
-            sender: 'staff',
-            time: new Date().toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            staffType: selectedStaffType,
-          };
-          const finalMessages = [...updatedMessages, staffMessage];
-          setMessages(finalMessages);
-          const newHistory = updatedHistory.map((chat) =>
-            chat.id === currentChatId
-              ? { ...chat, messages: finalMessages }
-              : chat
-          );
-          setChatHistory(newHistory);
-          AsyncStorage.setItem('chatHistory', JSON.stringify(newHistory));
-          setIsLoading(false);
-        }, 1000);
-      } catch (error) {
-        console.error('Error submitting to staff:', error);
-        const errorMessage = {
-          id: messages.length + 2,
-          text: 'Error: Could not submit your question. Please try again.',
-          sender: 'staff',
-          time: new Date().toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          staffType: selectedStaffType,
-        };
-        const finalMessages = [...updatedMessages, errorMessage];
-        setMessages(finalMessages);
-        const newHistory = updatedHistory.map((chat) =>
-          chat.id === currentChatId
-            ? { ...chat, messages: finalMessages }
-            : chat
-        );
-        setChatHistory(newHistory);
-        await AsyncStorage.setItem('chatHistory', JSON.stringify(newHistory));
-        setIsLoading(false);
-      }
-    }
-  };
-
-  // Compare to AI Chat (matches AdvicePage's compareToAiChat)
-  const compareToAiChat = async () => {
-    const lastUserMessage = messages.filter((msg) => msg.sender === 'user').slice(-1)[0];
-    const lastStaffResponse = messages.filter((msg) => msg.sender === 'staff').slice(-1)[0];
-    if (!lastUserMessage) return;
-    setIsLoading(true);
     try {
-      const response = await getAIChatResponse(lastUserMessage.text);
-      setAiComparison({
-        userMessage: lastUserMessage.text,
-        aiResponse: response.reply || 'Sorry, I could not process your request.',
-        staffResponse: lastStaffResponse ? lastStaffResponse.text : 'No staff response yet.',
-        staffType: lastStaffResponse ? lastStaffResponse.staffType : selectedStaffType,
-        time: new Date().toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      });
-      setIsLoading(false);
+      // Same direct fetch pattern as ConsultationChat.js
+      const formData = new FormData();
+      formData.append("ChatThreadId", staffChatThread.id);
+      formData.append("SenderId", currentUserId);
+      formData.append("MessageText", currentInput);
+
+      const response = await fetch(
+        "https://api.nestlycare.live/api/message/send-message",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const responseData = await response.json();
+      console.log("=== Message Send Response ===");
+      console.log("Status:", response.status);
+      console.log("Response:", responseData);
+
+      if (response.ok && responseData.error === 0) {
+        // Success - message will come via SignalR
+        console.log("Message sent successfully");
+
+        // Save to AsyncStorage
+        await saveMessagesToStorage("staff", [...staffMessages, userMessage]);
+      } else {
+        console.error("API Error:", responseData);
+        Alert.alert(
+          "Error",
+          `Failed to send message: ${responseData.message || "Unknown error"}`
+        );
+
+        // Remove the message from UI since it failed
+        setStaffMessages((prev) =>
+          prev.filter((msg) => msg.id !== userMessage.id)
+        );
+        setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id));
+
+        // Restore input
+        setInput(currentInput);
+      }
     } catch (error) {
-      console.error('Error comparing to AI:', error.message);
-      setAiComparison({
-        userMessage: lastUserMessage.text,
-        aiResponse: 'Error: Could not get AI response.',
-        staffResponse: lastStaffResponse ? lastStaffResponse.text : 'No staff response yet.',
-        staffType: lastStaffResponse ? lastStaffResponse.staffType : selectedStaffType,
-        time: new Date().toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      });
-      setIsLoading(false);
+      console.error("Network Error:", error);
+      Alert.alert("Error", `Failed to send message: ${error.message}`);
+
+      // Remove the message from UI since it failed
+      setStaffMessages((prev) =>
+        prev.filter((msg) => msg.id !== userMessage.id)
+      );
+      setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id));
+
+      // Restore input
+      setInput(currentInput);
+    } finally {
+      setSendingMessage(false);
     }
   };
 
-  // Switch between AI and Staff modes
-  const switchMode = (mode) => {
-    if (mode === 'staff') {
-      setShowStaffTypePrompt(true);
+  // ========== REAL-TIME MESSAGE HANDLING (From ConsultationChat.js patterns) ==========
+  useEffect(() => {
+    if (contextMessages && contextMessages.length > 0) {
+      const latestMessage = contextMessages[contextMessages.length - 1];
+      handleRealTimeMessage(latestMessage);
+    }
+  }, [contextMessages]);
+
+  const handleRealTimeMessage = (message) => {
+    console.log("📨 [DEBUG] === REAL-TIME MESSAGE HANDLER ===");
+    console.log("📨 [DEBUG] Received message:", {
+      id: message.id,
+      senderId: message.senderId,
+      currentUserId: currentUserId,
+      messageText: message.messageText?.substring(0, 50),
+      chatThreadId: message.chatThreadId,
+      staffChatThreadId: staffChatThread?.id,
+      selectedStaff: selectedStaff?.displayName,
+      activeMode: activeMode,
+    });
+
+    // Prevent duplicate processing
+    if (!message.id || processedMessageIds.current.has(message.id)) {
       return;
     }
-    setActiveMode(mode);
-    setMessages([]);
-    setInput('');
-    setAiComparison(null);
-    setShowStaffTypePrompt(false);
-    setSelectedStaffType(null);
-    setSelectedChatId(null);
-    setCurrentPage(1);
+
+    processedMessageIds.current.add(message.id);
+
+    const messageThreadId = message.chatThreadId || message.threadId;
+
+    let isForCurrentThread = false;
+
+    if (messageThreadId && staffChatThread) {
+      // Standard thread matching
+      isForCurrentThread = messageThreadId === staffChatThread.id;
+    } else if (selectedStaff && message.senderId !== currentUserId) {
+      isForCurrentThread = message.senderId === selectedStaff.id;
+    }
+
+    // Process message if it's for staff consultation
+    if (selectedStaff && isForCurrentThread) {
+      const processedMessage = {
+        id: message.id || Date.now().toString(),
+        text: message.messageText || message.message || message.text || "",
+        sender: message.senderId === currentUserId ? "user" : "staff",
+        timestamp: formatUTCTimestamp(
+          message.creationDate || message.createdAt || message.sentAt
+        ),
+        staffName: selectedStaff.displayName,
+        isRead: true,
+      };
+
+      // Always update staff messages
+      setStaffMessages((prev) => {
+        // Check if message already exists
+        const exists = prev.find((m) => m.id === processedMessage.id);
+        if (exists) {
+          return prev;
+        }
+
+        const updated = [...prev, processedMessage];
+
+        // Save to storage
+        saveMessagesToStorage("staff", updated);
+
+        return updated;
+      });
+
+      // Update current view messages if in staff mode
+      if (activeMode === "staff") {
+        setMessages((prev) => {
+          // Check if message already exists
+          const exists = prev.find((m) => m.id === processedMessage.id);
+          if (exists) {
+            return prev;
+          }
+
+          const updated = [...prev, processedMessage];
+          return updated;
+        });
+
+        // Auto-scroll to bottom
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      } else {
+        console.log(
+          "🔍 [DEBUG] Not in staff mode (activeMode:",
+          activeMode,
+          ") - not updating main messages"
+        );
+      }
+    } else {
+    }
+  };
+  // ========== UTILITY FUNCTIONS (Enhanced with ConsultationChat.js patterns) ==========
+  const formatUTCTimestamp = (timestamp) => {
+    if (!timestamp) return new Date().toISOString();
+    if (typeof timestamp === "string" && !timestamp.includes("Z")) {
+      return timestamp + "Z";
+    }
+    return timestamp;
   };
 
-  // Handle staff type selection
-  const handleStaffTypeSelect = (staffType) => {
-    setSelectedStaffType(staffType);
-    setActiveMode('staff');
-    setMessages([]);
-    setInput('');
-    setAiComparison(null);
-    setShowStaffTypePrompt(false);
-    setSelectedChatId(null);
-    setCurrentPage(1);
-  };
+  // Same time formatting as ConsultationChat.js
+  const formatMessageTime = (timestamp) => {
+    if (!timestamp) return "";
 
-  // Start new chat
-  const startNewChat = async () => {
-    const newChat = { id: Date.now(), question: '', messages: [] };
-    setMessages([]);
-    setInput('');
-    setAiComparison(null);
-    setSelectedStaffType(null);
-    setSelectedChatId(newChat.id);
-    setChatHistory((prev) => {
-      const newHistory = [...prev, newChat];
-      AsyncStorage.setItem('chatHistory', JSON.stringify(newHistory));
-      setCurrentPage(Math.ceil(newHistory.length / chatsPerPage));
-      return newHistory;
-    });
-    setShowHistoryModal(false);
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  };
+    try {
+      let utcDate;
+      if (typeof timestamp === "string") {
+        utcDate = new Date(
+          timestamp.endsWith("Z") ? timestamp : timestamp + "Z"
+        );
+      } else if (typeof timestamp === "number") {
+        utcDate =
+          timestamp > 1000000000000
+            ? new Date(timestamp)
+            : new Date(timestamp * 1000);
+      } else if (timestamp instanceof Date) {
+        utcDate = timestamp;
+      } else {
+        return "";
+      }
 
-  // Load chat history
-  const loadChatHistory = (chatId) => {
-    const chat = chatHistory.find((ch) => ch.id === chatId);
-    if (chat) {
-      setMessages(chat.messages || []);
-      setSelectedChatId(chatId);
-      setAiComparison(null);
-      const lastStaffMessage = chat.messages.filter((msg) => msg.sender === 'staff').slice(-1)[0];
-      setSelectedStaffType(lastStaffMessage ? lastStaffMessage.staffType : null);
-      setActiveMode(lastStaffMessage ? 'staff' : 'ai');
-      setShowHistoryModal(false);
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      if (isNaN(utcDate.getTime())) {
+        console.warn("Invalid timestamp:", timestamp);
+        return "";
+      }
+
+      return utcDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (error) {
+      console.warn("Error formatting timestamp:", error);
+      return "";
     }
   };
 
-  // Delete chat
-  const deleteChat = async (chatId) => {
-    const updatedHistory = chatHistory.filter((chat) => chat.id !== chatId);
-    setChatHistory(updatedHistory);
-    await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
-    if (selectedChatId === chatId) {
-      setMessages([]);
-      setSelectedChatId(null);
-      setAiComparison(null);
-      setSelectedStaffType(null);
-      setActiveMode('ai');
-    }
-    const newTotalPages = Math.ceil(updatedHistory.length / chatsPerPage);
-    if (currentPage > newTotalPages && newTotalPages > 0) {
-      setCurrentPage(newTotalPages);
-    } else if (updatedHistory.length === 0) {
-      setCurrentPage(1);
+  const saveMessagesToStorage = async (type, messages) => {
+    try {
+      await AsyncStorage.setItem(
+        `advice_${type}_messages`,
+        JSON.stringify(messages)
+      );
+    } catch (error) {
+      console.error("Failed to save messages:", error);
     }
   };
 
-  // Pagination controls
-  const totalPages = Math.ceil(chatHistory.length / chatsPerPage);
-  const startIndex = (currentPage - 1) * chatsPerPage;
-  const endIndex = startIndex + chatsPerPage;
-  const currentChats = chatHistory.slice(startIndex, endIndex);
+  const loadExistingMessages = async () => {
+    try {
+      const [aiData, staffData] = await Promise.all([
+        AsyncStorage.getItem("advice_ai_messages"),
+        AsyncStorage.getItem("advice_staff_messages"),
+      ]);
 
-  const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
+      if (aiData) {
+        const aiMessages = JSON.parse(aiData);
+        setAiMessages(aiMessages);
+        if (activeMode === "ai") setMessages(aiMessages);
+      }
+
+      if (staffData) {
+        const staffMessages = JSON.parse(staffData);
+        setStaffMessages(staffMessages);
+        if (activeMode === "staff") setMessages(staffMessages);
+      }
+    } catch (error) {
+      console.error("Failed to load messages:", error);
     }
   };
 
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+  // ========== MODE SWITCHING ==========
+  const switchToAI = () => {
+    setActiveMode("ai");
+    setMessages(aiMessages);
+    setTimeout(
+      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+      100
+    );
+  };
+
+  const switchToStaff = () => {
+    if (staffMembers.length === 0) {
+      Alert.alert("No Staff Available", "Please try again later.");
+      return;
+    }
+
+    if (!selectedStaff) {
+      setShowStaffSelection(true);
+    } else {
+      setActiveMode("staff");
+      setMessages(staffMessages);
+      setTimeout(
+        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+  // ========== SEND MESSAGE HANDLER ==========
+  const handleSend = () => {
+    if (activeMode === "ai") {
+      sendAIMessage();
+    } else {
+      sendStaffMessage();
+    }
+  };
+
+  // ========== UI COMPONENTS ==========
+  const renderMessage = ({ item, index }) => {
+    const isUser = item.sender === "user";
+    const isAI = item.sender === "ai";
+
+    return (
+      <Animatable.View
+        key={item.id}
+        animation="fadeInUp"
+        duration={300}
+        delay={index * 50}
+        style={[
+          styles.messageContainer,
+          isUser ? styles.userMessageContainer : styles.otherMessageContainer,
+        ]}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-            accessible
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            accessibilityHint="Return to previous screen"
-          >
-            <Ionicons name="arrow-back" size={28} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.title}>
-            {activeMode === 'ai' ? 'AI Advice Chat' : `${selectedStaffType === 'nutrition' ? 'Nutrition' : 'Health'} Staff Advice Chat`}
-          </Text>
-          <TouchableOpacity
-            onPress={() => setShowHistoryModal(true)}
-            style={styles.historyButton}
-            accessible
-            accessibilityLabel="View chat history"
-            accessibilityRole="button"
-            accessibilityHint="Open chat history view"
-          >
-            <Ionicons name="time-outline" size={28} color="#1a1a1a" />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.description}>
-          {activeMode === 'ai'
-            ? 'Chat with our AI for instant pregnancy-related advice.'
-            : `Get personalized guidance from our ${selectedStaffType === 'nutrition' ? 'nutrition' : 'health'} staff.`}
-        </Text>
-        {/* Mode Toggle */}
-        <View style={styles.modeNav}>
-          <TouchableOpacity
-            style={[styles.modeButton, activeMode === 'ai' && styles.modeButtonActive]}
-            onPress={() => switchMode('ai')}
-            accessible
-            accessibilityLabel="Switch to AI Advice"
-            accessibilityRole="button"
-            accessibilityHint="Switch to AI-powered advice chat"
-          >
-            <Text style={[styles.modeButtonText, activeMode === 'ai' && styles.modeButtonTextActive]}>
-              AI Advice
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeButton, activeMode === 'staff' && styles.modeButtonActive]}
-            onPress={() => switchMode('staff')}
-            accessible
-            accessibilityLabel="Switch to Staff Advice"
-            accessibilityRole="button"
-            accessibilityHint="Switch to staff advice chat"
-          >
-            <Text style={[styles.modeButtonText, activeMode === 'staff' && styles.modeButtonTextActive]}>
-              Staff Advice
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {/* Chat Container */}
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <View
+          style={[
+            styles.messageBubble,
+            isUser
+              ? styles.userMessage
+              : isAI
+              ? styles.aiMessage
+              : styles.staffMessage,
+          ]}
         >
-          <View style={styles.chatContainer}>
-            {messages.length === 0 && (
-              <Text style={styles.emptyMessage}>
-                Start chatting by typing your question below!
+          <Text
+            style={[
+              styles.messageText,
+              isUser ? styles.userMessageText : styles.otherMessageText,
+            ]}
+          >
+            {item.text}
+          </Text>
+          <Text style={styles.messageTime}>
+            {formatMessageTime(item.timestamp)}
+            {/* {!isUser && activeMode === "staff" && (
+              <Text style={styles.staffName}>
+                {" "}
+                - {item.staffName || selectedStaff?.displayName}
               </Text>
-            )}
-            {messages.map((msg, index) => (
-              <Animatable.View
-                key={index}
-                animation="fadeInUp"
-                duration={300}
-                style={[
-                  styles.message,
-                  msg.sender === 'user' ? styles.messageUser : msg.sender === 'ai' ? styles.messageBot : styles.messageStaff,
-                ]}
-                accessible
-                accessibilityLabel={`${msg.sender === 'user' ? 'Your message' : msg.sender === 'ai' ? 'AI response' : 'Staff response'}: ${msg.text}`}
-              >
-                {msg.sender === 'ai' && (
-                  <View style={styles.avatar} />
-                )}
-                <View
-                  style={[
-                    styles.messageContent,
-                    msg.sender === 'user'
-                      ? styles.bgUser
-                      : msg.sender === 'ai'
-                      ? styles.bgAI
-                      : styles.bgStaff,
-                  ]}
-                >
-                  <Text style={[styles.messageText, msg.sender === 'user' && styles.messageTextUser]}>
-                    {msg.text}
+            )} */}
+          </Text>
+        </View>
+      </Animatable.View>
+    );
+  };
+
+  // Staff Selection Modal (same as before)
+  const StaffSelectionModal = () => (
+    <Modal
+      visible={showStaffSelection}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowStaffSelection(false)}
+    >
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Select Staff Member</Text>
+          <TouchableOpacity
+            onPress={() => setShowStaffSelection(false)}
+            style={styles.closeButton}
+          >
+            <Ionicons name="close" size={24} color="#666" />
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={staffMembers}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.staffItem}
+              onPress={() => selectStaff(item)}
+            >
+              <View style={styles.staffInfo}>
+                <Ionicons
+                  name={item.type === "health" ? "heart" : "fast-food"}
+                  size={24}
+                  color={item.type === "health" ? "#2e6da4" : "#2e6da4"}
+                />
+                <View style={styles.staffDetails}>
+                  <Text style={styles.staffName}>{item.displayName}</Text>
+                  <Text style={styles.staffType}>
+                    {item.type === "health"
+                      ? "Health Expert"
+                      : "Nutrition Specialist"}
                   </Text>
-                  <Text style={[styles.messageTimestamp, msg.sender === 'user' && styles.messageTimestampUser]}>
-                    {msg.time}
-                  </Text>
-                </View>
-              </Animatable.View>
-            ))}
-            {isLoading && (
-              <Animatable.View
-                animation="fadeInUp"
-                duration={300}
-                style={[styles.message, activeMode === 'ai' ? styles.messageBot : styles.messageStaff]}
-              >
-                {activeMode === 'ai' && <View style={styles.avatar} />}
-                <View style={[styles.messageContent, styles.typing]}>
-                  <View style={styles.dot} />
-                  <View style={[styles.dot, { animationDelay: '0.2s' }]} />
-                  <View style={[styles.dot, { animationDelay: '0.4s' }]} />
-                </View>
-              </Animatable.View>
-            )}
-          </View>
-          {/* AI Comparison (optimized for iOS) */}
-          {aiComparison && (
-            <Animatable.View animation="fadeInUp" duration={300} style={styles.comparisonContainer}>
-              <Text style={styles.comparisonTitle}>Response Comparison</Text>
-              <Text style={styles.comparisonQuestion}>
-                <Text style={styles.comparisonQuestionLabel}>Question: </Text>
-                {aiComparison.userMessage}
-              </Text>
-              <View style={styles.comparisonTable}>
-                <View style={styles.comparisonRow}>
-                  <Text style={styles.comparisonHeader}>
-                    {aiComparison.staffType === 'nutrition' ? 'Nutrition Staff Response' : 'Health Staff Response'}
-                  </Text>
-                  <View style={[styles.messageContent, styles.bgStaff]}>
-                    <Text style={styles.messageText}>{aiComparison.staffResponse}</Text>
-                    <Text style={styles.messageTimestamp}>{aiComparison.time}</Text>
-                  </View>
-                </View>
-                <View style={styles.comparisonRow}>
-                  <Text style={styles.comparisonHeader}>AI Response</Text>
-                  <View style={[styles.messageContent, styles.bgAI]}>
-                    <Text style={styles.messageText}>{aiComparison.aiResponse}</Text>
-                    <Text style={styles.messageTimestamp}>{aiComparison.time}</Text>
-                  </View>
+                  <Text style={styles.staffStatus}>Online</Text>
                 </View>
               </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
+          )}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+
+  // Loading state
+  if (!isInitialized) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2e6da4" />
+          <Text style={styles.loadingText}>Initializing...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ========== MAIN RENDER ==========
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        {/* Enhanced Header with Staff Switch Button */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+
+          <Text style={styles.headerTitle}>Health Advice</Text>
+
+          <View style={styles.headerRight}>
+            {/* Staff Switch Button - only show when in staff mode */}
+            {activeMode === "staff" && (
               <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setAiComparison(null)}
-                accessible
-                accessibilityLabel="Close comparison"
-                accessibilityRole="button"
-                accessibilityHint="Close the response comparison view"
+                onPress={() => setShowStaffSelection(true)}
+                style={styles.staffSwitchButton}
               >
-                <Text style={styles.closeButtonText}>Close Comparison</Text>
+                <Ionicons name="people" size={20} color="#2e6da4" />
+                <Text style={styles.staffSwitchText}>Switch</Text>
               </TouchableOpacity>
-            </Animatable.View>
-          )}
-          {/* Compare Button (Staff Mode) */}
-          {activeMode === 'staff' && messages.length > 0 && (
-            <TouchableOpacity
-              style={[styles.compareButton, isLoading && styles.compareButtonDisabled]}
-              onPress={compareToAiChat}
-              disabled={isLoading}
-              accessible
-              accessibilityLabel="Compare to AI Chat"
-              accessibilityRole="button"
-              accessibilityHint="Compare staff response with AI response"
-            >
-              <Text style={styles.compareButtonText}>Compare to AI Chat</Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
-        {/* Input Form (same for AI and Staff modes) */}
-        {(activeMode === 'ai' || activeMode === 'staff') && (
-          <View style={styles.inputForm}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Ask a question..."
-              placeholderTextColor="#6B7280"
-              multiline
-              ref={inputFormRef}
-              accessible
-              accessibilityLabel="Message input"
-              accessibilityHint="Type your question here"
-              returnKeyType="send"
-              onSubmitEditing={handleSendMessage}
+            )}
+
+            {/* Connection Status */}
+            {/* <View style={styles.connectionStatus}>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor:
+                      connection &&
+                      connection.state === signalR.HubConnectionState.Connected
+                        ? "#2e6da4"
+                        : "#FF9800",
+                  },
+                ]}
+              />
+            </View> */}
+          </View>
+        </View>
+
+        {/* Mode Selector */}
+        <View style={styles.modeSelector}>
+          <TouchableOpacity
+            style={[
+              styles.modeButton,
+              activeMode === "ai" && styles.activeModeButton,
+            ]}
+            onPress={switchToAI}
+          >
+            <Ionicons
+              name="chatbubbles"
+              size={20}
+              color={activeMode === "ai" ? "#fff" : "#666"}
             />
-            <TouchableOpacity
-              style={[styles.sendButton, (!input.trim() || isLoading) && styles.sendButtonDisabled]}
-              onPress={handleSendMessage}
-              disabled={isLoading || !input.trim()}
-              accessible
-              accessibilityLabel="Send message"
-              accessibilityRole="button"
-              accessibilityHint="Send your question"
+            <Text
+              style={[
+                styles.modeButtonText,
+                activeMode === "ai" && styles.activeModeButtonText,
+              ]}
             >
-              <Ionicons name="send" size={24} color="#fff" />
-            </TouchableOpacity>
+              AI Assistant
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.modeButton,
+              activeMode === "staff" && styles.activeModeButton,
+            ]}
+            onPress={switchToStaff}
+          >
+            <Ionicons
+              name="people"
+              size={20}
+              color={activeMode === "staff" ? "#fff" : "#666"}
+            />
+            <Text
+              style={[
+                styles.modeButtonText,
+                activeMode === "staff" && styles.activeModeButtonText,
+              ]}
+            >
+              {selectedStaff ? selectedStaff.displayName : "Staff Consultation"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Connection Status Banner */}
+        {activeMode === "staff" && (
+          <View style={styles.statusBanner}>
+            <Text style={styles.statusBannerText}>
+              {connection &&
+              connection.state === signalR.HubConnectionState.Connected
+                ? "Connected to staff chat"
+                : connectionError
+                ? "Connection error"
+                : "Connecting to staff chat..."}
+            </Text>
           </View>
         )}
-        {/* Staff Type Prompt Modal (iOS-optimized) */}
-        <Modal
-          visible={showStaffTypePrompt}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowStaffTypePrompt(false)}
-        >
-          <View style={styles.overlay}>
-            <Animatable.View
-              animation="zoomIn"
-              duration={300}
-              style={styles.staffTypePopup}
-              ref={staffPromptRef}
-              accessibilityRole="dialog"
-              accessibilityLabel="Select staff type"
-              accessibilityHint="Choose between Nutrition Staff or Health Staff"
-            >
-              <Text style={styles.staffTypeTitle}>Let's Get Started!</Text>
-              <Text style={styles.staffTypeMessage}>Who would you like to consult with today?</Text>
-              <View style={styles.staffTypeButtons}>
-                <TouchableOpacity
-                  style={styles.staffTypeButton}
-                  onPress={() => handleStaffTypeSelect('nutrition')}
-                  accessible
-                  accessibilityLabel="Consult Nutrition Staff"
-                  accessibilityRole="button"
-                  accessibilityHint="Chat with nutrition experts"
-                >
-                  <Text style={styles.staffTypeButtonText}>Nutrition Staff</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.staffTypeButton}
-                  onPress={() => handleStaffTypeSelect('health')}
-                  accessible
-                  accessibilityLabel="Consult Health Staff"
-                  accessibilityRole="button"
-                  accessibilityHint="Chat with health experts"
-                >
-                  <Text style={styles.staffTypeButtonText}>Health Staff</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                style={styles.staffTypeCancel}
-                onPress={() => setShowStaffTypePrompt(false)}
-                accessible
-                accessibilityLabel="Cancel staff selection"
-                accessibilityRole="button"
-                accessibilityHint="Close the staff selection dialog"
-              >
-                <Text style={styles.staffTypeCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </Animatable.View>
+
+        {/* Messages */}
+        <FlatList
+          ref={scrollViewRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          style={styles.messagesList}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => {
+            setTimeout(
+              () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+              100
+            );
+          }}
+        />
+
+        {/* Loading Indicator */}
+        {(isLoading || sendingMessage) && (
+          <View style={styles.loadingIndicator}>
+            <ActivityIndicator color="#2e6da4" />
+            <Text style={styles.loadingText}>
+              {activeMode === "ai" ? "AI is thinking..." : "Sending message..."}
+            </Text>
           </View>
-        </Modal>
-        {/* Chat History Modal */}
-        <Modal
-          visible={showHistoryModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowHistoryModal(false)}
-        >
-          <SafeAreaView style={styles.historyModal} edges={['bottom', 'left', 'right']}>
-            <View style={styles.historyHeader}>
-              <Text style={styles.historyTitle}>Advice History</Text>
-              <TouchableOpacity
-                style={styles.closeHistoryButton}
-                onPress={() => setShowHistoryModal(false)}
-                accessible
-                accessibilityLabel="Close history"
-                accessibilityRole="button"
-                accessibilityHint="Close the chat history view"
-              >
-                <Ionicons name="close" size={28} color="#1a1a1a" />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.newChatButton}
-              onPress={startNewChat}
-              accessible
-              accessibilityLabel="Start new chat"
-              accessibilityRole="button"
-              accessibilityHint="Begin a new chat session"
-            >
-              <Text style={styles.newChatButtonText}>New Chat</Text>
-            </TouchableOpacity>
-            {chatHistory.length === 0 ? (
-              <Text style={styles.emptyHistoryMessage}>No history yet.</Text>
-            ) : (
-              <FlatList
-                data={currentChats}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <Animatable.View
-                    animation="fadeInUp"
-                    duration={300}
-                    style={[styles.historyItem, selectedChatId === item.id && styles.historyItemSelected]}
-                  >
-                    <Pressable
-                      style={styles.historyContent}
-                      onPress={() => loadChatHistory(item.id)}
-                      accessible
-                      accessibilityLabel={`Chat: ${item.question || 'New Chat'}`}
-                      accessibilityRole="button"
-                      accessibilityHint="Load this chat session"
-                    >
-                      <Text style={styles.historySender}>
-                        {item.question || 'New Chat'}:
-                      </Text>
-                      <Text style={styles.historyText}>
-                        {item.messages.length > 0 ? item.messages[item.messages.length - 1].text.slice(0, 50) + '...' : 'No messages yet'}
-                      </Text>
-                      <Text style={styles.historyTimestamp}>
-                        {item.messages.length > 0
-                          ? item.messages[item.messages.length - 1].time
-                          : new Date(item.id).toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                      </Text>
-                    </Pressable>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => deleteChat(item.id)}
-                      accessible
-                      accessibilityLabel="Delete chat"
-                      accessibilityRole="button"
-                      accessibilityHint="Remove this chat from history"
-                    >
-                      <Ionicons name="trash-outline" size={20} color="#ffffff" />
-                    </TouchableOpacity>
-                  </Animatable.View>
-                )}
-              />
-            )}
-            {totalPages > 1 && (
-              <View style={styles.pagination}>
-                <TouchableOpacity
-                  style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-                  onPress={goToPreviousPage}
-                  disabled={currentPage === 1}
-                  accessible
-                  accessibilityLabel="Previous page"
-                  accessibilityRole="button"
-                  accessibilityHint="Go to previous chat history page"
-                >
-                  <Ionicons name="chevron-back" size={16} color="#ffffff" />
-                  <Text style={styles.paginationButtonText}>Prev</Text>
-                </TouchableOpacity>
-                <Text style={styles.paginationInfo}>
-                  {currentPage}/{totalPages}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-                  onPress={goToNextPage}
-                  disabled={currentPage === totalPages}
-                  accessible
-                  accessibilityLabel="Next page"
-                  accessibilityRole="button"
-                  accessibilityHint="Go to next chat history page"
-                >
-                  <Text style={styles.paginationButtonText}>Next</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#ffffff" />
-                </TouchableOpacity>
-              </View>
-            )}
-          </SafeAreaView>
-        </Modal>
+        )}
+
+        {/* Input Area */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.textInput}
+            placeholder={
+              activeMode === "ai"
+                ? "Ask AI for health advice..."
+                : selectedStaff
+                ? `Message ${selectedStaff.displayName}...`
+                : "Select staff to chat..."
+            }
+            value={input}
+            onChangeText={setInput}
+            multiline
+            maxLength={1000}
+            editable={
+              activeMode === "ai" ||
+              (activeMode === "staff" &&
+                selectedStaff &&
+                connection?.state === signalR.HubConnectionState.Connected)
+            }
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              (!input.trim() ||
+                isLoading ||
+                sendingMessage ||
+                (activeMode === "staff" &&
+                  (!selectedStaff ||
+                    connection?.state !==
+                      signalR.HubConnectionState.Connected))) &&
+                styles.sendButtonDisabled,
+            ]}
+            onPress={handleSend}
+            disabled={
+              !input.trim() ||
+              isLoading ||
+              sendingMessage ||
+              (activeMode === "staff" &&
+                (!selectedStaff ||
+                  connection?.state !== signalR.HubConnectionState.Connected))
+            }
+          >
+            <Ionicons name="send" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Staff Selection Modal */}
+        <StaffSelectionModal />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
+// ========== STYLES (Same as before) ==========
 const styles = StyleSheet.create({
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  staffSwitchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 12,
+    borderRadius: 12,
+    backgroundColor: "#E8F5E8",
+  },
+  staffSwitchText: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#2e6da4",
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: "#f8f9fa",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    borderBottomColor: "#e0e0e0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  backButton: {
-    padding: 12,
-    minWidth: 44,
-    minHeight: 44, // iOS HIG: minimum tap target
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
   },
-  historyButton: {
-    padding: 12,
-    minWidth: 44,
-    minHeight: 44,
+  connectionStatus: {
+    alignItems: "center",
   },
-  title: {
-    fontSize: width < 360 ? 18 : width < 480 ? 20 : 22,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  description: {
-    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
-    color: '#666666',
-    textAlign: 'center',
-    paddingHorizontal: 16,
-    marginVertical: 12,
-    lineHeight: 20,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  modeNav: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    gap: 12,
-  },
-  modeButton: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    minWidth: 120,
-    minHeight: 44, // iOS HIG: minimum tap target
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  modeButtonActive: {
-    backgroundColor: '#007aff',
-    borderColor: '#007aff',
-    shadowOpacity: 0.2, // Enhanced shadow for active state on iOS
-  },
-  modeButtonText: {
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    fontWeight: '600',
-    color: '#333333',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  modeButtonTextActive: {
-    color: '#ffffff',
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    flexGrow: 1,
-  },
-  chatContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    padding: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  emptyMessage: {
-    textAlign: 'center',
-    color: '#888888',
-    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
-    padding: 20,
-    opacity: 0.7,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  message: {
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  messageUser: {
-    justifyContent: 'flex-end',
-  },
-  messageBot: {
-    justifyContent: 'flex-start',
-  },
-  messageStaff: {
-    justifyContent: 'flex-start',
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#007aff',
-    marginRight: 8,
-  },
-  messageContent: {
-    maxWidth: '75%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
-  },
-  bgUser: {
-    backgroundColor: '#007aff',
-    borderBottomRightRadius: 4,
-  },
-  bgAI: {
-    backgroundColor: '#e6f0ff',
-    borderBottomLeftRadius: 4,
-  },
-  bgStaff: {
-    backgroundColor: '#d1fae5',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    color: '#1a1a1a',
-    lineHeight: 24,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  messageTextUser: {
-    color: '#ffffff',
-  },
-  messageTimestamp: {
-    fontSize: width < 360 ? 10 : width < 480 ? 12 : 14,
-    color: '#999999',
-    marginTop: 8,
-    opacity: 0.8,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  messageTimestampUser: {
-    color: '#ffffff',
-  },
-  typing: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 10,
-  },
-  dot: {
+  statusDot: {
     width: 8,
     height: 8,
-    backgroundColor: '#666666',
     borderRadius: 4,
   },
-  inputForm: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    padding: 8,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 12,
+  modeSelector: {
+    flexDirection: "row",
     paddingHorizontal: 16,
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    color: '#1a1a1a',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    minHeight: 48,
-    maxHeight: 120,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginHorizontal: 4,
+    borderRadius: 20,
+    backgroundColor: "#f0f0f0",
+    elevation: 1,
+  },
+  activeModeButton: {
+    backgroundColor: "#2e6da4",
+    elevation: 3,
+  },
+  modeButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+  },
+  activeModeButtonText: {
+    color: "#fff",
+  },
+  statusBanner: {
+    backgroundColor: "#E8F5E8",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  statusBannerText: {
+    color: "#2E7D32",
+    fontSize: 12,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+  messagesList: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+  },
+  messagesContent: {
+    paddingVertical: 16,
+  },
+  messageContainer: {
+    paddingHorizontal: 16,
+    marginVertical: 4,
+  },
+  userMessageContainer: {
+    alignItems: "flex-end",
+  },
+  otherMessageContainer: {
+    alignItems: "flex-start",
+  },
+  messageBubble: {
+    maxWidth: "80%",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  userMessage: {
+    backgroundColor: "#2e6da4",
+  },
+  aiMessage: {
+    backgroundColor: "#2196F3",
+  },
+  staffMessage: {
+    backgroundColor: "#2196F3",
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  userMessageText: {
+    color: "#fff",
+  },
+  otherMessageText: {
+    color: "#fff",
+  },
+  messageTime: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 4,
+  },
+  staffName: {
+    fontWeight: "500",
+  },
+  loadingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  loadingText: {
+    marginLeft: 8,
+    color: "#666",
+    fontSize: 14,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  textInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 8,
+    fontSize: 16,
+    maxHeight: 100,
+    backgroundColor: "#f8f9fa",
   },
   sendButton: {
-    backgroundColor: '#007aff',
-    borderRadius: 50,
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#2e6da4",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   sendButtonDisabled: {
-    backgroundColor: '#cccccc',
+    backgroundColor: "#ccc",
+    elevation: 1,
   },
-  footerNote: {
-    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
-    color: '#666666',
-    textAlign: 'center',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    lineHeight: 24,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  linkText: {
-    color: '#007aff',
-    fontWeight: '600',
-  },
-  overlay: {
+  // Modal Styles (same as before)
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#fff",
   },
-  staffTypePopup: {
-    backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 16,
-    width: '90%',
-    maxWidth: 400,
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  staffTypeTitle: {
-    fontSize: width < 360 ? 20 : width < 480 ? 22 : 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 16,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  staffTypeMessage: {
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    color: '#333333',
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 28,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  staffTypeButtons: {
-    flexDirection: width < 360 ? 'column' : 'row',
-    gap: 16,
-    marginBottom: 24,
-    width: '100%',
-  },
-  staffTypeButton: {
-    backgroundColor: '#007aff',
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 14,
-    flex: 1,
-    minHeight: 48,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  staffTypeButtonText: {
-    color: '#ffffff',
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  staffTypeCancel: {
-    backgroundColor: '#e5e7eb',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 14,
-    minWidth: 120,
-    minHeight: 48,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  staffTypeCancelText: {
-    color: '#333333',
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  compareButton: {
-    backgroundColor: '#007aff',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    alignSelf: 'center',
-    marginVertical: 16,
-    minHeight: 48,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  compareButtonDisabled: {
-    backgroundColor: '#cccccc',
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
-  compareButtonText: {
-    color: '#ffffff',
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  comparisonContainer: {
-    backgroundColor: '#ffffff',
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  comparisonTitle: {
-    fontSize: width < 360 ? 18 : width < 480 ? 20 : 22,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 16,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  comparisonQuestion: {
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    color: '#333333',
-    textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 24,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  comparisonQuestionLabel: {
-    fontWeight: '600',
-  },
-  comparisonTable: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginBottom: 16,
-  },
-  comparisonRow: {
-    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e0e0e0",
+    elevation: 2,
   },
-  comparisonHeader: {
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 12,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
   },
   closeButton: {
-    backgroundColor: '#ff3b30',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    alignSelf: 'center',
-    minHeight: 48,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    padding: 4,
   },
-  closeButtonText: {
-    color: '#ffffff',
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  staffItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
   },
-  historyModal: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: height * 0.7,
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  historyTitle: {
-    fontSize: width < 360 ? 20 : width < 480 ? 22 : 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  closeHistoryButton: {
-    padding: 12,
-    minWidth: 44,
-    minHeight: 44,
-  },
-  newChatButton: {
-    backgroundColor: '#007aff',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    marginBottom: 12,
-    minHeight: 48,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  newChatButtonText: {
-    color: '#ffffff',
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  emptyHistoryMessage: {
-    textAlign: 'center',
-    color: '#888888',
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    padding: 20,
-    opacity: 0.7,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  historyItem: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  historyItemSelected: {
-    backgroundColor: '#e0e0e0',
-  },
-  historyContent: {
+  staffInfo: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
-    paddingRight: 40,
   },
-  historySender: {
-    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  staffDetails: {
+    marginLeft: 12,
+    flex: 1,
   },
-  historyText: {
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    color: '#333333',
-    marginBottom: 8,
-    lineHeight: 24,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  staffName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
   },
-  historyTimestamp: {
-    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
-    color: '#999999',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  staffType: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 2,
   },
-  deleteButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#ff3b30',
-    borderRadius: 16,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 8,
-  },
-  paginationButton: {
-    backgroundColor: '#ff3b30',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 48,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  paginationButtonDisabled: {
-    backgroundColor: '#d1d5db',
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
-  paginationButtonText: {
-    color: '#ffffff',
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  paginationInfo: {
-    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    backgroundColor: '#ffffff',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+  staffStatus: {
+    fontSize: 12,
+    color: "#4CAF50",
+    marginTop: 2,
+    fontWeight: "500",
   },
 });
 
