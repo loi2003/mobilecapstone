@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   Platform,
@@ -15,18 +14,13 @@ import {
   Keyboard,
   ActivityIndicator,
   Alert,
-  RefreshControl,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// ✅ SignalR import (same as ConsultationChat.js)
 import * as signalR from "@microsoft/signalr";
-
-// API imports
 import { getAIChatResponse } from "../api/aiadvise-api";
 import {
   startChatThread,
@@ -35,11 +29,8 @@ import {
 } from "../api/message-api";
 import { getAllUsers } from "../api/user-api";
 import { getCurrentUser } from "../api/auth";
-
-// ✅ Message Context (same as ConsultationChat.js)
 import { useMessages } from "../contexts/MessageContext";
 
-// Polyfill for SignalR compatibility (same as ConsultationChat.js)
 if (!globalThis.document) {
   globalThis.document = undefined;
 }
@@ -47,75 +38,54 @@ if (!globalThis.document) {
 const { width, height } = Dimensions.get("window");
 
 const AdviceScreen = () => {
-  // ✅ Use MessageContext (same as ConsultationChat.js)
-  const {
-    connection,
-    messages: contextMessages,
-    addMessage,
-    connectionError,
-  } = useMessages();
-
-  // ========== EXISTING STATES (Enhanced) ==========
+  const { connection, messages: contextMessages, addMessage, connectionError } =
+    useMessages();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [activeMode, setActiveMode] = useState("ai"); // 'ai' or 'staff'
+  const [activeMode, setActiveMode] = useState("ai");
   const [isLoading, setIsLoading] = useState(false);
-
-  // ========== NEW STATES (From Web Version + ConsultationChat.js patterns) ==========
-  // User and Authentication
   const [currentUser, setCurrentUser] = useState(null);
   const [currentUserId, setCurrentUserId] = useState("");
   const [token, setToken] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
-
-  // Staff Management (replaces mock system)
   const [staffMembers, setStaffMembers] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [showStaffSelection, setShowStaffSelection] = useState(false);
-
-  // Thread-based Chat System
   const [staffChatThread, setStaffChatThread] = useState(null);
   const [staffMessages, setStaffMessages] = useState([]);
   const [aiMessages, setAiMessages] = useState([]);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedChatId, setSelectedChatId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const chatsPerPage = 3;
 
-  // Real-time Message Handling
   const processedMessageIds = useRef(new Set());
   const scrollViewRef = useRef(null);
-
   const navigation = useNavigation();
 
-  // ========== INITIALIZATION (Enhanced with ConsultationChat.js patterns) ==========
   useEffect(() => {
     initializeApp();
   }, []);
 
   const initializeApp = async () => {
     try {
-      // Same token retrieval pattern as ConsultationChat.js
       const storedToken = await AsyncStorage.getItem("authToken");
       if (!storedToken) {
         Alert.alert("Error", "Please login first");
-        navigation.navigate("SignIn", {
-          redirectTo: "Advice",
-          params: {},
-        });
+        navigation.navigate("SignIn", { redirectTo: "Advice", params: {} });
         return;
       }
 
       setToken(storedToken);
-
-      // Same user retrieval pattern as ConsultationChat.js
       const userRes = await getCurrentUser(storedToken);
       const userId =
         userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || "";
 
       if (!userId) {
         await AsyncStorage.removeItem("authToken");
-        navigation.navigate("SignIn", {
-          redirectTo: "Advice",
-          params: {},
-        });
+        navigation.navigate("SignIn", { redirectTo: "Advice", params: {} });
         return;
       }
 
@@ -123,12 +93,10 @@ const AdviceScreen = () => {
       setCurrentUserId(userId);
       setCurrentUser({ id: userId, ...userRes?.data?.data });
 
-      // Load existing messages
       await loadExistingMessages();
+      await loadChatHistory();
 
-      // Load staff members
       await loadStaffMembers(storedToken);
-
       setIsInitialized(true);
     } catch (error) {
       console.error("Initialization error:", error);
@@ -136,13 +104,35 @@ const AdviceScreen = () => {
     }
   };
 
-  // ========== STAFF MANAGEMENT (Enhanced) ==========
+  const loadChatHistory = async () => {
+    try {
+      const storedHistory = await AsyncStorage.getItem("chatHistory");
+      if (storedHistory) {
+        const history = JSON.parse(storedHistory);
+        setChatHistory(history);
+        if (selectedChatId) {
+          const chat = history.find((ch) => ch.id === selectedChatId);
+          if (chat && activeMode === "ai") {
+            setAiMessages(chat.messages || []);
+            setMessages(chat.messages || []);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+    }
+  };
+
+  useEffect(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, [messages]);
+
   const loadStaffMembers = async (authToken) => {
     try {
       const response = await getAllUsers(authToken);
       const users = response.data?.data || response.data || [];
-
-      // Filter staff members (roleId 4 = nutrition, roleId 3 = health expert)
       const staff = users
         .filter((user) => user.roleId === 4 || user.roleId === 3)
         .map((user) => ({
@@ -162,23 +152,21 @@ const AdviceScreen = () => {
     try {
       setSelectedStaff(staff);
       setShowStaffSelection(false);
-
-      // Initialize or load chat thread with selected staff
       await initializeStaffThread(staff);
+      setActiveMode("staff"); // Switch to staff mode
+      setMessages(staffMessages); // Update messages to show staff chat
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       console.error("Failed to select staff:", error);
       Alert.alert("Error", "Failed to connect with staff member");
     }
   };
 
-  // ========== THREAD MANAGEMENT (Enhanced with ConsultationChat.js patterns) ==========
   const initializeStaffThread = async (staff) => {
     try {
       if (!currentUserId || !token) return;
 
       console.log("Initializing staff thread for:", staff.displayName);
-
-      // Same thread loading pattern as ConsultationChat.js
       const threadsResponse = await getChatThreadByUserId(currentUserId, token);
       let threads = [];
 
@@ -190,7 +178,6 @@ const AdviceScreen = () => {
         threads = [threadsResponse];
       }
 
-      // Find existing thread with this staff member
       const existingThread = threads.find(
         (thread) =>
           thread.consultantId === staff.id ||
@@ -198,12 +185,10 @@ const AdviceScreen = () => {
       );
 
       if (existingThread) {
-        // Load existing thread
         console.log("Loading existing thread:", existingThread.id);
         setStaffChatThread(existingThread);
         await loadThreadMessages(existingThread);
 
-        // Join the thread for real-time updates
         if (
           connection &&
           connection.state === signalR.HubConnectionState.Connected
@@ -219,7 +204,6 @@ const AdviceScreen = () => {
           }
         }
       } else {
-        // Create new thread
         console.log("Creating new thread...");
         const threadData = { userId: currentUserId, consultantId: staff.id };
         const createdThread = await startChatThread(threadData, token);
@@ -238,7 +222,6 @@ const AdviceScreen = () => {
           return;
         }
 
-        // Load the created thread with messages
         const threadWithMessages = await getChatThreadById(threadId, token);
         const thread = threadWithMessages?.data || {
           id: threadId,
@@ -250,7 +233,6 @@ const AdviceScreen = () => {
         setStaffChatThread(thread);
         setStaffMessages(thread.messages || []);
 
-        // Join the new thread for real-time updates
         if (
           connection &&
           connection.state === signalR.HubConnectionState.Connected
@@ -270,7 +252,6 @@ const AdviceScreen = () => {
 
   const loadThreadMessages = (thread) => {
     const processedMessages = (thread.messages || []).map((msg) => {
-      // Same UTC timestamp handling as ConsultationChat.js
       let timestamp = msg.createdAt || msg.sentAt || new Date().toISOString();
       if (typeof timestamp === "string" && !timestamp.includes("Z")) {
         timestamp = timestamp + "Z";
@@ -287,16 +268,26 @@ const AdviceScreen = () => {
     });
 
     setStaffMessages(processedMessages);
-
-    // Update main messages if staff mode is active
     if (activeMode === "staff") {
       setMessages(processedMessages);
     }
   };
 
-  // ========== MESSAGING FUNCTIONS (Enhanced with ConsultationChat.js patterns) ==========
   const sendAIMessage = async () => {
     if (!input.trim() || isLoading) return;
+
+    let currentChatId = selectedChatId;
+    let storedHistory = chatHistory;
+
+    if (currentChatId === null && activeMode === "ai") {
+      currentChatId = Date.now().toString();
+      const newChat = { id: currentChatId, question: input.trim(), messages: [] };
+      storedHistory = [...chatHistory, newChat];
+      setChatHistory(storedHistory);
+      await AsyncStorage.setItem("chatHistory", JSON.stringify(storedHistory));
+      setSelectedChatId(currentChatId);
+      setCurrentPage(Math.ceil(storedHistory.length / chatsPerPage));
+    }
 
     const userMessage = {
       id: Date.now().toString(),
@@ -307,6 +298,16 @@ const AdviceScreen = () => {
 
     setAiMessages((prev) => [...prev, userMessage]);
     setMessages((prev) => [...prev, userMessage]);
+
+    if (activeMode === "ai") {
+      const updatedHistory = storedHistory.map((chat) =>
+        chat.id === currentChatId
+          ? { ...chat, question: chat.question || input.trim(), messages: [...(chat.messages || []), userMessage] }
+          : chat
+      );
+      setChatHistory(updatedHistory);
+      await AsyncStorage.setItem("chatHistory", JSON.stringify(updatedHistory));
+    }
 
     const currentInput = input;
     setInput("");
@@ -326,12 +327,17 @@ const AdviceScreen = () => {
       setAiMessages((prev) => [...prev, aiMessage]);
       setMessages((prev) => [...prev, aiMessage]);
 
-      // Save to AsyncStorage
-      await saveMessagesToStorage("ai", [
-        ...aiMessages,
-        userMessage,
-        aiMessage,
-      ]);
+      if (activeMode === "ai") {
+        const finalHistory = chatHistory.map((chat) =>
+          chat.id === currentChatId
+            ? { ...chat, messages: [...(chat.messages || []), userMessage, aiMessage] }
+            : chat
+        );
+        setChatHistory(finalHistory);
+        await AsyncStorage.setItem("chatHistory", JSON.stringify(finalHistory));
+      }
+
+      await saveMessagesToStorage("ai", [...aiMessages, userMessage, aiMessage]);
     } catch (error) {
       console.error("AI response error:", error);
 
@@ -344,6 +350,16 @@ const AdviceScreen = () => {
 
       setAiMessages((prev) => [...prev, errorMessage]);
       setMessages((prev) => [...prev, errorMessage]);
+
+      if (activeMode === "ai") {
+        const finalHistory = chatHistory.map((chat) =>
+          chat.id === currentChatId
+            ? { ...chat, messages: [...(chat.messages || []), userMessage, errorMessage] }
+            : chat
+        );
+        setChatHistory(finalHistory);
+        await AsyncStorage.setItem("chatHistory", JSON.stringify(finalHistory));
+      }
     } finally {
       setIsLoading(false);
       setTimeout(() => {
@@ -377,7 +393,6 @@ const AdviceScreen = () => {
       staffName: selectedStaff.displayName,
     };
 
-    // Add to UI immediately
     setStaffMessages((prev) => [...prev, userMessage]);
     setMessages((prev) => [...prev, userMessage]);
 
@@ -386,7 +401,6 @@ const AdviceScreen = () => {
     setSendingMessage(true);
 
     try {
-      // Same direct fetch pattern as ConsultationChat.js
       const formData = new FormData();
       formData.append("ChatThreadId", staffChatThread.id);
       formData.append("SenderId", currentUserId);
@@ -396,23 +410,19 @@ const AdviceScreen = () => {
         "https://api.nestlycare.live/api/message/send-message",
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         }
       );
 
       const responseData = await response.json();
-      console.log("=== Message Send Response ===");
-      console.log("Status:", response.status);
-      console.log("Response:", responseData);
+      console.log("=== Message Send Response ===", {
+        status: response.status,
+        response: responseData,
+      });
 
       if (response.ok && responseData.error === 0) {
-        // Success - message will come via SignalR
         console.log("Message sent successfully");
-
-        // Save to AsyncStorage
         await saveMessagesToStorage("staff", [...staffMessages, userMessage]);
       } else {
         console.error("API Error:", responseData);
@@ -420,34 +430,25 @@ const AdviceScreen = () => {
           "Error",
           `Failed to send message: ${responseData.message || "Unknown error"}`
         );
-
-        // Remove the message from UI since it failed
         setStaffMessages((prev) =>
           prev.filter((msg) => msg.id !== userMessage.id)
         );
         setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id));
-
-        // Restore input
         setInput(currentInput);
       }
     } catch (error) {
       console.error("Network Error:", error);
       Alert.alert("Error", `Failed to send message: ${error.message}`);
-
-      // Remove the message from UI since it failed
       setStaffMessages((prev) =>
         prev.filter((msg) => msg.id !== userMessage.id)
       );
       setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id));
-
-      // Restore input
       setInput(currentInput);
     } finally {
       setSendingMessage(false);
     }
   };
 
-  // ========== REAL-TIME MESSAGE HANDLING (From ConsultationChat.js patterns) ==========
   useEffect(() => {
     if (contextMessages && contextMessages.length > 0) {
       const latestMessage = contextMessages[contextMessages.length - 1];
@@ -456,8 +457,7 @@ const AdviceScreen = () => {
   }, [contextMessages]);
 
   const handleRealTimeMessage = (message) => {
-    console.log("📨 [DEBUG] === REAL-TIME MESSAGE HANDLER ===");
-    console.log("📨 [DEBUG] Received message:", {
+    console.log("📨 [DEBUG] === REAL-TIME MESSAGE HANDLER ===", {
       id: message.id,
       senderId: message.senderId,
       currentUserId: currentUserId,
@@ -468,7 +468,6 @@ const AdviceScreen = () => {
       activeMode: activeMode,
     });
 
-    // Prevent duplicate processing
     if (!message.id || processedMessageIds.current.has(message.id)) {
       return;
     }
@@ -476,17 +475,14 @@ const AdviceScreen = () => {
     processedMessageIds.current.add(message.id);
 
     const messageThreadId = message.chatThreadId || message.threadId;
-
     let isForCurrentThread = false;
 
     if (messageThreadId && staffChatThread) {
-      // Standard thread matching
       isForCurrentThread = messageThreadId === staffChatThread.id;
     } else if (selectedStaff && message.senderId !== currentUserId) {
       isForCurrentThread = message.senderId === selectedStaff.id;
     }
 
-    // Process message if it's for staff consultation
     if (selectedStaff && isForCurrentThread) {
       const processedMessage = {
         id: message.id || Date.now().toString(),
@@ -499,50 +495,28 @@ const AdviceScreen = () => {
         isRead: true,
       };
 
-      // Always update staff messages
       setStaffMessages((prev) => {
-        // Check if message already exists
         const exists = prev.find((m) => m.id === processedMessage.id);
-        if (exists) {
-          return prev;
-        }
-
+        if (exists) return prev;
         const updated = [...prev, processedMessage];
-
-        // Save to storage
         saveMessagesToStorage("staff", updated);
-
         return updated;
       });
 
-      // Update current view messages if in staff mode
       if (activeMode === "staff") {
         setMessages((prev) => {
-          // Check if message already exists
           const exists = prev.find((m) => m.id === processedMessage.id);
-          if (exists) {
-            return prev;
-          }
-
-          const updated = [...prev, processedMessage];
-          return updated;
+          if (exists) return prev;
+          return [...prev, processedMessage];
         });
 
-        // Auto-scroll to bottom
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
-      } else {
-        console.log(
-          "🔍 [DEBUG] Not in staff mode (activeMode:",
-          activeMode,
-          ") - not updating main messages"
-        );
       }
-    } else {
     }
   };
-  // ========== UTILITY FUNCTIONS (Enhanced with ConsultationChat.js patterns) ==========
+
   const formatUTCTimestamp = (timestamp) => {
     if (!timestamp) return new Date().toISOString();
     if (typeof timestamp === "string" && !timestamp.includes("Z")) {
@@ -551,7 +525,6 @@ const AdviceScreen = () => {
     return timestamp;
   };
 
-  // Same time formatting as ConsultationChat.js
   const formatMessageTime = (timestamp) => {
     if (!timestamp) return "";
 
@@ -621,14 +594,80 @@ const AdviceScreen = () => {
     }
   };
 
-  // ========== MODE SWITCHING ==========
+  const startNewChat = async () => {
+    const newChat = { id: Date.now().toString(), question: "", messages: [] };
+    setMessages([]);
+    setInput("");
+    setSelectedChatId(newChat.id);
+    setAiMessages([]);
+    if (activeMode === "ai") {
+      setMessages([]);
+    }
+    setChatHistory((prev) => {
+      const newHistory = [...prev, newChat];
+      AsyncStorage.setItem("chatHistory", JSON.stringify(newHistory));
+      setCurrentPage(Math.ceil(newHistory.length / chatsPerPage));
+      return newHistory;
+    });
+    setShowHistoryModal(false);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const loadChatHistoryMessages = (chatId) => {
+    const chat = chatHistory.find((ch) => ch.id === chatId);
+    if (chat && activeMode === "ai") {
+      setMessages(chat.messages || []);
+      setAiMessages(chat.messages || []);
+      setSelectedChatId(chatId);
+      setShowHistoryModal(false);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  };
+
+  const deleteChat = async (chatId) => {
+    const updatedHistory = chatHistory.filter((chat) => chat.id !== chatId);
+    setChatHistory(updatedHistory);
+    await AsyncStorage.setItem("chatHistory", JSON.stringify(updatedHistory));
+    if (selectedChatId === chatId && activeMode === "ai") {
+      setMessages([]);
+      setAiMessages([]);
+      setSelectedChatId(null);
+    }
+    const newTotalPages = Math.ceil(updatedHistory.length / chatsPerPage);
+    if (currentPage > newTotalPages && newTotalPages > 0) {
+      setCurrentPage(newTotalPages);
+    } else if (updatedHistory.length === 0) {
+      setCurrentPage(1);
+    }
+  };
+
+  const totalPages = Math.ceil(chatHistory.length / chatsPerPage);
+  const startIndex = (currentPage - 1) * chatsPerPage;
+  const endIndex = startIndex + chatsPerPage;
+  const currentChats = chatHistory.slice(startIndex, endIndex);
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
   const switchToAI = () => {
     setActiveMode("ai");
     setMessages(aiMessages);
-    setTimeout(
-      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-      100
-    );
+    setSelectedStaff(null);
+    setStaffChatThread(null);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
   const switchToStaff = () => {
@@ -642,15 +681,12 @@ const AdviceScreen = () => {
     } else {
       setActiveMode("staff");
       setMessages(staffMessages);
-      setTimeout(
-        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-        100
-      );
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
 
-  // ========== SEND MESSAGE HANDLER ==========
   const handleSend = () => {
+    Keyboard.dismiss(); // Dismiss keyboard when sending
     if (activeMode === "ai") {
       sendAIMessage();
     } else {
@@ -658,7 +694,6 @@ const AdviceScreen = () => {
     }
   };
 
-  // ========== UI COMPONENTS ==========
   const renderMessage = ({ item, index }) => {
     const isUser = item.sender === "user";
     const isAI = item.sender === "ai";
@@ -694,19 +729,12 @@ const AdviceScreen = () => {
           </Text>
           <Text style={styles.messageTime}>
             {formatMessageTime(item.timestamp)}
-            {/* {!isUser && activeMode === "staff" && (
-              <Text style={styles.staffName}>
-                {" "}
-                - {item.staffName || selectedStaff?.displayName}
-              </Text>
-            )} */}
           </Text>
         </View>
       </Animatable.View>
     );
   };
 
-  // Staff Selection Modal (same as before)
   const StaffSelectionModal = () => (
     <Modal
       visible={showStaffSelection}
@@ -724,7 +752,6 @@ const AdviceScreen = () => {
             <Ionicons name="close" size={24} color="#666" />
           </TouchableOpacity>
         </View>
-
         <FlatList
           data={staffMembers}
           keyExtractor={(item) => item.id.toString()}
@@ -735,9 +762,9 @@ const AdviceScreen = () => {
             >
               <View style={styles.staffInfo}>
                 <Ionicons
-                  name={item.type === "health" ? "heart" : "fast-food"}
+                  name={item.type === "health" ? "heart" : "nutrition"}
                   size={24}
-                  color={item.type === "health" ? "#2e6da4" : "#2e6da4"}
+                  color={item.type === "health" ? "#FF9800" : "#007AFF"}
                 />
                 <View style={styles.staffDetails}>
                   <Text style={styles.staffName}>{item.displayName}</Text>
@@ -757,64 +784,177 @@ const AdviceScreen = () => {
     </Modal>
   );
 
-  // Loading state
+  const ChatHistoryModal = () => (
+    <Modal
+      visible={showHistoryModal}
+      animationType="slide"
+      onRequestClose={() => setShowHistoryModal(false)}
+    >
+      <SafeAreaView style={styles.historyModal}>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>AI Chat History</Text>
+          <TouchableOpacity
+            onPress={() => setShowHistoryModal(false)}
+            style={styles.closeHistoryButton}
+          >
+            <Ionicons name="close" size={28} color="#1a1a1a" />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.newChatButton}
+          onPress={startNewChat}
+          accessible
+          accessibilityLabel="Start new AI chat"
+          accessibilityRole="button"
+          accessibilityHint="Begin a new AI chat session"
+        >
+          <Text style={styles.newChatButtonText}>New AI Chat</Text>
+        </TouchableOpacity>
+        {chatHistory.length === 0 ? (
+          <Text style={styles.emptyHistoryMessage}>No AI chat history yet.</Text>
+        ) : (
+          <FlatList
+            data={currentChats}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <Animatable.View
+                animation="fadeInUp"
+                duration={300}
+                style={[
+                  styles.historyItem,
+                  selectedChatId === item.id && styles.historyItemSelected,
+                ]}
+              >
+                <Pressable
+                  style={styles.historyContent}
+                  onPress={() => loadChatHistoryMessages(item.id)}
+                  accessible
+                  accessibilityLabel={`AI Chat: ${item.question || "New Chat"}`}
+                  accessibilityRole="button"
+                  accessibilityHint="Load this AI chat session"
+                >
+                  <Text style={styles.historySender}>
+                    {item.question || "New Chat"}:
+                  </Text>
+                  <Text style={styles.historyText}>
+                    {item.messages.length > 0
+                      ? item.messages[item.messages.length - 1].text.slice(0, 50) +
+                        "..."
+                      : "No messages yet"}
+                  </Text>
+                  <Text style={styles.historyTimestamp}>
+                    {item.messages.length > 0
+                      ? formatMessageTime(item.messages[item.messages.length - 1].timestamp)
+                      : new Date(parseInt(item.id)).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                  </Text>
+                </Pressable>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => deleteChat(item.id)}
+                  accessible
+                  accessibilityLabel="Delete AI chat"
+                  accessibilityRole="button"
+                  accessibilityHint="Remove this AI chat from history"
+                >
+                  <Ionicons name="trash-outline" size={20} color="#ffffff" />
+                </TouchableOpacity>
+              </Animatable.View>
+            )}
+          />
+        )}
+        {totalPages > 1 && (
+          <View style={styles.pagination}>
+            <TouchableOpacity
+              style={[
+                styles.paginationButton,
+                currentPage === 1 && styles.paginationButtonDisabled,
+              ]}
+              onPress={goToPreviousPage}
+              disabled={currentPage === 1}
+              accessible
+              accessibilityLabel="Previous page"
+              accessibilityRole="button"
+              accessibilityHint="Go to previous AI chat history page"
+            >
+              <Ionicons name="chevron-back" size={16} color="#ffffff" />
+              <Text style={styles.paginationButtonText}>Prev</Text>
+            </TouchableOpacity>
+            <Text style={styles.paginationInfo}>
+              {currentPage}/{totalPages}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.paginationButton,
+                currentPage === totalPages && styles.paginationButtonDisabled,
+              ]}
+              onPress={goToNextPage}
+              disabled={currentPage === totalPages}
+              accessible
+              accessibilityLabel="Next page"
+              accessibilityRole="button"
+              accessibilityHint="Go to next AI chat history page"
+            >
+              <Text style={styles.paginationButtonText}>Next</Text>
+              <Ionicons name="chevron-forward" size={16} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+
   if (!isInitialized) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2e6da4" />
+          <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Initializing...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ========== MAIN RENDER ==========
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Enhanced Header with Staff Switch Button */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-
           <Text style={styles.headerTitle}>Health Advice</Text>
-
           <View style={styles.headerRight}>
-            {/* Staff Switch Button - only show when in staff mode */}
+            {activeMode === "ai" && (
+              <TouchableOpacity
+                onPress={() => setShowHistoryModal(true)}
+                style={styles.historyButton}
+                accessible
+                accessibilityLabel="View AI chat history"
+                accessibilityRole="button"
+                accessibilityHint="Open AI chat history view"
+              >
+                <Ionicons name="time-outline" size={24} color="#333" />
+              </TouchableOpacity>
+            )}
             {activeMode === "staff" && (
               <TouchableOpacity
                 onPress={() => setShowStaffSelection(true)}
                 style={styles.staffSwitchButton}
               >
-                <Ionicons name="people" size={20} color="#2e6da4" />
+                <Ionicons name="people" size={20} color="#007AFF" />
                 <Text style={styles.staffSwitchText}>Switch</Text>
               </TouchableOpacity>
             )}
-
-            {/* Connection Status */}
-            {/* <View style={styles.connectionStatus}>
-              <View
-                style={[
-                  styles.statusDot,
-                  {
-                    backgroundColor:
-                      connection &&
-                      connection.state === signalR.HubConnectionState.Connected
-                        ? "#2e6da4"
-                        : "#FF9800",
-                  },
-                ]}
-              />
-            </View> */}
           </View>
         </View>
-
-        {/* Mode Selector */}
         <View style={styles.modeSelector}>
           <TouchableOpacity
             style={[
@@ -837,7 +977,6 @@ const AdviceScreen = () => {
               AI Assistant
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.modeButton,
@@ -860,8 +999,6 @@ const AdviceScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Connection Status Banner */}
         {activeMode === "staff" && (
           <View style={styles.statusBanner}>
             <Text style={styles.statusBannerText}>
@@ -874,8 +1011,6 @@ const AdviceScreen = () => {
             </Text>
           </View>
         )}
-
-        {/* Messages */}
         <FlatList
           ref={scrollViewRef}
           data={messages}
@@ -891,18 +1026,14 @@ const AdviceScreen = () => {
             );
           }}
         />
-
-        {/* Loading Indicator */}
         {(isLoading || sendingMessage) && (
           <View style={styles.loadingIndicator}>
-            <ActivityIndicator color="#2e6da4" />
+            <ActivityIndicator color="#007AFF" />
             <Text style={styles.loadingText}>
               {activeMode === "ai" ? "AI is thinking..." : "Sending message..."}
             </Text>
           </View>
         )}
-
-        {/* Input Area */}
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.textInput}
@@ -949,35 +1080,14 @@ const AdviceScreen = () => {
             <Ionicons name="send" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-
-        {/* Staff Selection Modal */}
         <StaffSelectionModal />
+        <ChatHistoryModal />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
-// ========== STYLES (Same as before) ==========
 const styles = StyleSheet.create({
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  staffSwitchButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginRight: 12,
-    borderRadius: 12,
-    backgroundColor: "#E8F5E8",
-  },
-  staffSwitchText: {
-    marginLeft: 4,
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#2e6da4",
-  },
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -1007,13 +1117,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  connectionStatus: {
+  headerRight: {
+    flexDirection: "row",
     alignItems: "center",
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  staffSwitchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 12,
+    borderRadius: 12,
+    backgroundColor: "#E3F2FD",
+  },
+  staffSwitchText: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#007AFF",
+  },
+  historyButton: {
+    padding: 8,
   },
   modeSelector: {
     flexDirection: "row",
@@ -1036,7 +1160,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   activeModeButton: {
-    backgroundColor: "#2e6da4",
+    backgroundColor: "#007AFF",
     elevation: 3,
   },
   modeButtonText: {
@@ -1049,12 +1173,12 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   statusBanner: {
-    backgroundColor: "#E8F5E8",
+    backgroundColor: "#E3F2FD",
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
   statusBannerText: {
-    color: "#2E7D32",
+    color: "#1565C0",
     fontSize: 12,
     textAlign: "center",
     fontWeight: "500",
@@ -1088,7 +1212,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   userMessage: {
-    backgroundColor: "#2e6da4",
+    backgroundColor: "#007AFF",
   },
   aiMessage: {
     backgroundColor: "#2196F3",
@@ -1110,9 +1234,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
-  },
-  staffName: {
-    fontWeight: "500",
   },
   loadingIndicator: {
     flexDirection: "row",
@@ -1155,7 +1276,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#2e6da4",
+    backgroundColor: "#007AFF",
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
@@ -1168,7 +1289,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#ccc",
     elevation: 1,
   },
-  // Modal Styles (same as before)
   modalContainer: {
     flex: 1,
     backgroundColor: "#fff",
@@ -1221,9 +1341,207 @@ const styles = StyleSheet.create({
   },
   staffStatus: {
     fontSize: 12,
-    color: "#4CAF50",
+    color: "#007AFF",
     marginTop: 2,
     fontWeight: "500",
+  },
+  historyModal: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: height * 0.7,
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  historyTitle: {
+    fontSize: width < 360 ? 20 : width < 480 ? 22 : 24,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  closeHistoryButton: {
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
+  },
+  newChatButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    marginBottom: 12,
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  newChatButtonText: {
+    color: "#ffffff",
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: "600",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  emptyHistoryMessage: {
+    textAlign: "center",
+    color: "#888888",
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    padding: 20,
+    opacity: 0.7,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  historyItem: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  historyItemSelected: {
+    backgroundColor: "#e0e0e0",
+  },
+  historyContent: {
+    flex: 1,
+    paddingRight: 40,
+  },
+  historySender: {
+    fontSize: width < 360 ? 16 : width < 480 ? 18 : 20,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 8,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  historyText: {
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    color: "#333333",
+    marginBottom: 8,
+    lineHeight: 24,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  historyTimestamp: {
+    fontSize: width < 360 ? 12 : width < 480 ? 14 : 16,
+    color: "#999999",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#ff3b30",
+    borderRadius: 16,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  pagination: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 8,
+  },
+  paginationButton: {
+    backgroundColor: "#ff3b30",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  paginationButtonDisabled: {
+    backgroundColor: "#d1d5db",
+    opacity: 0.6,
+    shadowOpacity: 0,
+  },
+  paginationButtonText: {
+    color: "#ffffff",
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
+  },
+  paginationInfo: {
+    fontSize: width < 360 ? 14 : width < 480 ? 16 : 18,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    backgroundColor: "#ffffff",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
 });
 
