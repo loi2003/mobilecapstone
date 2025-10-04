@@ -129,8 +129,7 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // DECODE JWT TOKEN TO GET USER ID
-      console.log("Decoding JWT token to extract userId...");
+      // Decode JWT token to get user ID and role
       const decodedToken = decodeJWT(token);
 
       if (!decodedToken) {
@@ -154,6 +153,22 @@ const LoginScreen = ({ navigation }) => {
           "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
         ],
       });
+
+      // Extract role from token
+      const role =
+        decodedToken[
+          "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+        ];
+
+      // Restrict login to User role (roleId 2) only
+      if (role !== "User") {
+        Alert.alert(
+          "Access Denied",
+          "Only users with the 'User' role are allowed to log in on this mobile app."
+        );
+        setIsLoading(false);
+        return;
+      }
 
       // Extract userId from decoded token
       const userId = decodedToken.id;
@@ -179,10 +194,12 @@ const LoginScreen = ({ navigation }) => {
       console.log("Storing auth data...");
       await AsyncStorage.setItem("userId", userId);
       await AsyncStorage.setItem("authToken", token);
+      await AsyncStorage.setItem("userRole", "2"); // Store roleId as 2 for User
 
       // Verify storage
       const storedUserId = await AsyncStorage.getItem("userId");
       const storedToken = await AsyncStorage.getItem("authToken");
+      const storedRole = await AsyncStorage.getItem("userRole");
 
       console.log("Verification - Stored data:", {
         userId: storedUserId
@@ -190,6 +207,9 @@ const LoginScreen = ({ navigation }) => {
           : "Failed to store",
         token: storedToken
           ? `Stored (${storedToken.substring(0, 20)}...)`
+          : "Failed to store",
+        role: storedRole
+          ? `Stored (${storedRole})`
           : "Failed to store",
       });
 
