@@ -16,12 +16,10 @@ import {
   SafeAreaView,
   Animated,
   TouchableWithoutFeedback,
-  Keyboard,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
-import * as Animatable from "react-native-animatable";
-import { Ionicons } from "@expo/vector-icons";
+import Icon from "react-native-vector-icons/FontAwesome";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as signalR from "@microsoft/signalr";
 import * as ImagePicker from "expo-image-picker";
@@ -59,7 +57,9 @@ const ConsultationChat = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [consultants, setConsultants] = useState([]);
   const [chatThreads, setChatThreads] = useState({});
-  const [selectedConsultant, setSelectedConsultant] = useState(preSelectedConsultant || null);
+  const [selectedConsultant, setSelectedConsultant] = useState(
+    preSelectedConsultant || null
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -68,12 +68,14 @@ const ConsultationChat = () => {
   const [filePreview, setFilePreview] = useState(null);
   const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
+  // Add the ref for tracking processed messages
+  const processedMessageIds = useRef(new Set());
+
   // Animation for sidebar
   useEffect(() => {
-    Animated.spring(sidebarAnim, {
+    Animated.timing(sidebarAnim, {
       toValue: isSidebarOpen ? 0 : -width * 0.8,
-      stiffness: 120,
-      damping: 15,
+      duration: 300,
       useNativeDriver: true,
     }).start();
   }, [isSidebarOpen]);
@@ -99,13 +101,25 @@ const ConsultationChat = () => {
   const getFileIcon = (fileName, fileType) => {
     const name = (fileName || "").toLowerCase();
     const type = (fileType || "").toLowerCase();
-    if (type.includes("pdf") || name.endsWith(".pdf")) return "file-pdf";
-    if (type.includes("word") || name.endsWith(".doc") || name.endsWith(".docx"))
-      return "file-document";
-    if (type.includes("excel") || name.endsWith(".xls") || name.endsWith(".xlsx"))
-      return "file-spreadsheet";
-    if (type.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".log"))
-      return "file-text";
+    if (type.includes("pdf") || name.endsWith(".pdf")) return "file-pdf-o";
+    if (
+      type.includes("word") ||
+      name.endsWith(".doc") ||
+      name.endsWith(".docx")
+    )
+      return "file-word-o";
+    if (
+      type.includes("excel") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".xlsx")
+    )
+      return "file-excel-o";
+    if (
+      type.startsWith("text/") ||
+      name.endsWith(".txt") ||
+      name.endsWith(".log")
+    )
+      return "file-text-o";
     return "file";
   };
 
@@ -129,7 +143,8 @@ const ConsultationChat = () => {
           return;
         }
         const userRes = await getCurrentUser(token);
-        userId = userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || "";
+        userId =
+          userRes?.data?.data?.id || userRes?.data?.id || userRes?.id || "";
         if (!userId) {
           await AsyncStorage.removeItem("authToken");
           navigation.navigate("SignIn", {
@@ -158,10 +173,128 @@ const ConsultationChat = () => {
     if (preSelectedConsultant && !loading) {
       const consultantId = preSelectedConsultant.user?.id;
       if (consultantId && !chatThreads[consultantId]) {
+        setChatThreads((prevThreads) => ({
+          ...prevThreads,
+          [consultantId]: {
+            thread: createdThread?.data || createdThread || null,
+            messages: [],
+            consultant: preSelectedConsultant,
+          },
+        }));
+        setSelectedConsultant(preSelectedConsultant);
         loadExistingThreads(currentUserId);
       }
     }
-  }, [preSelectedConsultant, loading]);
+  }, [preSelectedConsultant, loading, chatThreads]);
+
+  // Handle incoming real-time messages - MOVED BEFORE conditional returns
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const latest = messages[messages.length - 1];
+    console.log(
+      "Processing incoming message in Mobile ConsultationChat:",
+      latest
+    );
+
+    // Enhanced duplicate check
+    if (!latest.id || processedMessageIds.current.has(latest.id)) {
+      console.log("Message already processed, skipping:", latest.id);
+      return;
+    }
+
+    // Check if this is our own message that we just sent
+    if (latest.senderId === currentUserId) {
+      console.log("Skipping own message from real-time update");
+      processedMessageIds.current.add(latest.id);
+      return;
+    }
+
+    // Mark message as processed immediately
+    processedMessageIds.current.add(latest.id);
+
+    if (selectedConsultant?.user?.id) {
+      const consultantId = selectedConsultant.user.id;
+
+      setChatThreads((prev) => {
+        const existingMessages = prev[consultantId]?.messages || [];
+
+        // Check if message already exists by ID
+        const messageExists = existingMessages.some((m) => m.id === latest.id);
+        if (messageExists) {
+          console.log("Message already exists in thread, skipping:", latest.id);
+          return prev;
+        }
+
+        console.log(
+          "Adding new message to thread for consultant:",
+          consultantId
+        );
+
+        // Process the message for attachments
+        const processedMessage = {
+          ...latest,
+          messageText: latest.messageText?.trim(),
+        };
+
+        // Only process media if no attachment object exists
+        if (
+          !processedMessage.attachment &&
+          latest.media &&
+          Array.isArray(latest.media) &&
+          latest.media.length > 0
+        ) {
+          const firstMedia = latest.media[0];
+          processedMessage.attachment = {
+            fileName: firstMedia.fileName || "Attachment",
+            fileSize: firstMedia.fileSize,
+            fileType: firstMedia.fileType,
+            isImage: isImageFile(firstMedia.fileName || ""),
+            url: firstMedia.fileUrl || firstMedia.url,
+          };
+        }
+
+        return {
+          ...prev,
+          [consultantId]: {
+            ...prev[consultantId],
+            messages: [...existingMessages, processedMessage],
+          },
+        };
+      });
+
+      // Scroll to bottom after adding new message
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [messages, selectedConsultant?.user?.id, currentUserId]);
+
+  // Cleanup for processed message IDs
+  useEffect(() => {
+    const cleanup = setInterval(() => {
+      if (processedMessageIds.current.size > 1000) {
+        console.log("Cleaning up processed message IDs");
+        processedMessageIds.current.clear();
+      }
+    }, 5 * 60 * 1000); // Clean up every 5 minutes
+
+    return () => clearInterval(cleanup);
+  }, []);
+
+  // Get activeThread before using it in the next useEffect
+  const activeThread =
+    selectedConsultant && chatThreads[selectedConsultant.user.id]
+      ? chatThreads[selectedConsultant.user.id].thread
+      : null;
+
+  // Join the SignalR thread when a thread is selected
+  useEffect(() => {
+    if (connection && activeThread?.id) {
+      connection
+        .invoke("JoinThread", activeThread.id)
+        .then(() => console.log("Successfully joined thread:", activeThread.id))
+        .catch((err) => console.error("JoinThread failed:", err));
+    }
+  }, [connection, activeThread]);
 
   const loadExistingThreads = async (userId) => {
     try {
@@ -182,36 +315,58 @@ const ConsultationChat = () => {
           const consultantId = thread.consultantId;
           if (!consultantId) continue;
           try {
-            const consultantRes = await viewConsultantByUserId(consultantId, token);
+            const consultantRes = await viewConsultantByUserId(
+              consultantId,
+              token
+            );
             const consultantData = consultantRes?.data || null;
-            const processedMessages = thread.messages?.map((msg) => {
-              if (msg.attachmentUrl || msg.attachmentPath || msg.attachment) {
-                return {
-                  ...msg,
-                  attachment: {
-                    fileName: msg.attachmentFileName || msg.fileName || "Attachment",
-                    fileSize: msg.attachmentFileSize || msg.fileSize,
-                    fileType: msg.attachmentFileType || msg.fileType,
-                    isImage: isImageFile(msg.attachmentFileName || msg.fileName),
-                    url: msg.attachmentUrl || msg.attachmentPath || msg.attachment?.url,
-                  },
-                };
+            const processedMessages =
+              thread.messages?.map((msg) => {
+                if (msg.attachmentUrl || msg.attachmentPath || msg.attachment) {
+                  return {
+                    ...msg,
+                    attachment: {
+                      fileName:
+                        msg.attachmentFileName || msg.fileName || "Attachment",
+                      fileSize: msg.attachmentFileSize || msg.fileSize,
+                      fileType: msg.attachmentFileType || msg.fileType,
+                      isImage: isImageFile(
+                        msg.attachmentFileName || msg.fileName
+                      ),
+                      url:
+                        msg.attachmentUrl ||
+                        msg.attachmentPath ||
+                        msg.attachment?.url,
+                    },
+                  };
+                }
+                if (
+                  msg.media &&
+                  Array.isArray(msg.media) &&
+                  msg.media.length > 0
+                ) {
+                  const firstMedia = msg.media[0];
+                  return {
+                    ...msg,
+                    attachment: {
+                      fileName: firstMedia.fileName || "Attachment",
+                      fileSize: firstMedia.fileSize,
+                      fileType: firstMedia.fileType,
+                      isImage: isImageFile(firstMedia.fileName || ""),
+                      url: firstMedia.fileUrl || firstMedia.url,
+                    },
+                  };
+                }
+                return msg;
+              }) || [];
+
+            // Mark all existing messages as processed to prevent duplicates
+            processedMessages.forEach((msg) => {
+              if (msg.id) {
+                processedMessageIds.current.add(msg.id);
               }
-              if (msg.media && Array.isArray(msg.media) && msg.media.length > 0) {
-                const firstMedia = msg.media[0];
-                return {
-                  ...msg,
-                  attachment: {
-                    fileName: firstMedia.fileName || "Attachment",
-                    fileSize: firstMedia.fileSize,
-                    fileType: firstMedia.fileType,
-                    isImage: isImageFile(firstMedia.fileName || ""),
-                    url: firstMedia.fileUrl || firstMedia.url,
-                  },
-                };
-              }
-              return msg;
-            }) || [];
+            });
+
             threadsMap[consultantId] = {
               thread,
               messages: processedMessages,
@@ -333,7 +488,8 @@ const ConsultationChat = () => {
 
   const handleFileSelect = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         alert("Sorry, we need media library permissions to make this work!");
         return;
@@ -341,7 +497,7 @@ const ConsultationChat = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
+        quality: 1,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selected = result.assets[0];
@@ -359,6 +515,8 @@ const ConsultationChat = () => {
           size: selected.fileSize || 0,
         });
         setFilePreview(selected.uri);
+      } else {
+        console.log("Image picker cancelled");
       }
     } catch (err) {
       console.error("Image picker error:", err);
@@ -387,6 +545,7 @@ const ConsultationChat = () => {
       return;
     }
     const consultantId = selectedConsultant?.user?.id;
+
     const activeThread =
       consultantId && chatThreads[consultantId]
         ? chatThreads[consultantId].thread
@@ -397,17 +556,15 @@ const ConsultationChat = () => {
       sendingMessage
     )
       return;
-
-    // Dismiss keyboard immediately to ensure responsiveness
-    Keyboard.dismiss();
-
     try {
       setSendingMessage(true);
       const token = await AsyncStorage.getItem("authToken");
+
       const formData = new FormData();
       formData.append("ChatThreadId", activeThread.id);
       formData.append("SenderId", currentUserId);
       formData.append("MessageText", newMessage.trim());
+
       if (selectedFile) {
         formData.append("Attachments", {
           uri: selectedFile.uri,
@@ -415,6 +572,7 @@ const ConsultationChat = () => {
           type: selectedFile.type,
         });
       }
+
       const response = await fetch(
         "https://api.nestlycare.live/api/message/send-message",
         {
@@ -425,7 +583,13 @@ const ConsultationChat = () => {
           body: formData,
         }
       );
+
       const responseData = await response.json();
+
+      console.log("=== Fetch Response Debug ===");
+      console.log("Status:", response.status);
+      console.log("Response:", responseData);
+
       if (response.ok && responseData.error === 0) {
         const messageData = responseData.data;
         const newMessageObj = {
@@ -436,21 +600,26 @@ const ConsultationChat = () => {
           isRead: false,
           media: messageData.media || [],
         };
+
         setChatThreads((prevThreads) => ({
           ...prevThreads,
           [consultantId]: {
             ...prevThreads[consultantId],
-            messages: [...(prevThreads[consultantId]?.messages || []), newMessageObj],
+            messages: [
+              ...(prevThreads[consultantId]?.messages || []),
+              newMessageObj,
+            ],
           },
         }));
+
         setNewMessage("");
-        setSelectedFile(null);
-        setFilePreview(null);
-        // Delay scroll to ensure UI updates are complete
+        clearSelectedFile();
         setTimeout(() => scrollToBottom(), 100);
       } else {
         console.error("API Error:", responseData);
-        alert(`Failed to send message: ${responseData.message || "Unknown error"}`);
+        alert(
+          `Failed to send message: ${responseData.message || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("Network Error:", error);
@@ -495,11 +664,22 @@ const ConsultationChat = () => {
   const renderMessage = (msg, idx) => {
     const isSent = msg.senderId === currentUserId;
     const hasAttachment = msg.attachment;
+
+    // Format the attachment URL properly
+    const getImageUri = (url) => {
+      if (!url) return null;
+      // If URL doesn't start with http/https, prepend your API base URL
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        return `https://api.nestlycare.live${
+          url.startsWith("/") ? url : "/" + url
+        }`;
+      }
+      return url;
+    };
+
     return (
-      <Animatable.View
+      <View
         key={idx}
-        animation="fadeInUp"
-        duration={300}
         style={[
           styles.message,
           isSent ? styles.sentMessage : styles.receivedMessage,
@@ -523,21 +703,35 @@ const ConsultationChat = () => {
           )}
           {hasAttachment &&
             (hasAttachment.isImage ? (
-              <TouchableOpacity onPress={() => {}}>
+              <TouchableOpacity
+                onPress={() => {
+                  /* Open full screen */
+                }}
+              >
                 <Image
-                  source={{ uri: hasAttachment.url }}
+                  source={{ uri: getImageUri(hasAttachment.url) }}
                   style={styles.attachmentImage}
-                  accessibilityLabel={`Image attachment: ${hasAttachment.fileName}`}
+                  resizeMode="cover"
+                  accessibilityLabel={`Image attachment ${hasAttachment.fileName}`}
+                  onError={(error) => {
+                    console.error("Image load error:", error.nativeEvent.error);
+                    console.log("Failed URL:", getImageUri(hasAttachment.url));
+                  }}
                 />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.attachmentDocument}>
-                <Ionicons
-                  name={getFileIcon(hasAttachment.fileName, hasAttachment.fileType)}
+                <Icon
+                  name={getFileIcon(
+                    hasAttachment.fileName,
+                    hasAttachment.fileType
+                  )}
                   size={20}
                   color={isSent ? "#fff" : "#1e293b"}
                 />
-                <Text style={styles.attachmentName}>{hasAttachment.fileName}</Text>
+                <Text style={styles.attachmentName}>
+                  {hasAttachment.fileName}
+                </Text>
                 <Text style={styles.attachmentSize}>
                   {formatBytes(hasAttachment.fileSize)}
                 </Text>
@@ -554,7 +748,7 @@ const ConsultationChat = () => {
             )}
           </Text>
         </View>
-      </Animatable.View>
+      </View>
     );
   };
 
@@ -584,10 +778,6 @@ const ConsultationChat = () => {
     );
   }
 
-  const activeThread =
-    selectedConsultant && chatThreads[selectedConsultant.user.id]
-      ? chatThreads[selectedConsultant.user.id].thread
-      : null;
   const activeMessages =
     selectedConsultant && chatThreads[selectedConsultant.user.id]
       ? chatThreads[selectedConsultant.user.id].messages
@@ -597,10 +787,11 @@ const ConsultationChat = () => {
       ? chatThreads[selectedConsultant.user.id].consultant
       : null;
 
+  // Loading screen comes AFTER all hooks
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Loading Consultation...</Text>
       </SafeAreaView>
     );
@@ -611,17 +802,12 @@ const ConsultationChat = () => {
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
       >
         <View style={styles.content}>
           {/* Consultant Header */}
           {selectedConsultant ? (
-            <LinearGradient
-              colors={["#3B82F6", "#60A5FA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.consultantHeader}
-            >
+            <View style={styles.consultantHeader}>
               <View style={styles.headerButtonContainer}>
                 <TouchableOpacity
                   style={styles.headerButton}
@@ -632,14 +818,14 @@ const ConsultationChat = () => {
                   }
                   accessibilityLabel="Go back to clinic details"
                 >
-                  <Ionicons name="arrow-back" size={24} color="#fff" />
+                  <Icon name="arrow-left" size={24} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.headerButton}
                   onPress={() => setIsSidebarOpen(true)}
                   accessibilityLabel="Open consultant list"
                 >
-                  <Ionicons name="menu" size={24} color="#fff" />
+                  <Icon name="bars" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
               <View style={styles.consultantDetails}>
@@ -660,7 +846,7 @@ const ConsultationChat = () => {
                     {consultantProfile?.specialization}
                   </Text>
                   <View style={styles.clinicInfo}>
-                    <Ionicons name="business" size={14} color="#fff" />
+                    <Icon name="hospital-o" size={14} color="#fff" />
                     <Text style={styles.clinicName}>
                       {consultantProfile?.clinic?.user?.userName ||
                         consultantProfile?.clinic?.name}
@@ -683,10 +869,10 @@ const ConsultationChat = () => {
                   </Text>
                 </TouchableOpacity>
               )}
-            </LinearGradient>
+            </View>
           ) : (
             <View style={styles.noSelection}>
-              <Ionicons name="person" size={60} color="#6B7280" />
+              <Icon name="user" size={60} color="#8E8E93" />
               <Text style={styles.noSelectionTitle}>Select a Consultant</Text>
               <Text style={styles.noSelectionText}>
                 Choose a consultant to start a conversation
@@ -714,7 +900,7 @@ const ConsultationChat = () => {
               >
                 {activeMessages.length === 0 ? (
                   <View style={styles.emptyMessages}>
-                    <Ionicons name="chatbubbles" size={50} color="#6B7280" />
+                    <Icon name="comments" size={50} color="#8E8E93" />
                     <Text style={styles.emptyMessagesTitle}>
                       No Messages Yet
                     </Text>
@@ -730,7 +916,7 @@ const ConsultationChat = () => {
               <View style={styles.inputArea}>
                 <View style={styles.inputContainer}>
                   {selectedFile && (
-                    <Animatable.View animation="fadeIn" style={styles.filePreview}>
+                    <View style={styles.filePreview}>
                       {filePreview ? (
                         <Image
                           source={{ uri: filePreview }}
@@ -738,7 +924,7 @@ const ConsultationChat = () => {
                         />
                       ) : (
                         <View style={styles.filePreviewDocument}>
-                          <Ionicons name="file" size={16} color="#3B82F6" />
+                          <Icon name="file" size={16} color="#007AFF" />
                           <Text style={styles.filePreviewText}>
                             {selectedFile.name}
                           </Text>
@@ -749,18 +935,17 @@ const ConsultationChat = () => {
                         onPress={clearSelectedFile}
                         accessibilityLabel="Remove attachment"
                       >
-                        <Ionicons name="close" size={16} color="#fff" />
+                        <Icon name="times" size={16} color="#fff" />
                       </TouchableOpacity>
-                    </Animatable.View>
+                    </View>
                   )}
                   <View style={styles.inputRow}>
                     <TouchableOpacity
                       style={styles.attachmentButton}
                       onPress={handleFileSelect}
                       accessibilityLabel="Attach image"
-                      activeOpacity={0.7}
                     >
-                      <Ionicons name="attach" size={24} color="#3B82F6" />
+                      <Icon name="paperclip" size={24} color="#007AFF" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.input}
@@ -768,7 +953,7 @@ const ConsultationChat = () => {
                       value={newMessage}
                       onChangeText={setNewMessage}
                       multiline
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor="#8E8E93"
                       accessibilityLabel="Message input"
                     />
                     <TouchableOpacity
@@ -783,9 +968,8 @@ const ConsultationChat = () => {
                         (!newMessage.trim() && !selectedFile) || sendingMessage
                       }
                       accessibilityLabel="Send message"
-                      activeOpacity={0.7}
                     >
-                      <Ionicons name="send" size={24} color="#fff" />
+                      <MaterialIcons name="send" size={24} color="#fff" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -793,7 +977,7 @@ const ConsultationChat = () => {
             </>
           ) : selectedConsultant && !activeThread ? (
             <View style={styles.noThread}>
-              <Ionicons name="chatbox" size={60} color="#6B7280" />
+              <Icon name="chat" size={60} color="#8E8E93" />
               <Text style={styles.noThreadTitle}>No Active Chat</Text>
               <Text style={styles.noThreadText}>
                 Start a consultation to message this consultant.
@@ -817,26 +1001,21 @@ const ConsultationChat = () => {
                   ]}
                 >
                   <SafeAreaView style={styles.sidebarContainer}>
-                    <LinearGradient
-                      colors={["#3B82F6", "#60A5FA"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.sidebarHeader}
-                    >
+                    <View style={styles.sidebarHeader}>
                       <Text style={styles.sidebarHeaderText}>Consultants</Text>
                       <TouchableOpacity
                         onPress={() => setIsSidebarOpen(false)}
                         accessibilityLabel="Close consultant list"
                       >
-                        <Ionicons name="close" size={24} color="#fff" />
+                        <Icon name="times" size={24} color="#fff" />
                       </TouchableOpacity>
-                    </LinearGradient>
+                    </View>
                     <View style={styles.searchSection}>
                       <View style={styles.searchBar}>
-                        <Ionicons
+                        <Icon
                           name="search"
                           size={16}
-                          color="#9CA3AF"
+                          color="#8E8E93"
                           style={styles.searchIcon}
                         />
                         <TextInput
@@ -844,7 +1023,7 @@ const ConsultationChat = () => {
                           placeholder="Search consultants..."
                           value={searchTerm}
                           onChangeText={setSearchTerm}
-                          placeholderTextColor="#9CA3AF"
+                          placeholderTextColor="#8E8E93"
                           accessibilityLabel="Search consultants"
                         />
                       </View>
@@ -882,10 +1061,10 @@ const ConsultationChat = () => {
                                 {profile?.specialization}
                               </Text>
                               <View style={styles.consultantClinic}>
-                                <Ionicons
-                                  name="business"
+                                <Icon
+                                  name="hospital-o"
                                   size={12}
-                                  color="#3B82F6"
+                                  color="#007AFF"
                                 />
                                 <Text style={styles.consultantClinicName}>
                                   {profile?.clinic?.user?.userName ||
@@ -894,10 +1073,10 @@ const ConsultationChat = () => {
                               </View>
                               {thread?.thread?.updatedAt && (
                                 <View style={styles.lastActivity}>
-                                  <Ionicons
-                                    name="time"
+                                  <Icon
+                                    name="clock-o"
                                     size={12}
-                                    color="#9CA3AF"
+                                    color="#8E8E93"
                                   />
                                   <Text style={styles.lastActivityText}>
                                     {new Date(
@@ -918,7 +1097,7 @@ const ConsultationChat = () => {
                       }}
                       ListEmptyComponent={
                         <View style={styles.emptyThreadList}>
-                          <Ionicons name="chatbubbles" size={50} color="#6B7280" />
+                          <Icon name="comments" size={50} color="#8E8E93" />
                           <Text style={styles.emptyThreadListTitle}>
                             No Conversations
                           </Text>
@@ -933,7 +1112,7 @@ const ConsultationChat = () => {
                         filteredConsultants.length > 0 ? (
                           <View style={styles.listFooter}>
                             <Text style={styles.listFooterText}>
-                              No more consultant chats
+                              No more consultant chats here
                             </Text>
                           </View>
                         ) : null
@@ -954,7 +1133,7 @@ const ConsultationChat = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#F2F2F7",
   },
   keyboardContainer: {
     flex: 1,
@@ -963,27 +1142,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   consultantHeader: {
+    backgroundColor: "#007AFF",
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 16,
-    margin: 12,
+    borderRadius: 12,
+    margin: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerButtonContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   headerButton: {
-    padding: 12,
-    marginRight: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 12,
+    padding: 10,
+    marginRight: 10,
   },
   consultantDetails: {
     flexDirection: "row",
@@ -992,26 +1170,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   consultantAvatarLarge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderColor: "rgba(255, 255, 255, 0.8)",
   },
   consultantMeta: {
     flex: 1,
   },
   consultantName: {
     color: "#fff",
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    fontSize: 18,
+    fontWeight: "600",
   },
   consultantSpecialization: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 14,
     opacity: 0.9,
-    marginVertical: 4,
   },
   clinicInfo: {
     flexDirection: "row",
@@ -1021,37 +1197,32 @@ const styles = StyleSheet.create({
   },
   clinicName: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
   },
   startButton: {
     backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    minWidth: 120,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    minWidth: 100,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   startButtonText: {
-    color: "#3B82F6",
-    fontSize: 16,
+    color: "#007AFF",
+    fontSize: 15,
     fontWeight: "600",
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   messages: {
     flex: 1,
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#F2F2F7",
   },
   messagesContent: {
     padding: 16,
-    paddingBottom: 140,
+    paddingBottom: 120,
   },
   message: {
     marginBottom: 12,
@@ -1064,35 +1235,35 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   messageContent: {
-    maxWidth: "75%",
+    maxWidth: "80%",
     padding: 12,
-    borderRadius: 20,
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sentMessageContent: {
-    backgroundColor: "#3B82F6",
-    borderBottomRightRadius: 8,
+    backgroundColor: "#007AFF",
+    borderBottomRightRadius: 4,
   },
   receivedMessageContent: {
     backgroundColor: "#FFFFFF",
-    borderBottomLeftRadius: 8,
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E5E5EA",
   },
   messageText: {
     fontSize: 16,
     lineHeight: 22,
-    color: "#1F2937",
+    color: "#000",
   },
   sentMessageText: {
     color: "#fff",
   },
   receivedMessageText: {
-    color: "#1F2937",
+    color: "#000",
   },
   messageTime: {
     fontSize: 12,
@@ -1104,13 +1275,13 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   receivedMessageTime: {
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "left",
   },
   attachmentImage: {
-    width: 220,
-    height: 165,
-    borderRadius: 12,
+    width: 200,
+    height: 150,
+    borderRadius: 10,
     marginTop: 8,
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.1)",
@@ -1119,9 +1290,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    borderRadius: 12,
+    padding: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 10,
     marginTop: 8,
   },
   attachmentName: {
@@ -1135,35 +1306,28 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   inputArea: {
+    padding: 12,
     backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: "#E5E5EA",
   },
   inputContainer: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F2F2F7",
     borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    padding: 8,
   },
   filePreview: {
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 8,
     marginBottom: 8,
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
   filePreviewImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 10,
+    width: 50,
+    height: 50,
+    borderRadius: 8,
   },
   filePreviewDocument: {
     flexDirection: "row",
@@ -1173,13 +1337,13 @@ const styles = StyleSheet.create({
   },
   filePreviewText: {
     fontSize: 14,
-    color: "#1F2937",
+    color: "#000",
   },
   filePreviewRemove: {
     position: "absolute",
     top: -8,
     right: -8,
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FF3B30",
     borderRadius: 12,
     width: 24,
     height: 24,
@@ -1192,12 +1356,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachmentButton: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 24,
-    backgroundColor: "#fff",
   },
   input: {
     flex: 1,
@@ -1206,22 +1368,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#fff",
     maxHeight: 120,
-    color: "#1F2937",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    color: "#000",
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#3B82F6",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#007AFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   noSelection: {
     flex: 1,
@@ -1230,27 +1385,22 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   noSelectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1F2937",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000",
     marginVertical: 12,
   },
   noSelectionText: {
     fontSize: 16,
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "center",
     marginBottom: 16,
   },
   selectConsultantButton: {
-    backgroundColor: "#3B82F6",
-    paddingVertical: 14,
+    backgroundColor: "#007AFF",
+    paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 10,
   },
   selectConsultantButtonText: {
     color: "#fff",
@@ -1264,14 +1414,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   noThreadTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1F2937",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000",
     marginVertical: 12,
   },
   noThreadText: {
     fontSize: 16,
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "center",
   },
   modalOverlay: {
@@ -1282,41 +1432,35 @@ const styles = StyleSheet.create({
     width: width * 0.8,
     height: "100%",
     backgroundColor: "#fff",
-    borderTopRightRadius: 20,
-    borderBottomRightRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 5,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
   sidebarContainer: {
     flex: 1,
   },
   sidebarHeader: {
+    backgroundColor: "#007AFF",
     padding: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderTopRightRadius: 20,
+    borderTopRightRadius: 16,
   },
   sidebarHeaderText: {
     color: "#fff",
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
   },
   searchSection: {
-    padding: 16,
+    padding: 12,
     backgroundColor: "#fff",
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
+    backgroundColor: "#F2F2F7",
+    borderRadius: 10,
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
   searchIcon: {
     marginRight: 8,
@@ -1324,68 +1468,66 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    paddingVertical: 12,
-    color: "#1F2937",
+    paddingVertical: 10,
+    color: "#000",
   },
   consultantItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: "#E5E5EA",
   },
   activeConsultantItem: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F2F2F7",
   },
   consultantAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
   consultantInfo: {
     flex: 1,
   },
   consultantInfoName: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#1F2937",
+    color: "#000",
   },
   consultantSpecialization: {
     fontSize: 14,
-    color: "#6B7280",
-    marginVertical: 4,
+    color: "#8E8E93",
+    marginVertical: 2,
   },
   consultantClinic: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 4,
+    marginTop: 2,
   },
   consultantClinicName: {
     fontSize: 13,
-    color: "#3B82F6",
+    color: "#007AFF",
   },
   lastActivity: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
     marginTop: 4,
   },
   lastActivityText: {
     fontSize: 12,
-    color: "#6B7280",
+    color: "#8E8E93",
   },
   statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#EF4444",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF3B30",
   },
   activeStatusIndicator: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#34C759",
   },
   emptyThreadList: {
     flex: 1,
@@ -1395,13 +1537,13 @@ const styles = StyleSheet.create({
   },
   emptyThreadListTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#1F2937",
+    fontWeight: "600",
+    color: "#000",
     marginVertical: 12,
   },
   emptyThreadListText: {
     fontSize: 16,
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "center",
     maxWidth: 300,
   },
@@ -1409,13 +1551,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#F2F2F7",
   },
   loadingText: {
     fontSize: 16,
-    color: "#3B82F6",
+    color: "#007AFF",
     marginTop: 8,
-    fontWeight: "600",
   },
   flatListContent: {
     paddingBottom: 20,
@@ -1426,7 +1567,7 @@ const styles = StyleSheet.create({
   },
   listFooterText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "center",
   },
 });
